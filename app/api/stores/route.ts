@@ -5,6 +5,7 @@ import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { storeInputSchema } from "@/lib/store-validation";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
 import { storeContractSelect, validateStoreContract } from "@/lib/store-contract";
+import { writeOperationLog } from "@/lib/operation-log";
 
 export async function GET(request: Request) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
     include: { brand: true, contract: { select: storeContractSelect } },
     orderBy: { createdAt: "desc" }, take: 500,
   });
+  await writeOperationLog({ userId: session.userId, username: session.username, page: "门店列表", action: "筛选", result: "成功", detail: keyword || status || brandId || cooperationType || city || startDate || endDate ? `关键字：${keyword || "全部"}；状态：${status || "全部"}；城市：${city || "全部"}` : "加载全部门店", request }).catch(() => undefined);
   return NextResponse.json(rows);
 }
 
@@ -61,5 +63,6 @@ export async function POST(request: Request) {
     data: { ...result.data, recordNo: `MD${new Date().getFullYear()}${String(number + 1).padStart(6, "0")}` },
     include: { brand: true, contract: { select: storeContractSelect } },
   });
+  await writeOperationLog({ userId: session.userId, username: session.username, page: "门店列表", action: "新增", result: "成功", detail: `新增门店：${store.recordNo}（${store.name}）`, request }).catch(() => undefined);
   return NextResponse.json(store, { status: 201 });
 }

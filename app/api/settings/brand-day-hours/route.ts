@@ -5,6 +5,7 @@ import { addBrandDayHour, BrandDayHourConfigError, getBrandDayHourEntries } from
 import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
 import { DictionaryConfigError } from "@/lib/dictionary-config";
 import { db } from "@/lib/db";
+import { writeOperationLog } from "@/lib/operation-log";
 
 const inputSchema = z.object({
   brand: z.string().trim().min(1, "请选择品牌"),
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
     const brandOptions = await getBusinessDictionaryOptions("BRAND");
     if (!brandOptions.some(option => option.value === parsed.data.brand)) return NextResponse.json({ message: "所选品牌不在已启用的BRAND数据字典中" }, { status: 400 });
     const saved = await addBrandDayHour(parsed.data.brand, parsed.data.workdayHours);
-    await db.operationLog.create({ data: { userId: session.userId, page: "系统参数", action: "新增品牌工作日小时", result: "成功", detail: `${saved.brand}：${saved.workdayHours}小时/日` } }).catch(() => undefined);
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "修改参数", result: "成功", detail: `新增品牌工作日小时；${saved.brand}：${saved.workdayHours}小时/日`, request }).catch(() => undefined);
     return NextResponse.json(saved, { status: 201 });
   } catch (error) {
     const known = error instanceof BrandDayHourConfigError || error instanceof DictionaryConfigError;

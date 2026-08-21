@@ -1,9 +1,10 @@
 import bcrypt from "bcryptjs";
-import { RecordStatus, UserType } from "@prisma/client";
+import { Prisma, RecordStatus, UserType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { writeOperationLog } from "@/lib/operation-log";
 import { normalizeUserTags } from "@/lib/user-tags";
 
 const phone = z.string().trim().regex(/^1\d{10}$/, "请输入11位手机号码").optional().or(z.literal(""));
@@ -12,14 +13,27 @@ const userSchema = z.object({
   realName: z.string().trim().min(1, "请输入真实姓名").max(30, "真实姓名不能超过30个字符"),
   phone,
   tags: z.string().trim().max(200, "用户标签不能超过200个字符").optional().or(z.literal("")),
+  leadH5BrandIds: z.array(z.string().min(1)).nullable().optional(),
+  leadH5StoreIds: z.array(z.string().min(1)).nullable().optional(),
   roleId: z.string().min(1, "请选择角色"),
   status: z.nativeEnum(RecordStatus).default(RecordStatus.ENABLED),
   password: z.string().min(8, "密码至少需要8位"),
 });
-const publicUser = { id: true, username: true, realName: true, phone: true, tags: true, type: true, status: true, roleId: true, createdByUserId: true, createdBy: { select: { username: true, realName: true } }, lastLoginAt: true, createdAt: true, updatedAt: true, role: { select: { id: true, name: true, code: true, status: true } } } as const;
-const duplicateMessage = (error: unknown, fallback: string) => (error as { code?: string }).code === "P2002" ? "账号已存在，请重新输入" : fallback;
+const publicUser = { id: true, username: true, realName: true, phone: true, tags: true, leadH5BrandIds: true, leadH5StoreIds: true, type: true, status: true, roleId: true, createdByUserId: true, createdBy: { select: { username: true, realName: true } }, lastLoginAt: true, createdAt: true, updatedAt: true, role: { select: { id: true, name: true, code: true, status: true } } } as const;
+const duplicateMessage = (error: unknown, fallback: string) => (error as { code?: string }).code === "P2002" ? "账号已存在，请重新输入" : error instanceof Error && error.message.startsWith("运营H5") ? error.message : fallback;
 
 async function enabledRole(roleId: string) { return db.role.findFirst({ where: { id: roleId, status: RecordStatus.ENABLED }, select: { id: true, code: true, name: true } }); }
+async function validateDataScope(brandIds: string[] | null | undefined, storeIds: string[] | null | undefined) {
+  const uniqueBrands = brandIds?.length ? [...new Set(brandIds)] : null;
+  const uniqueStores = storeIds?.length ? [...new Set(storeIds)] : null;
+  const [brands, stores] = await Promise.all([
+    uniqueBrands ? db.brand.findMany({ where: { id: { in: uniqueBrands }, status: RecordStatus.ENABLED }, select: { id: true } }) : Promise.resolve([]),
+    uniqueStores ? db.store.findMany({ where: { id: { in: uniqueStores }, ...(uniqueBrands ? { brandId: { in: uniqueBrands } } : {}) }, select: { id: true } }) : Promise.resolve([]),
+  ]);
+  if (uniqueBrands && brands.length !== uniqueBrands.length) throw new Error("运营H5品牌权限包含无效品牌，请重新选择");
+  if (uniqueStores && stores.length !== uniqueStores.length) throw new Error("运营H5店铺权限包含无效或超出品牌范围的店铺，请重新选择");
+  return { brandIds: uniqueBrands, storeIds: uniqueStores };
+}
 
 export async function GET(request: Request) {
   const session = await requireApiSession();
@@ -41,10 +55,11 @@ export async function POST(request: Request) {
   const role = await enabledRole(parsed.data.roleId);
   if (!role) return NextResponse.json({ message: "所选角色不存在或已禁用，请重新选择" }, { status: 400 });
   try {
-    const user = await db.user.create({ data: { username: parsed.data.username, realName: parsed.data.realName, phone: parsed.data.phone || null, tags: normalizeUserTags(parsed.data.tags), type: UserType.CUSTOM, roleId: role.id, status: parsed.data.status, passwordHash: await bcrypt.hash(parsed.data.password, 12), createdByUserId: session.userId }, select: publicUser });
-    await db.operationLog.create({ data: { userId: session.userId, page: "用户列表", action: "新增", result: "成功", detail: `新增用户：${user.realName}（${user.username}）` } });
+    const scope = await validateDataScope(parsed.data.leadH5BrandIds, parsed.data.leadH5StoreIds);
+    const user = await db.user.create({ data: { username: parsed.data.username, realName: parsed.data.realName, phone: parsed.data.phone || null, tags: normalizeUserTags(parsed.data.tags), leadH5BrandIds: scope.brandIds ?? Prisma.DbNull, leadH5StoreIds: scope.storeIds ?? Prisma.DbNull, type: UserType.CUSTOM, roleId: role.id, status: parsed.data.status, passwordHash: await bcrypt.hash(parsed.data.password, 12), createdByUserId: session.userId }, select: publicUser });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "用户列表", action: "新增", result: "成功", detail: `新增用户：${user.realName}（${user.username}）`, request });
     return NextResponse.json(user, { status: 201 });
   } catch (error) {
-    const message = duplicateMessage(error, "用户新增失败，请稍后重试"); await db.operationLog.create({ data: { userId: session.userId, page: "用户列表", action: "新增", result: "失败", detail: message } }); return NextResponse.json({ message }, { status: 400 });
+    const message = duplicateMessage(error, "用户新增失败，请稍后重试"); await writeOperationLog({ userId: session.userId, username: session.username, page: "用户列表", action: "新增", result: "失败", detail: message, request }); return NextResponse.json({ message }, { status: 400 });
   }
 }

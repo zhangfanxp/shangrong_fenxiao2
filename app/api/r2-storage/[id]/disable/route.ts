@@ -2,6 +2,7 @@ import { RecordStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { writeOperationLog } from "@/lib/operation-log";
 import { r2ErrorResponse } from "@/lib/r2-api";
 import { changeR2Status } from "@/lib/r2-config-service";
 import { canR2Storage } from "@/lib/r2-permissions";
@@ -16,10 +17,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   try {
     const row = await changeR2Status(id, RecordStatus.DISABLED, parsed.data.updatedAt);
-    await db.operationLog.create({ data: { userId: session.userId, page: "R2存储空间", action: "禁用", result: "成功", detail: `禁用R2存储空间：${row.recordNo}` } }).catch(() => undefined);
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "R2存储空间", action: "禁用", result: "成功", detail: `禁用R2存储空间：${row.recordNo}`, request }).catch(() => undefined);
     return NextResponse.json({ message: "R2存储空间禁用成功" });
   } catch (error) {
-    await db.operationLog.create({ data: { userId: session.userId, page: "R2存储空间", action: "禁用", result: "失败", detail: "R2存储空间禁用失败" } }).catch(() => undefined);
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "R2存储空间", action: "禁用", result: "失败", detail: "R2存储空间禁用失败", request }).catch(() => undefined);
     return r2ErrorResponse(error, "R2存储空间禁用失败，请稍后重试");
   }
 }

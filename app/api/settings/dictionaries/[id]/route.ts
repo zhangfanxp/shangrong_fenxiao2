@@ -5,6 +5,7 @@ import { requireApiSession } from "@/lib/auth";
 import { canDictionary, type DictionaryPermission } from "@/lib/dictionary-permissions";
 import { dictionaryFileExists, DictionaryConfigError, normalizeDictionaryFileName, readDictionaryValues, renameDictionaryFile } from "@/lib/dictionary-config";
 import { db } from "@/lib/db";
+import { writeOperationLog, type OperationLogResult } from "@/lib/operation-log";
 
 const editSchema = z.object({
   name: z.string().trim().min(1, "请输入字典中文名称").refine(value => Array.from(value).length <= 10, "字典中文名称不能超过10个汉字"),
@@ -17,7 +18,7 @@ const editSchema = z.object({
 const statusSchema = z.object({ action: z.literal("status"), status: z.nativeEnum(RecordStatus), updatedAt: z.string().datetime({ offset: true }) });
 function forbidden() { return NextResponse.json({ message: "暂无此操作权限" }, { status: 403 }); }
 function sameTimestamp(date: Date, value: string) { return date.getTime() === new Date(value).getTime(); }
-async function log(userId: string, action: string, result: string, detail: string) { await db.operationLog.create({ data: { userId, page: "数据字典", action, result, detail } }).catch(() => undefined); }
+async function log(userId: string, action: string, result: OperationLogResult, detail: string) { await writeOperationLog({ userId, page: "数据字典", action, result, detail }).catch(() => undefined); }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession();
@@ -52,7 +53,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!sameTimestamp(dictionary.updatedAt, parsed.data.updatedAt)) return NextResponse.json({ message: "当前数据字典已被其他用户修改，请刷新后重新操作" }, { status: 409 });
     const result = await db.dataDictionary.updateMany({ where: { id, updatedAt: dictionary.updatedAt }, data: { status: parsed.data.status, version: { increment: 1 } } });
     if (!result.count) return NextResponse.json({ message: "当前数据字典已被其他用户修改，请刷新后重新操作" }, { status: 409 });
-    const action = enabling ? "启用" : "停用";
+    const action = enabling ? "启用" : "禁用";
     await log(session.userId, action, "成功", `${action}数据字典：${dictionary.recordNo}（${dictionary.name}）`);
     return NextResponse.json({ message: `数据字典${action}成功` });
   }

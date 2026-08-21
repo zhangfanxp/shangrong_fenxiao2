@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { writeOperationLog } from "@/lib/operation-log";
 
 const roleSchema = z.object({
   name: z.string().trim().min(1, "请输入角色名称").max(30, "角色名称不能超过30个字符"),
@@ -45,11 +46,11 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0].message }, { status: 400 });
   try {
     const role = await db.role.create({ data: { ...parsed.data, type: "CUSTOM" } });
-    await db.operationLog.create({ data: { userId: session.userId, page: "角色管理", action: "新增", result: "成功", detail: `新增角色：${role.name}` } });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "角色管理", action: "新增", result: "成功", detail: `新增角色：${role.name}`, request });
     return NextResponse.json(role, { status: 201 });
   } catch (error) {
     const message = duplicateMessage(error);
-    await db.operationLog.create({ data: { userId: session.userId, page: "角色管理", action: "新增", result: "失败", detail: message } });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "角色管理", action: "新增", result: "失败", detail: message, request });
     return NextResponse.json({ message }, { status: 400 });
   }
 }

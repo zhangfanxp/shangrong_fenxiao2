@@ -98,6 +98,8 @@ model User {
   realName                String
   phone                   String?
   tags                    String?           @db.VarChar(200)
+  leadH5BrandIds          Json?
+  leadH5StoreIds          Json?
   type                    UserType          @default(CUSTOM)
   status                  RecordStatus      @default(ENABLED)
   roleId                  String
@@ -117,30 +119,33 @@ model User {
   createdPersonnel        Personnel[]       @relation("PersonnelCreator")
   salaryAdjustments       SalaryHistory[]   @relation("SalaryOperator")
   positionTransfers       PositionHistory[] @relation("PositionOperator")
+  leadH5Reviews           LeadH5Review[]    @relation("LeadH5Reviewer")
 
   @@index([createdByUserId])
 }
 
 model Assessment {
-  id              String              @id @default(cuid())
-  recordNo        String              @unique
-  name            String
-  scoreMode       AssessmentScoreMode @default(BINARY)
-  configFileName  String              @unique
-  detailText      String              @db.LongText
-  sectionCount    Int
-  subsectionCount Int
-  itemCount       Int
-  totalScore      Decimal             @db.Decimal(10, 1)
-  remark          String?             @db.VarChar(50)
-  status          RecordStatus        @default(ENABLED)
-  configVersion   Int                 @default(1)
-  createdByUserId String?
-  createdBy       User?               @relation("AssessmentCreator", fields: [createdByUserId], references: [id])
-  deletedAt       DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  records         AssessmentRecord[]
+  id               String              @id @default(cuid())
+  recordNo         String              @unique
+  name             String
+  scoreMode        AssessmentScoreMode @default(BINARY)
+  configFileName   String              @unique
+  applicableBrands Json?
+  detailText       String              @db.LongText
+  sectionCount     Int
+  subsectionCount  Int
+  itemCount        Int
+  totalScore       Decimal             @db.Decimal(10, 1)
+  remark           String?             @db.VarChar(50)
+  status           RecordStatus        @default(ENABLED)
+  configVersion    Int                 @default(1)
+  createdByUserId  String?
+  createdBy        User?               @relation("AssessmentCreator", fields: [createdByUserId], references: [id])
+  deletedAt        DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  records          AssessmentRecord[]
+  leadH5Reviews    LeadH5Review[]
 
   @@index([createdAt])
   @@index([status])
@@ -251,6 +256,61 @@ model Store {
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   personnel        Personnel[]
+  leadH5Reviews    LeadH5Review[]
+}
+
+model LeadH5Review {
+  id                String             @id @default(cuid())
+  recordNo          String             @unique @db.VarChar(14)
+  reviewType        String             @db.VarChar(50)
+  reviewMonth       String             @db.VarChar(7)
+  storeId           String
+  store             Store              @relation(fields: [storeId], references: [id])
+  storeNameSnapshot String             @db.VarChar(100)
+  brandId           String
+  brandNameSnapshot String             @db.VarChar(100)
+  reviewerUserId    String
+  reviewer          User               @relation("LeadH5Reviewer", fields: [reviewerUserId], references: [id])
+  reviewerUsername  String             @db.VarChar(50)
+  reviewerRealName  String             @db.VarChar(50)
+  assessmentId      String
+  assessment        Assessment         @relation(fields: [assessmentId], references: [id])
+  assessmentName    String             @db.VarChar(100)
+  assessmentVersion Int
+  configSnapshot    Json
+  maxScore          Decimal            @db.Decimal(10, 1)
+  actualScore       Decimal            @db.Decimal(10, 1)
+  submittedAt       DateTime           @default(now())
+  createdAt         DateTime           @default(now())
+  items             LeadH5ReviewItem[]
+
+  @@unique([storeId, reviewMonth, reviewType])
+  @@index([reviewMonth, reviewType])
+  @@index([reviewerUserId])
+  @@index([assessmentId])
+}
+
+model LeadH5ReviewItem {
+  id              String       @id @default(cuid())
+  reviewId        String
+  review          LeadH5Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  itemKey         String       @db.VarChar(100)
+  sectionName     String       @db.VarChar(100)
+  subsectionName  String       @db.VarChar(100)
+  itemDescription String       @db.Text
+  maxScore        Decimal      @db.Decimal(10, 1)
+  result          String       @db.VarChar(20)
+  actualScore     Decimal      @db.Decimal(10, 1)
+  sortOrder       Int
+
+  @@unique([reviewId, itemKey])
+  @@index([reviewId, sortOrder])
+}
+
+model LeadH5ReviewSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
 }
 
 model PersonnelSequence {
@@ -419,17 +479,35 @@ model DataDictionary {
 }
 
 model OperationLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
-  page      String
-  action    String
-  result    String
-  detail    String?  @db.Text
-  ip        String?
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  recordNo      String?  @unique @db.VarChar(14)
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  username      String?  @db.VarChar(50)
+  client        String?  @db.VarChar(30)
+  page          String
+  action        String
+  result        String
+  detail        String?  @db.Text
+  ip            String?  @db.VarChar(45)
+  operationDate String?  @db.VarChar(10)
+  operationTime String?  @db.VarChar(8)
+  createdAt     DateTime @default(now())
 
   @@index([createdAt])
+  @@index([operationDate, operationTime])
+  @@index([username])
+  @@index([client])
+  @@index([page])
+  @@index([action])
+  @@index([result])
+  @@index([ip])
+}
+
+model OperationLogSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
 }
 
 model R2StorageConfig {

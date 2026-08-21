@@ -4,6 +4,7 @@ import type { Session } from "@/lib/auth";
 import type { PersonnelInput } from "@/lib/personnel-validation";
 import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
 import { getConfiguredWorkdayHours } from "@/lib/brand-day-hour-config";
+import { writeOperationLog, type OperationLogResult } from "@/lib/operation-log";
 
 export const personnelInclude = {
   store: { select: { id: true, name: true, operationStatus: true, brand: { select: { id: true, name: true } } } },
@@ -17,8 +18,8 @@ export function canPersonnel(session: Session, action: string) {
   return session.permissions.includes("*") || session.permissions.includes(`personnel:${action}`) || (action === "query" && session.permissions.includes("staff:view"));
 }
 
-export async function personnelLog(userId: string, action: string, result: string, detail?: string) {
-  await db.operationLog.create({ data: { userId, page: "人员档案", action, result, detail } }).catch(() => undefined);
+export async function personnelLog(userId: string, action: string, result: OperationLogResult, detail?: string) {
+  await writeOperationLog({ userId, page: "人员档案", action, result, detail }).catch(() => undefined);
 }
 
 export function toDate(value: string) { return new Date(`${value}T00:00:00.000`); }

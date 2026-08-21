@@ -8,11 +8,14 @@ import {
   normalizeAssessmentFileName, parseAssessmentDetails, readAssessmentConfig, writeAssessmentConfig,
 } from "@/lib/assessment-config";
 import { db } from "@/lib/db";
+import { writeOperationLog, type OperationLogResult } from "@/lib/operation-log";
+import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
 
 const editSchema = z.object({
-  name: z.string().trim().min(1, "请输入考核表名称").refine(value => Array.from(value).length <= 20, "考核表名称不能超过20个汉字"),
+  name: z.string().trim().min(1, "请选择考核表类型"),
   scoreMode: z.nativeEnum(AssessmentScoreMode, { message: "请选择评分模式" }),
   configFileBase: z.string().trim().min(1, "请输入考核明细配置文件名"),
+  applicableBrands: z.array(z.string().trim().min(1)).default([]),
   detailText: z.string().min(1, "请输入考核明细项"),
   remark: z.string().trim().refine(value => Array.from(value).length <= 50, "备注不能超过50个汉字").optional().default(""),
   updatedAt: z.string().datetime({ offset: true }),
@@ -26,8 +29,10 @@ function buildConfig(input: z.infer<typeof editSchema>, recordNo: string, versio
   return {
     recordNo,
     reviewName: input.name,
+    assessmentType: input.name,
     scoreMode: input.scoreMode,
     scoreModeLabel: input.scoreMode === AssessmentScoreMode.BINARY ? "0或满分" : "允许自定义得分",
+    applicableBrands: input.applicableBrands,
     configVersion: version,
     totalScore: parsed.totalScore,
     statistics: { sectionCount: parsed.sectionCount, subsectionCount: parsed.subsectionCount, itemCount: parsed.itemCount },
@@ -35,10 +40,10 @@ function buildConfig(input: z.infer<typeof editSchema>, recordNo: string, versio
   };
 }
 async function findAssessment(id: string) {
-  return db.assessment.findFirst({ where: { id, deletedAt: null }, include: { createdBy: { select: { realName: true } }, _count: { select: { records: true } } } });
+  return db.assessment.findFirst({ where: { id, deletedAt: null }, include: { createdBy: { select: { realName: true } }, _count: { select: { records: true, leadH5Reviews: true } } } });
 }
-async function log(userId: string, action: string, result: string, detail: string) {
-  await db.operationLog.create({ data: { userId, page: "考核表格", action, result, detail } }).catch(() => undefined);
+async function log(userId: string, action: string, result: OperationLogResult, detail: string) {
+  await writeOperationLog({ userId, page: "考核表格", action, result, detail }).catch(() => undefined);
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -91,11 +96,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     oldConfig = await readAssessmentConfig(assessment.configFileName);
     nextFileName = normalizeAssessmentFileName(input.configFileBase);
-    const hasHistory = assessment._count.records > 0;
+    const hasHistory = assessment._count.records > 0 || assessment._count.leadH5Reviews > 0;
     if (hasHistory && nextFileName !== assessment.configFileName) throw new AssessmentConfigError("该考核表已产生历史考核记录，配置文件名称不可修改。");
     if (nextFileName !== assessment.configFileName && (await assessmentFileExists(nextFileName) || await db.assessment.findFirst({ where: { configFileName: nextFileName, id: { not: id }, deletedAt: null } }))) {
       throw new AssessmentConfigError("考核明细配置文件名称已存在，请重新输入");
     }
+    const [brandOptions, assessmentTypeOptions] = await Promise.all([getBusinessDictionaryOptions("BRAND"), getBusinessDictionaryOptions("ASSESSMENT_TYPE")]);
+    const assessmentTypeUnchanged = input.name === assessment.name;
+    if (!assessmentTypeOptions.some(option => option.value === input.name) && !assessmentTypeUnchanged) throw new AssessmentConfigError("所选考核表类型不在已启用的Assessment_Type数据字典中");
+    const validBrandValues = new Set(brandOptions.map(option => option.value));
+    const previousBrands = Array.isArray(assessment.applicableBrands) ? assessment.applicableBrands.filter((value): value is string => typeof value === "string") : [];
+    const applicableBrands = Array.from(new Set(input.applicableBrands));
+    if (applicableBrands.some(value => !validBrandValues.has(value) && !previousBrands.includes(value))) throw new AssessmentConfigError("所选品牌不在已启用的BRAND数据字典中");
+    input.applicableBrands = applicableBrands;
     const parsedDetails = parseAssessmentDetails(input.detailText);
     const nextVersion = assessment.configVersion + 1;
     const nextConfig = buildConfig(input, assessment.recordNo, nextVersion, parsedDetails);
@@ -107,7 +120,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     try {
       const result = await db.assessment.updateMany({ where: { id, updatedAt: assessment.updatedAt }, data: {
-        name: input.name, scoreMode: input.scoreMode, configFileName: nextFileName,
+        name: input.name, scoreMode: input.scoreMode, configFileName: nextFileName, applicableBrands,
         detailText: parsedDetails.normalizedText, sectionCount: parsedDetails.sectionCount,
         subsectionCount: parsedDetails.subsectionCount, itemCount: parsedDetails.itemCount,
         totalScore: parsedDetails.totalScore, remark: input.remark || null, configVersion: nextVersion,
@@ -134,7 +147,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const assessment = await findAssessment(id);
   if (!assessment) return NextResponse.json({ message: "考核表格不存在或已删除" }, { status: 404 });
-  if (assessment._count.records > 0) return NextResponse.json({ message: "该考核表已产生历史考核记录，暂不能删除，请使用“禁用”操作。" }, { status: 400 });
+  if (assessment._count.records > 0 || assessment._count.leadH5Reviews > 0) return NextResponse.json({ message: "该考核表已产生历史考核记录，暂不能删除，请使用“禁用”操作。" }, { status: 400 });
   try {
     const oldConfig = await readAssessmentConfig(assessment.configFileName);
     await deleteAssessmentConfig(assessment.configFileName);

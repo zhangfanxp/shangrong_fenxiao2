@@ -5,16 +5,18 @@ import { db } from "@/lib/db";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { contractInputSchema } from "@/lib/contract-validation";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
+import { writeOperationLog } from "@/lib/operation-log";
 
 const statusSchema = z.object({ status: z.enum([ContractStatus.PENDING, ContractStatus.ACTIVE, ContractStatus.EXPIRING, ContractStatus.EXPIRED]) });
 const terminationSchema = z.object({ status: z.literal(ContractStatus.TERMINATED), refundedDeposit: z.coerce.number().min(0, "退回保证金不能小于 0") });
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   if (!sessionHasPermission(session, "stores:contracts:view")) return NextResponse.json({ message: "暂无合同管理权限" }, { status: 403 });
   const { id } = await params;
   const contract = await db.contract.findUnique({ where: { id }, include: { brand: true, rebates: { orderBy: { createdAt: "asc" } } } });
   if (!contract) return NextResponse.json({ message: "合同不存在或已删除" }, { status: 404 });
+  await writeOperationLog({ userId: session.userId, username: session.username, page: "合同管理", action: "查看", result: "成功", detail: `查看合同：${contract.recordNo}`, request }).catch(() => undefined);
   return NextResponse.json(contract);
 }
 
@@ -29,11 +31,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!current) return NextResponse.json({ message: "合同不存在或已删除" }, { status: 404 });
     if (termination.data.refundedDeposit > Number(current.deposit)) return NextResponse.json({ message: "退回保证金不能大于合同保证金" }, { status: 400 });
     const contract = await db.contract.update({ where: { id }, data: termination.data });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "合同管理", action: "解约", result: "成功", detail: `解约合同：${contract.recordNo}`, request }).catch(() => undefined);
     return NextResponse.json(contract);
   }
   const status = statusSchema.safeParse(body);
   if (status.success && Object.keys(body).length === 1) {
     const contract = await db.contract.update({ where: { id }, data: status.data });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "合同管理", action: "编辑", result: "成功", detail: `修改合同状态：${contract.recordNo} → ${contract.status}`, request }).catch(() => undefined);
     return NextResponse.json(contract);
   }
 
@@ -63,5 +67,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     },
     include: { brand: true, rebates: { orderBy: { createdAt: "asc" } } },
   });
+  await writeOperationLog({ userId: session.userId, username: session.username, page: "合同管理", action: "编辑", result: "成功", detail: `编辑合同：${contract.recordNo}`, request }).catch(() => undefined);
   return NextResponse.json(contract);
 }

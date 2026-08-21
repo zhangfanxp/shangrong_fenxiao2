@@ -2,6 +2,7 @@ import { Prisma, TaskRecordStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { writeOperationLog } from "@/lib/operation-log";
 import { readTaskConfig, TaskConfigError } from "@/lib/task-config";
 import { deleteUploadedTaskFiles, TaskAttachmentError, uploadTaskFiles, type UploadedTaskFile } from "@/lib/task-r2-upload";
 
@@ -57,11 +58,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     let record;
     try { record = await db.taskRecord.create({ data: { taskId: task.id, dueDate: now, status: TaskRecordStatus.COMPLETED, completedAt: now, configVersion: task.configVersion, configSnapshot: config as Prisma.InputJsonValue, submission: { submittedBy: { id: session.userId, name: session.realName }, submittedAt: now.toISOString(), r2StorageId: task.r2StorageId, items: normalized } as Prisma.InputJsonValue } }); }
     catch (error) { await deleteUploadedTaskFiles(task.r2StorageId, uploadedFiles); throw error; }
-    await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: "预览提交", result: "成功", detail: `任务：${task.recordNo}；任务记录：${record.id}` } });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "预览提交", result: "成功", detail: `任务：${task.recordNo}；任务记录：${record.id}`, request });
     return NextResponse.json({ message: "任务提交成功", recordId: record.id }, { status: 201 });
   } catch (error) {
     const message = error instanceof TaskConfigError || error instanceof TaskAttachmentError ? error.message : "任务提交失败，请稍后重试";
-    await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: "预览提交", result: "失败", detail: `任务：${task.recordNo}；${message}` } });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "预览提交", result: "失败", detail: `任务：${task.recordNo}；${message}`, request });
     return NextResponse.json({ message }, { status: 400 });
   }
 }

@@ -2,13 +2,12 @@ import { Card, Descriptions } from "antd";
 import { AssessmentList } from "@/components/assessment-list";
 import { ClearBusinessData } from "@/components/clear-business-data";
 import { DictionaryManagement } from "@/components/dictionary-management";
+import { OperationLogList } from "@/components/operation-log-list";
 import { PageHeader } from "@/components/page-header";
 import { RoleManagement } from "@/components/role-management";
 import { R2StorageList } from "@/components/r2-storage-list";
-import { SettingsTable } from "@/components/settings-table";
 import { SystemParameters } from "@/components/system-parameters";
 import { UserManagement } from "@/components/user-management";
-import { db } from "@/lib/db";
 import { getPlatformConfig } from "@/lib/platform-config";
 import { requirePageAccess } from "@/lib/auth";
 
@@ -27,6 +26,6 @@ export default async function GenericPage({ params }: { params: Promise<{ sectio
   if (key === "settings/storage") return <main className="page-wrap"><PageHeader {...meta} /><R2StorageList permissions={session.permissions} /></main>;
   if (key === "settings/dictionaries") return <main className="page-wrap"><PageHeader {...meta} /><DictionaryManagement permissions={session.permissions} /></main>;
   if (key === "settings/parameters") return <main className="page-wrap"><PageHeader {...meta} /><SystemParameters initialPlatform={await getPlatformConfig()} /></main>;
-  if (key === "settings/operation-logs") { const logs = await db.operationLog.findMany({ include: { user: { select: { realName: true } } }, orderBy: { createdAt: "desc" }, take: 100 }); return <main className="page-wrap"><PageHeader {...meta} /><SettingsTable kind="logs" rows={logs.map(({ user, ...log }) => ({ ...log, userName: user?.realName ?? null, createdAt: log.createdAt.toISOString() }))} /></main>; }
+  if (key === "settings/operation-logs") return <main className="page-wrap"><PageHeader {...meta} /><OperationLogList permissions={session.permissions} /></main>;
   return <main className="page-wrap"><PageHeader {...meta} /><Card><Descriptions title="模块状态" column={1}><Descriptions.Item label="页面框架">已接入统一导航、登录会话与权限边界</Descriptions.Item><Descriptions.Item label="下一步">根据该模块的业务规则配置字段、数据采集来源和审批流程</Descriptions.Item></Descriptions></Card></main>;
 }

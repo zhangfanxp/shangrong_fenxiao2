@@ -30,7 +30,7 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (pathname === "/lead_pc/settings/assessments") return anyPrefix(permissions, "assessments:");
   if (pathname === "/lead_pc/settings/storage") return anyPrefix(permissions, "r2-storage:");
   if (pathname === "/lead_pc/settings/parameters") return hasPermission(permissions, "settings:parameters");
-  if (pathname === "/lead_pc/settings/operation-logs") return hasPermission(permissions, "settings:logs");
+  if (pathname === "/lead_pc/settings/operation-logs") return hasPermission(permissions, ["operation-logs:view", "settings:logs"]);
   return false;
 }
 

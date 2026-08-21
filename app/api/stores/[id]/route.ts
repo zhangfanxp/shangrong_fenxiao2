@@ -5,15 +5,17 @@ import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { storeInputSchema } from "@/lib/store-validation";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
 import { storeContractSelect, validateStoreContract } from "@/lib/store-contract";
+import { writeOperationLog } from "@/lib/operation-log";
 
 const details = { brand: true, contract: { select: storeContractSelect } } satisfies Prisma.StoreInclude;
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   if (!sessionHasPermission(session, "stores:list:view")) return NextResponse.json({ message: "暂无门店列表权限" }, { status: 403 });
   const { id } = await params;
   const store = await db.store.findUnique({ where: { id }, include: details });
   if (!store) return NextResponse.json({ message: "门店不存在或已删除" }, { status: 404 });
+  await writeOperationLog({ userId: session.userId, username: session.username, page: "门店列表", action: "查看", result: "成功", detail: `查看门店：${store.recordNo}`, request }).catch(() => undefined);
   return NextResponse.json(store);
 }
 
@@ -41,6 +43,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (contractCheck.message) return NextResponse.json({ message: contractCheck.message }, { status: 400 });
   try {
     const store = await db.store.update({ where: { id }, data: result.data, include: details });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "门店列表", action: "编辑", result: "成功", detail: `编辑门店：${store.recordNo}`, request }).catch(() => undefined);
     return NextResponse.json(store);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") return NextResponse.json({ message: "门店不存在或已删除" }, { status: 404 });

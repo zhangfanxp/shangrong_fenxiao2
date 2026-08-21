@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { writeOperationLogWithTransaction } from "@/lib/operation-log";
 
 const schema = z.object({ targets: z.array(z.enum(["contracts", "stores", "tasks"])).min(1, "请至少选择一类业务数据"), confirmation: z.literal("确认清空", { errorMap: () => ({ message: "请输入“确认清空”以继续" }) }) });
 
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     if (targets.includes("contracts") || targets.includes("stores")) await tx.store.deleteMany();
     if (targets.includes("contracts")) { await tx.contractRebate.deleteMany(); await tx.contract.deleteMany(); }
     if (targets.includes("tasks")) { await tx.taskRecord.deleteMany(); await tx.task.deleteMany(); }
-    await tx.operationLog.create({ data: { userId: session.userId, page: "清空业务数据", action: "清空", result: "成功", detail: `已清空：${targets.join("、")}` } });
+    await writeOperationLogWithTransaction(tx, { userId: session.userId, username: session.username, page: "清空业务数据", action: "清空", result: "成功", detail: `已清空：${targets.join("、")}`, request });
   });
   return NextResponse.json({ ok: true });
 }

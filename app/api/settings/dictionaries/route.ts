@@ -5,6 +5,7 @@ import { requireApiSession } from "@/lib/auth";
 import { canDictionary } from "@/lib/dictionary-permissions";
 import { createDictionaryFile, deleteDictionaryFile, dictionaryFileExists, DictionaryConfigError, normalizeDictionaryFileName } from "@/lib/dictionary-config";
 import { db } from "@/lib/db";
+import { writeOperationLog, type OperationLogResult } from "@/lib/operation-log";
 
 const inputSchema = z.object({
   name: z.string().trim().min(1, "请输入字典中文名称").refine(value => Array.from(value).length <= 10, "字典中文名称不能超过10个汉字"),
@@ -26,8 +27,8 @@ async function nextRecordNo() {
   const sequence = last ? Number(last.recordNo.slice(8)) + 1 : 1;
   return `${prefix}${String(sequence).padStart(4, "0")}`;
 }
-async function log(userId: string, action: string, result: string, detail: string) {
-  await db.operationLog.create({ data: { userId, page: "数据字典", action, result, detail } }).catch(() => undefined);
+async function log(userId: string, action: string, result: OperationLogResult, detail: string) {
+  await writeOperationLog({ userId, page: "数据字典", action, result, detail }).catch(() => undefined);
 }
 
 export async function GET(request: Request) {

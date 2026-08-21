@@ -11,8 +11,10 @@ import { displayDate } from "@/lib/format";
 type Status = "ENABLED" | "DISABLED";
 type UserType = "SYSTEM" | "CUSTOM";
 type Role = { id: string; name: string; code: string; status: Status };
-type User = { id: string; username: string; realName: string; phone: string | null; tags: string | null; type: UserType; status: Status; roleId: string; role: Role; createdByUserId: string | null; createdBy: { username: string; realName: string } | null; lastLoginAt: string | null; createdAt: string; updatedAt: string };
-type UserFormValues = { username: string; realName: string; phone?: string; tags?: string; roleId: string; status: Status; password?: string; confirmPassword?: string };
+type User = { id: string; username: string; realName: string; phone: string | null; tags: string | null; leadH5BrandIds: string[] | null; leadH5StoreIds: string[] | null; type: UserType; status: Status; roleId: string; role: Role; createdByUserId: string | null; createdBy: { username: string; realName: string } | null; lastLoginAt: string | null; createdAt: string; updatedAt: string };
+type UserFormValues = { username: string; realName: string; phone?: string; tags?: string; leadH5BrandIds?: string[]; leadH5StoreIds?: string[]; roleId: string; status: Status; password?: string; confirmPassword?: string };
+type BrandOption = { id: string; name: string };
+type StoreOption = { id: string; name: string; brandId: string; brand: { name: string } };
 type PasswordFormValues = { password: string; confirmPassword: string };
 
 const statusOptions = [{ value: "", label: "全部状态" }, { value: "ENABLED", label: "已启用" }, { value: "DISABLED", label: "已禁用" }];
@@ -22,14 +24,14 @@ const creatorText = (user: User | null) => user?.createdBy ? `${user.createdBy.r
 const tagDisplay = (tags?: string | null) => tags ? <Space size={[4, 4]} wrap>{tags.split("|").filter(Boolean).map(tag => <Tag key={tag}>{tag}</Tag>)}</Space> : "未设置";
 
 export function UserManagement() {
-  const [rows, setRows] = useState<User[]>([]); const [roles, setRoles] = useState<Role[]>([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10);
+  const [rows, setRows] = useState<User[]>([]); const [roles, setRoles] = useState<Role[]>([]); const [brands, setBrands] = useState<BrandOption[]>([]); const [stores, setStores] = useState<StoreOption[]>([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10);
   const [filters, setFilters] = useState({ keyword: "", roleId: "", status: "" }); const [loading, setLoading] = useState(true); const [error, setError] = useState(false);
   const [mode, setMode] = useState<"create" | "edit" | "view" | null>(null); const [current, setCurrent] = useState<User | null>(null); const [saving, setSaving] = useState(false); const [passwordTarget, setPasswordTarget] = useState<User | null>(null);
   const [form] = Form.useForm<UserFormValues>(); const [passwordForm] = Form.useForm<PasswordFormValues>();
   const loadRoles = async () => {
     try {
       const response = await fetch("/api/settings/users/options"); const data = await response.json();
-      if (!response.ok) throw new Error(data.message); setRoles(data.roles);
+      if (!response.ok) throw new Error(data.message); setRoles(data.roles); setBrands(data.brands || []); setStores(data.stores || []);
     } catch { message.error("角色选项加载失败，请稍后重试"); }
   };
   const load = async (nextPage = page, nextPageSize = pageSize, nextFilters = filters) => {
@@ -41,8 +43,8 @@ export function UserManagement() {
   };
   useEffect(() => { void load(1); void loadRoles(); }, []);
   useEffect(() => {
-    if (mode === "create") { form.resetFields(); form.setFieldsValue({ status: "ENABLED" }); }
-    if (mode === "edit" && current) form.setFieldsValue({ username: current.username, realName: current.realName, phone: current.phone || undefined, tags: current.tags || undefined, roleId: current.roleId, status: current.status });
+    if (mode === "create") { form.resetFields(); form.setFieldsValue({ status: "ENABLED", leadH5BrandIds: [], leadH5StoreIds: [] }); }
+    if (mode === "edit" && current) form.setFieldsValue({ username: current.username, realName: current.realName, phone: current.phone || undefined, tags: current.tags || undefined, leadH5BrandIds: current.leadH5BrandIds || [], leadH5StoreIds: current.leadH5StoreIds || [], roleId: current.roleId, status: current.status });
   }, [mode, current, form]);
   useEffect(() => { if (passwordTarget) passwordForm.resetFields(); }, [passwordTarget, passwordForm]);
   const openCreate = () => { setCurrent(null); setMode("create"); };
@@ -58,7 +60,8 @@ export function UserManagement() {
   const submit = async () => {
     try {
       const values = await form.validateFields(); setSaving(true);
-      const body = mode === "create" ? values : { username: values.username, realName: values.realName, phone: values.phone, tags: values.tags, roleId: values.roleId, status: values.status, updatedAt: current?.updatedAt };
+      const scopedValues = { ...values, leadH5BrandIds: values.leadH5BrandIds?.length ? values.leadH5BrandIds : null, leadH5StoreIds: values.leadH5StoreIds?.length ? values.leadH5StoreIds : null };
+      const body = mode === "create" ? scopedValues : { username: scopedValues.username, realName: scopedValues.realName, phone: scopedValues.phone, tags: scopedValues.tags, leadH5BrandIds: scopedValues.leadH5BrandIds, leadH5StoreIds: scopedValues.leadH5StoreIds, roleId: scopedValues.roleId, status: scopedValues.status, updatedAt: current?.updatedAt };
       const response = await fetch(mode === "create" ? "/api/settings/users" : `/api/settings/users/${current?.id}`, { method: mode === "create" ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const data = await response.json();
       if (!response.ok) return void message.error(data.message || "保存失败，请稍后重试");
       message.success(mode === "create" ? "用户新增成功" : "用户保存成功"); close(); setPage(1); await load(1);
@@ -104,6 +107,8 @@ export function UserManagement() {
           <Descriptions.Item label="登录账号">{current.username}</Descriptions.Item><Descriptions.Item label="真实姓名">{current.realName}</Descriptions.Item>
           <Descriptions.Item label="手机号码">{current.phone || "未填写"}</Descriptions.Item><Descriptions.Item label="类型">{typeTag(current.type)}</Descriptions.Item>
           <Descriptions.Item label="用户标签" span={2}>{tagDisplay(current.tags)}</Descriptions.Item>
+          <Descriptions.Item label="H5品牌权限" span={2}>{current.leadH5BrandIds?.length ? current.leadH5BrandIds.map(id => brands.find(brand => brand.id === id)?.name || id).join("、") : "全部品牌"}</Descriptions.Item>
+          <Descriptions.Item label="H5店铺权限" span={2}>{current.leadH5StoreIds?.length ? current.leadH5StoreIds.map(id => stores.find(store => store.id === id)?.name || id).join("、") : "全部店铺"}</Descriptions.Item>
           <Descriptions.Item label="用户角色">{current.role.name}</Descriptions.Item><Descriptions.Item label="账号状态"><StatusTag value={current.status} /></Descriptions.Item>
           <Descriptions.Item label="创建人">{creatorText(current)}</Descriptions.Item><Descriptions.Item label="创建时间">{displayDate(current.createdAt)}</Descriptions.Item>
           <Descriptions.Item label="最后登录">{displayDate(current.lastLoginAt)}</Descriptions.Item><Descriptions.Item label="更新时间">{displayDate(current.updatedAt)}</Descriptions.Item>
@@ -125,6 +130,8 @@ export function UserManagement() {
         <section className="user-form-section"><div className="user-form-section-title"><SafetyCertificateOutlined /><span><strong>权限与状态</strong><small>设置用户在系统中的职责与可用状态</small></span></div><div className="user-form-grid">
           <Form.Item label="用户角色" name="roleId" rules={[{ required: true, message: "请选择角色" }]}><Select size="large" placeholder="请选择用户角色" disabled={current?.type === "SYSTEM"} options={formRoles.map(role => ({ value: role.id, label: role.name, disabled: role.status === "DISABLED" }))} /></Form.Item>
           <Form.Item label="账号状态" name="status" rules={[{ required: true, message: "请选择状态" }]}><Select size="large" options={statusOptions.filter(option => option.value)} disabled={current?.type === "SYSTEM"} /></Form.Item>
+          <Form.Item className="user-form-span" label="运营H5品牌权限" name="leadH5BrandIds" extra="不选择表示可访问全部品牌；选择后仅可查看所选品牌门店"><Select mode="multiple" allowClear size="large" optionFilterProp="label" placeholder="全部品牌" options={brands.map(brand => ({ value: brand.id, label: brand.name }))} onChange={() => form.setFieldValue("leadH5StoreIds", [])} /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(previous, next) => previous.leadH5BrandIds !== next.leadH5BrandIds}>{({ getFieldValue }) => { const selectedBrands = getFieldValue("leadH5BrandIds") as string[] | undefined; const availableStores = selectedBrands?.length ? stores.filter(store => selectedBrands.includes(store.brandId)) : stores; return <Form.Item className="user-form-span" label="运营H5店铺权限" name="leadH5StoreIds" extra="不选择表示品牌范围内全部店铺；服务端仍会在每次请求和提交时重新校验"><Select mode="multiple" allowClear size="large" optionFilterProp="label" placeholder="全部店铺" options={availableStores.map(store => ({ value: store.id, label: `${store.name}（${store.brand.name}）` }))} /></Form.Item>; }}</Form.Item>
         </div></section>
       </Form>}
     </Modal>

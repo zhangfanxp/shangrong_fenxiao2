@@ -1,9 +1,14 @@
 {
   "recordNo": "202608200001",
-  "reviewName": "督导巡店test",
+  "reviewName": "前厅稽核评分",
+  "assessmentType": "前厅稽核评分",
   "scoreMode": "CUSTOM_SCORE",
   "scoreModeLabel": "允许自定义得分",
-  "configVersion": 2,
+  "applicableBrands": [
+    "奋小二",
+    "蚝家伙"
+  ],
+  "configVersion": 4,
   "totalScore": 37,
   "statistics": {
     "sectionCount": 2,

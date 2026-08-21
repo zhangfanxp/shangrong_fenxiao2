@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { contractInputSchema } from "@/lib/contract-validation";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
+import { writeOperationLog } from "@/lib/operation-log";
 
 export async function GET(request: Request) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
     orderBy: { createdAt: "desc" },
     take: 500,
   });
+  await writeOperationLog({ userId: session.userId, username: session.username, page: "合同管理", action: "筛选", result: "成功", detail: keyword || status || brandId || cooperationType || startDate || endDate ? `关键字：${keyword || "全部"}；状态：${status || "全部"}；日期：${startDate || "不限"}至${endDate || "不限"}` : "加载全部合同", request }).catch(() => undefined);
   return NextResponse.json(rows);
 }
 
@@ -67,5 +69,6 @@ export async function POST(request: Request) {
     },
     include: { brand: true, rebates: { orderBy: { createdAt: "asc" } } },
   });
+  await writeOperationLog({ userId: session.userId, username: session.username, page: "合同管理", action: "新增", result: "成功", detail: `新增合同：${contract.recordNo}（${contract.storeName}）`, request }).catch(() => undefined);
   return NextResponse.json(contract, { status: 201 });
 }

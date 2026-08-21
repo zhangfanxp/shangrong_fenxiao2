@@ -9,8 +9,14 @@ import type { PlatformConfig } from "@/lib/platform-config";
 
 type BrandOption = { label: string; value: string };
 type BrandDayHour = { brand: string; workdayHours: number };
-type PlatformValues = { platformName: string };
+type PlatformValues = { platformName: string; leadPcLoginTags: string; leadH5LoginTags: string; storeH5LoginTags: string };
 type BrandHourValues = { brand: string; workdayHours: number };
+
+const loginAddresses: Array<{ title: string; path: string; field: "leadPcLoginTags" | "leadH5LoginTags" | "storeH5LoginTags"; adminBypass?: boolean }> = [
+  { title: "运营PC端", path: "/lead_pc/login", field: "leadPcLoginTags", adminBypass: true },
+  { title: "运营H5移动端", path: "/lead_h5/login", field: "leadH5LoginTags" },
+  { title: "门店H5移动端", path: "/store_h5/login", field: "storeH5LoginTags" },
+];
 
 export function SystemParameters({ initialPlatform }: { initialPlatform: PlatformConfig }) {
   const router = useRouter();
@@ -18,7 +24,10 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
   const [brandHourForm] = Form.useForm<BrandHourValues>();
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(initialPlatform.logoDataUrl);
   const [loginBackgroundDataUrl, setLoginBackgroundDataUrl] = useState<string | null>(initialPlatform.loginBackgroundDataUrl);
+  const [logoChanged, setLogoChanged] = useState(false);
+  const [loginBackgroundChanged, setLoginBackgroundChanged] = useState(false);
   const [platformSaving, setPlatformSaving] = useState(false);
+  const [siteOrigin, setSiteOrigin] = useState("");
   const [rows, setRows] = useState<BrandDayHour[]>([]);
   const [brandOptions, setBrandOptions] = useState<BrandOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +49,7 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
     }
   };
 
-  useEffect(() => { void loadBrandHours(); }, []);
+  useEffect(() => { setSiteOrigin(window.location.origin); void loadBrandHours(); }, []);
 
   const beforeLogoUpload: UploadProps["beforeUpload"] = file => {
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
@@ -52,7 +61,7 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
       return Upload.LIST_IGNORE;
     }
     const reader = new FileReader();
-    reader.onload = () => setLogoDataUrl(typeof reader.result === "string" ? reader.result : null);
+    reader.onload = () => { setLogoDataUrl(typeof reader.result === "string" ? reader.result : null); setLogoChanged(true); };
     reader.onerror = () => message.error("后台LOGO读取失败，请重新选择");
     reader.readAsDataURL(file);
     return false;
@@ -69,7 +78,7 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
       return Upload.LIST_IGNORE;
     }
     const reader = new FileReader();
-    reader.onload = () => setLoginBackgroundDataUrl(typeof reader.result === "string" ? reader.result : null);
+    reader.onload = () => { setLoginBackgroundDataUrl(typeof reader.result === "string" ? reader.result : null); setLoginBackgroundChanged(true); };
     reader.onerror = () => message.error("登录页背景图片读取失败，请重新选择");
     reader.readAsDataURL(file);
     return false;
@@ -79,10 +88,17 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
     try {
       const values = await platformForm.validateFields();
       setPlatformSaving(true);
-      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platformName: values.platformName, logoDataUrl, loginBackgroundDataUrl }) });
+      const imageChanges = {
+        ...(logoChanged && logoDataUrl ? { logoDataUrl } : {}),
+        ...(loginBackgroundChanged && loginBackgroundDataUrl ? { loginBackgroundDataUrl } : {}),
+        removeLogo: logoChanged && logoDataUrl === null,
+        removeLoginBackground: loginBackgroundChanged && loginBackgroundDataUrl === null,
+      };
+      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, ...imageChanges }) });
       const data = await response.json();
       if (!response.ok) return void message.error(data.message || "平台信息保存失败，请稍后重试");
       message.success("平台信息保存成功");
+      setLogoChanged(false); setLoginBackgroundChanged(false);
       router.refresh();
     } catch (error) {
       if (error instanceof Error) message.error(error.message);
@@ -118,7 +134,7 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
 
   return <>
     <Card title="平台信息" className="system-parameter-card" style={{ marginBottom: 16 }} extra={<Button type="primary" loading={platformSaving} onClick={() => void savePlatform()}>保存</Button>}>
-      <Form form={platformForm} layout="vertical" initialValues={{ platformName: initialPlatform.platformName }}>
+      <Form form={platformForm} layout="vertical" initialValues={{ platformName: initialPlatform.platformName, leadPcLoginTags: initialPlatform.leadPcLoginTags, leadH5LoginTags: initialPlatform.leadH5LoginTags, storeH5LoginTags: initialPlatform.storeH5LoginTags }}>
         <div className="platform-parameter-grid">
           <Form.Item label="平台名称" name="platformName" rules={[{ required: true, whitespace: true, message: "请输入平台名称" }, { max: 30, message: "平台名称不能超过30个字符" }]} extra="将显示在运营端登录页“欢迎登录”下方及登录后的页面左上角">
             <Input maxLength={30} showCount placeholder="请输入平台名称" />
@@ -128,7 +144,7 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
               <div className="platform-logo-preview">{logoDataUrl ? <img src={logoDataUrl} alt="后台LOGO预览" /> : <span>餐</span>}</div>
               <Space wrap>
                 <Upload accept="image/png,image/jpeg,image/webp" showUploadList={false} beforeUpload={beforeLogoUpload}><Button icon={<UploadOutlined />}>选择图片</Button></Upload>
-                {logoDataUrl && <Button onClick={() => setLogoDataUrl(null)}>恢复默认图标</Button>}
+                {logoDataUrl && <Button onClick={() => { setLogoDataUrl(null); setLogoChanged(true); }}>恢复默认图标</Button>}
               </Space>
             </div>
           </Form.Item>
@@ -137,10 +153,22 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
               <div className="platform-background-preview">{loginBackgroundDataUrl ? <img src={loginBackgroundDataUrl} alt="登录页背景图片预览" /> : <span>暂无背景图片</span>}</div>
               <Space wrap>
                 <Upload accept=".png,.jpg,.jpeg,image/png,image/jpeg" showUploadList={false} beforeUpload={beforeBackgroundUpload}><Button icon={<UploadOutlined />}>选择图片</Button></Upload>
-                {loginBackgroundDataUrl && <Button onClick={() => setLoginBackgroundDataUrl(null)}>恢复默认背景</Button>}
+                {loginBackgroundDataUrl && <Button onClick={() => { setLoginBackgroundDataUrl(null); setLoginBackgroundChanged(true); }}>恢复默认背景</Button>}
               </Space>
             </div>
           </Form.Item>
+          <section className="platform-login-addresses">
+            <div className="platform-login-addresses-heading"><strong>登录地址</strong><span>地址随当前访问域名自动生成，仅展示，不支持编辑</span></div>
+            <div className="platform-login-address-list">
+              {loginAddresses.map(item => <div className="platform-login-address-card" key={item.path}>
+                <strong>{item.title}</strong>
+                <Form.Item label="登录地址" style={{ marginBottom: 14 }}><Input readOnly value={`${siteOrigin || "当前域名"}${item.path}`} /></Form.Item>
+                <Form.Item label="登录用户标签" name={item.field} rules={[{ max: 200, message: `${item.title}登录用户标签不能超过200个字符` }]} extra={item.adminBypass ? "多个标签之间用｜分割；系统管理员角色无需设置标签也可以登录" : "多个标签之间用｜分割"}>
+                  <Input maxLength={200} placeholder="例如：运营人员｜区域经理" />
+                </Form.Item>
+              </div>)}
+            </div>
+          </section>
         </div>
       </Form>
     </Card>

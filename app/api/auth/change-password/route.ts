@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { writeOperationLog } from "@/lib/operation-log";
 
 const input = z.object({
   oldPassword: z.string().min(1, "请输入旧密码"),
@@ -18,9 +19,7 @@ export async function POST(request: Request) {
   if (!user || user.status !== "ENABLED") return NextResponse.json({ message: "当前账号不可用，请重新登录" }, { status: 403 });
   if (!(await bcrypt.compare(body.data.oldPassword, user.passwordHash))) return NextResponse.json({ message: "旧密码输入不正确" }, { status: 400 });
   const passwordHash = await bcrypt.hash(body.data.newPassword, 12);
-  await db.$transaction([
-    db.user.update({ where: { id: user.id }, data: { passwordHash } }),
-    db.operationLog.create({ data: { userId: user.id, page: "个人信息", action: "修改密码", result: "成功" } }),
-  ]);
+  await db.user.update({ where: { id: user.id }, data: { passwordHash } });
+  await writeOperationLog({ userId: user.id, username: session.username, page: "个人信息", action: "修改密码", result: "成功", detail: "用户修改本人登录密码", request }).catch(() => undefined);
   return NextResponse.json({ ok: true });
 }

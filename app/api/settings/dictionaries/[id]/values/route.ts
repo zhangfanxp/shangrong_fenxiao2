@@ -4,11 +4,12 @@ import { requireApiSession } from "@/lib/auth";
 import { canDictionary } from "@/lib/dictionary-permissions";
 import { DictionaryConfigError, parseDictionaryValues, readDictionaryValues, writeDictionaryValues } from "@/lib/dictionary-config";
 import { db } from "@/lib/db";
+import { writeOperationLog, type OperationLogResult } from "@/lib/operation-log";
 
 const inputSchema = z.object({ valuesText: z.string(), updatedAt: z.string().datetime({ offset: true }) });
 function forbidden() { return NextResponse.json({ message: "暂无此操作权限" }, { status: 403 }); }
 function sameTimestamp(date: Date, value: string) { return date.getTime() === new Date(value).getTime(); }
-async function log(userId: string, action: string, result: string, detail: string) { await db.operationLog.create({ data: { userId, page: "数据字典", action, result, detail } }).catch(() => undefined); }
+async function log(userId: string, action: string, result: OperationLogResult, detail: string) { await writeOperationLog({ userId, page: "数据字典", action, result, detail }).catch(() => undefined); }
 
 async function referencedRemovedValues(code: string, fileName: string, removed: string[]) {
   if (!removed.length) return [];

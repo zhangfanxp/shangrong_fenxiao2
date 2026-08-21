@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { writeOperationLog } from "@/lib/operation-log";
 import { configFileExists, createTaskConfig, deleteTaskConfig, normalizeConfigFileName, parseSubmitContent, readTaskConfig, TaskConfigError, writeTaskConfig } from "@/lib/task-config";
 
 const dayValues = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"] as const;
@@ -20,18 +21,18 @@ async function findTask(id: string) {
 }
 function sameTimestamp(first: Date, second: string) { return first.getTime() === new Date(second).getTime(); }
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   if (!sessionHasPermission(session, "tasks:settings:view")) return NextResponse.json({ message: "暂无任务设置权限" }, { status: 403 });
   const { id } = await params; const task = await findTask(id);
   if (!task || !task.configFileName) return NextResponse.json({ message: "任务设置不存在或已删除" }, { status: 404 });
   try {
     const config = await readTaskConfig(task.configFileName);
-    await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: "查看", result: "成功", detail: `查看任务：${task.recordNo}` } });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "查看", result: "成功", detail: `查看任务：${task.recordNo}`, request });
     return NextResponse.json({ task, config });
   } catch (error) {
     const message = error instanceof TaskConfigError ? error.message : "任务配置文件加载失败，请联系系统管理员";
-    await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: "查看", result: "失败", detail: `任务：${task.recordNo}；${message}` } });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "查看", result: "失败", detail: `任务：${task.recordNo}；${message}`, request });
     return NextResponse.json({ message }, { status: 500 });
   }
 }
@@ -55,7 +56,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const result = await db.task.updateMany({ where: { id, updatedAt: task.updatedAt }, data: { status: parsed.data.status, configVersion: nextVersion } });
       if (!result.count) { await writeTaskConfig(task.configFileName, oldConfig); return NextResponse.json({ message: "当前任务配置已被其他用户修改，请刷新后重新操作。" }, { status: 409 }); }
       const action = parsed.data.status === RecordStatus.ENABLED ? "启用" : "禁用";
-      await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action, result: "成功", detail: `${action}任务：${task.recordNo}` } });
+      await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action, result: "成功", detail: `${action}任务：${task.recordNo}`, request });
       return NextResponse.json({ message: `任务${action}成功` });
     }
     const input = taskSchema.parse(body); const nextFileName = normalizeConfigFileName(input.configFileBase);
@@ -81,7 +82,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         if (brands.length) await tx.taskBrand.createMany({ data: brands.map(brand => ({ taskId: id, brandId: brand.id })) });
         await tx.r2StorageReference.upsert({ where: { businessType_businessId: { businessType: "TASK", businessId: id } }, create: { r2ConfigId: r2Storage.id, businessType: "TASK", businessId: id }, update: { r2ConfigId: r2Storage.id } });
       });
-      await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: "编辑", result: "成功", detail: `编辑任务：${task.recordNo}，版本：${nextVersion}` } });
+      await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "编辑", result: "成功", detail: `编辑任务：${task.recordNo}，版本：${nextVersion}`, request });
       return NextResponse.json(result ?? { message: "任务保存成功" });
     } catch (error) {
       if (nextFileName !== task.configFileName) { await deleteTaskConfig(nextFileName); await writeTaskConfig(task.configFileName, oldConfig); } else await writeTaskConfig(task.configFileName, oldConfig);
@@ -89,12 +90,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   } catch (error) {
     const message = error instanceof TaskConfigError ? error.message : "任务配置文件保存失败，请稍后重试";
-    await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: changingStatus ? "状态变更" : "编辑", result: "失败", detail: `任务：${task.recordNo}；${message}` } });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: changingStatus ? "状态变更" : "编辑", result: "失败", detail: `任务：${task.recordNo}；${message}`, request });
     return NextResponse.json({ message }, { status: 400 });
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   if (!sessionHasPermission(session, "tasks:settings:view")) return NextResponse.json({ message: "暂无任务设置权限" }, { status: 403 });
   const { id } = await params; const task = await findTask(id);
@@ -105,11 +106,11 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     await deleteTaskConfig(task.configFileName);
     try { await db.$transaction([db.task.update({ where: { id }, data: { deletedAt: new Date() } }), db.r2StorageReference.deleteMany({ where: { businessType: "TASK", businessId: id } })]); }
     catch (error) { await writeTaskConfig(task.configFileName, oldConfig); throw error; }
-    await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: "删除", result: "成功", detail: `删除任务：${task.recordNo}` } });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "删除", result: "成功", detail: `删除任务：${task.recordNo}`, request });
     return NextResponse.json({ message: "任务删除成功" });
   } catch (error) {
     const message = error instanceof TaskConfigError ? error.message : "任务删除失败，请稍后重试";
-    await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: "删除", result: "失败", detail: `任务：${task.recordNo}；${message}` } });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "删除", result: "失败", detail: `任务：${task.recordNo}；${message}`, request });
     return NextResponse.json({ message }, { status: 400 });
   }
 }

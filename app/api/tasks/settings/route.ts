@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { writeOperationLog } from "@/lib/operation-log";
 import { configFileExists, createTaskConfig, deleteTaskConfig, normalizeConfigFileName, parseSubmitContent, TaskConfigError } from "@/lib/task-config";
 
 const dayValues = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"] as const;
@@ -57,7 +58,7 @@ export async function GET(request: Request) {
     db.task.count({ where }),
     db.task.findMany({ where, include: { executorRole: { select: { id: true, name: true, status: true } }, r2Storage: { select: { id: true, name: true, status: true } }, brands: { include: { brand: { select: { id: true, name: true } } } }, createdBy: { select: { realName: true } } }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
   ]);
-  await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: "筛选", result: "成功", detail: keyword || type ? `任务名称：${keyword || "全部"}；任务类型：${type || "全部"}` : "加载任务列表" } });
+  await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "筛选", result: "成功", detail: keyword || type ? `任务名称：${keyword || "全部"}；任务类型：${type || "全部"}` : "加载任务列表", request });
   return NextResponse.json({ rows, total, page, pageSize });
 }
 
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
         await tx.r2StorageReference.create({ data: { r2ConfigId: r2Storage.id, businessType: "TASK", businessId: created.id } });
         return created;
       });
-      await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: "新增", result: "成功", detail: `新增任务：${task.recordNo}` } });
+      await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "新增", result: "成功", detail: `新增任务：${task.recordNo}`, request });
       return NextResponse.json(task, { status: 201 });
     } catch (error) {
       await deleteTaskConfig(fileName);
@@ -97,7 +98,7 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     const message = error instanceof TaskConfigError ? error.message : "任务配置文件创建失败，请稍后重试";
-    await db.operationLog.create({ data: { userId: session.userId, page: "任务设置", action: "新增", result: "失败", detail: message } });
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "新增", result: "失败", detail: message, request });
     return NextResponse.json({ message }, { status: 400 });
   }
 }
