@@ -1,0 +1,487 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum RecordStatus {
+  ENABLED
+  DISABLED
+}
+
+enum UserType {
+  SYSTEM
+  CUSTOM
+}
+
+enum ContractStatus {
+  PENDING
+  ACTIVE
+  EXPIRING
+  TERMINATED
+  EXPIRED
+}
+
+enum StoreOperationStatus {
+  PREPARING
+  TRIAL
+  OPENING
+  TERMINATING
+  SUSPENDED
+  CLOSED
+}
+
+enum CooperationType {
+  DIRECT
+  FRANCHISE
+}
+
+enum TaskType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  TEMPORARY
+}
+
+enum TaskRecordStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}
+
+enum AssessmentScoreMode {
+  BINARY
+  CUSTOM_SCORE
+}
+
+enum R2TestStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PersonnelStatus {
+  ACTIVE
+  RESIGNED
+}
+
+enum SocialSecurityStatus {
+  INSURED
+  AGREEMENT
+}
+
+enum PlatformAccess {
+  YES
+  NO
+}
+
+model Role {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  name          String       @unique
+  type          String       @default("SYSTEM")
+  status        RecordStatus @default(ENABLED)
+  permissions   Json
+  users         User[]
+  assignedTasks Task[]       @relation("TaskExecutorRole")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model User {
+  id                      String            @id @default(cuid())
+  username                String            @unique
+  passwordHash            String
+  realName                String
+  phone                   String?
+  tags                    String?           @db.VarChar(200)
+  type                    UserType          @default(CUSTOM)
+  status                  RecordStatus      @default(ENABLED)
+  roleId                  String
+  role                    Role              @relation(fields: [roleId], references: [id])
+  createdByUserId         String?
+  createdBy               User?             @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdUsers            User[]            @relation("UserCreator")
+  lastLoginAt             DateTime?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  logs                    OperationLog[]
+  createdTasks            Task[]            @relation("TaskCreator")
+  createdAssessments      Assessment[]      @relation("AssessmentCreator")
+  createdR2StorageConfigs R2StorageConfig[] @relation("R2StorageCreator")
+  r2StorageTests          R2StorageTest[]   @relation("R2StorageTestCreator")
+  personnelProfile        Personnel?        @relation("PersonnelPlatformUser")
+  createdPersonnel        Personnel[]       @relation("PersonnelCreator")
+  salaryAdjustments       SalaryHistory[]   @relation("SalaryOperator")
+  positionTransfers       PositionHistory[] @relation("PositionOperator")
+
+  @@index([createdByUserId])
+}
+
+model Assessment {
+  id              String              @id @default(cuid())
+  recordNo        String              @unique
+  name            String
+  scoreMode       AssessmentScoreMode @default(BINARY)
+  configFileName  String              @unique
+  detailText      String              @db.LongText
+  sectionCount    Int
+  subsectionCount Int
+  itemCount       Int
+  totalScore      Decimal             @db.Decimal(10, 1)
+  remark          String?             @db.VarChar(50)
+  status          RecordStatus        @default(ENABLED)
+  configVersion   Int                 @default(1)
+  createdByUserId String?
+  createdBy       User?               @relation("AssessmentCreator", fields: [createdByUserId], references: [id])
+  deletedAt       DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  records         AssessmentRecord[]
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+model AssessmentRecord {
+  id               String     @id @default(cuid())
+  assessmentId     String
+  assessment       Assessment @relation(fields: [assessmentId], references: [id])
+  configVersion    Int
+  configSnapshot   Json
+  scoreSnapshot    Json?
+  actualTotalScore Decimal?   @db.Decimal(10, 1)
+  createdAt        DateTime   @default(now())
+
+  @@index([assessmentId])
+}
+
+model Brand {
+  id        String       @id @default(cuid())
+  code      String       @unique
+  name      String       @unique
+  status    RecordStatus @default(ENABLED)
+  contracts Contract[]
+  stores    Store[]
+  taskLinks TaskBrand[]
+  createdAt DateTime     @default(now())
+}
+
+model Contract {
+  id                String           @id @default(cuid())
+  recordNo          String           @unique
+  brandId           String
+  brand             Brand            @relation(fields: [brandId], references: [id])
+  storeName         String
+  status            ContractStatus   @default(PENDING)
+  archiveBox        String?
+  trialOpenDate     DateTime?
+  cooperationType   CooperationType
+  contactName       String?
+  contactPhone      String?
+  ownerName         String
+  ownerPhone        String?
+  ownerIdNumber     String?
+  province          String?
+  city              String?
+  district          String?
+  address           String?
+  cooperationFee    Decimal          @default(0) @db.Decimal(12, 2)
+  brandFee          Decimal          @default(0) @db.Decimal(12, 2)
+  financeServiceFee Decimal          @default(0) @db.Decimal(12, 2)
+  designFee         Decimal          @default(0) @db.Decimal(12, 2)
+  deposit           Decimal          @default(0) @db.Decimal(12, 2)
+  depositRecipient  String?
+  refundedDeposit   Decimal          @default(0) @db.Decimal(12, 2)
+  rebateType        String?
+  rebatePerson      String?
+  rebateAmount      Decimal          @default(0) @db.Decimal(12, 2)
+  startDate         DateTime
+  endDate           DateTime
+  remark            String?          @db.Text
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  store             Store?
+  rebates           ContractRebate[]
+}
+
+model ContractRebate {
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  type       String
+  person     String
+  amount     Decimal  @db.Decimal(12, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([contractId])
+}
+
+model Store {
+  id               String               @id @default(cuid())
+  recordNo         String               @unique
+  contractId       String?              @unique
+  contract         Contract?            @relation(fields: [contractId], references: [id])
+  brandId          String
+  brand            Brand                @relation(fields: [brandId], references: [id])
+  name             String
+  operationStatus  StoreOperationStatus @default(PREPARING)
+  region           String?
+  supervisorName   String?
+  province         String?
+  city             String?
+  district         String?
+  address          String?
+  cooperationType  CooperationType
+  startDate        DateTime?
+  endDate          DateTime?
+  businessDistrict String?
+  locationType     String?
+  trialOpenDate    DateTime?
+  formalOpenDate   DateTime?
+  managerName      String?
+  chefName         String?
+  ownerName        String?
+  ownerPhone       String?
+  ownerIdNumber    String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  personnel        Personnel[]
+}
+
+model PersonnelSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model Personnel {
+  id                    String               @id @default(cuid())
+  recordNo              String               @unique @db.VarChar(12)
+  name                  String               @db.VarChar(8)
+  phone                 String               @db.VarChar(11)
+  idNumber              String               @unique @db.VarChar(18)
+  birthday              String?              @db.VarChar(5)
+  status                PersonnelStatus      @default(ACTIVE)
+  hireDate              DateTime
+  positionLevel         String               @db.VarChar(50)
+  organization          String               @db.VarChar(30)
+  storeId               String
+  store                 Store                @relation(fields: [storeId], references: [id])
+  resignationDate       DateTime?
+  resignationReason     String?              @db.VarChar(200)
+  contractSignDate      DateTime
+  contractYears         Int?
+  contractExpiryDate    DateTime
+  homeAddress           String               @db.VarChar(50)
+  currentAddress        String               @db.VarChar(50)
+  supplementaryMaterial String?              @db.VarChar(50)
+  baseSalary            Decimal              @db.Decimal(12, 2)
+  laborCost             Decimal              @default(0) @db.Decimal(12, 2)
+  workdayHours          Decimal?             @db.Decimal(5, 2)
+  socialSecurity        SocialSecurityStatus
+  platformAccess        PlatformAccess?
+  platformUserId        String?              @unique
+  platformUser          User?                @relation("PersonnelPlatformUser", fields: [platformUserId], references: [id])
+  remark                String?              @db.VarChar(50)
+  version               Int                  @default(1)
+  createdByUserId       String?
+  createdBy             User?                @relation("PersonnelCreator", fields: [createdByUserId], references: [id])
+  deletedAt             DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  salaryHistory         SalaryHistory[]
+  positionHistory       PositionHistory[]
+
+  @@index([status, deletedAt])
+  @@index([hireDate])
+  @@index([organization])
+  @@index([storeId])
+}
+
+model SalaryHistory {
+  id            String    @id @default(cuid())
+  personnelId   String
+  personnel     Personnel @relation(fields: [personnelId], references: [id])
+  oldSalary     Decimal   @db.Decimal(12, 2)
+  newSalary     Decimal   @db.Decimal(12, 2)
+  effectiveDate DateTime
+  reason        String    @db.VarChar(200)
+  operatorId    String?
+  operator      User?     @relation("SalaryOperator", fields: [operatorId], references: [id])
+  operatorName  String    @db.VarChar(30)
+  createdAt     DateTime  @default(now())
+
+  @@index([personnelId, effectiveDate])
+}
+
+model PositionHistory {
+  id               String    @id @default(cuid())
+  personnelId      String
+  personnel        Personnel @relation(fields: [personnelId], references: [id])
+  oldOrganization  String    @db.VarChar(30)
+  newOrganization  String    @db.VarChar(30)
+  oldStoreName     String    @db.VarChar(60)
+  newStoreName     String    @db.VarChar(60)
+  oldPositionLevel String    @db.VarChar(50)
+  newPositionLevel String    @db.VarChar(50)
+  effectiveDate    DateTime
+  reason           String    @db.VarChar(200)
+  operatorId       String?
+  operator         User?     @relation("PositionOperator", fields: [operatorId], references: [id])
+  operatorName     String    @db.VarChar(30)
+  createdAt        DateTime  @default(now())
+
+  @@index([personnelId, effectiveDate])
+}
+
+model Task {
+  id                    String           @id @default(cuid())
+  recordNo              String?          @unique
+  title                 String
+  type                  TaskType
+  status                RecordStatus     @default(ENABLED)
+  description           String?          @db.Text
+  executorRoleId        String?
+  executorRole          Role?            @relation("TaskExecutorRole", fields: [executorRoleId], references: [id])
+  includeCompletionRate Boolean          @default(true)
+  executionDays         Json?
+  configFileName        String?          @unique
+  submitItems           Json?
+  configVersion         Int              @default(1)
+  r2StorageId           String?
+  r2Storage             R2StorageConfig? @relation("TaskR2Storage", fields: [r2StorageId], references: [id])
+  createdByUserId       String?
+  createdBy             User?            @relation("TaskCreator", fields: [createdByUserId], references: [id])
+  deletedAt             DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @default(now()) @updatedAt
+  records               TaskRecord[]
+  brands                TaskBrand[]
+
+  @@index([createdAt])
+  @@index([executorRoleId])
+  @@index([r2StorageId])
+}
+
+model TaskBrand {
+  taskId  String
+  brandId String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  brand   Brand  @relation(fields: [brandId], references: [id])
+
+  @@id([taskId, brandId])
+}
+
+model TaskRecord {
+  id             String           @id @default(cuid())
+  taskId         String
+  task           Task             @relation(fields: [taskId], references: [id])
+  storeId        String?
+  status         TaskRecordStatus @default(PENDING)
+  dueDate        DateTime
+  completedAt    DateTime?
+  configVersion  Int?
+  configSnapshot Json?
+  submission     Json?
+}
+
+model DictionaryItem {
+  id        String       @id @default(cuid())
+  type      String
+  label     String
+  value     String
+  sort      Int          @default(0)
+  status    RecordStatus @default(ENABLED)
+  createdAt DateTime     @default(now())
+
+  @@unique([type, value])
+}
+
+model DataDictionary {
+  id        String       @id @default(cuid())
+  recordNo  String       @unique @db.VarChar(12)
+  name      String       @unique @db.VarChar(10)
+  code      String       @unique @db.VarChar(30)
+  fileName  String       @unique @db.VarChar(35)
+  remark    String?      @db.VarChar(200)
+  status    RecordStatus @default(ENABLED)
+  version   Int          @default(1)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+model OperationLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  page      String
+  action    String
+  result    String
+  detail    String?  @db.Text
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model R2StorageConfig {
+  id                       String               @id @default(cuid())
+  recordNo                 String               @unique @db.VarChar(12)
+  name                     String               @db.VarChar(20)
+  accountId                String               @db.VarChar(50)
+  accessKeyIdEncrypted     String               @db.Text
+  secretAccessKeyEncrypted String               @db.Text
+  bucketName               String               @db.VarChar(50)
+  endpoint                 String               @db.VarChar(150)
+  signedUrlExpireSeconds   Int                  @default(300)
+  status                   RecordStatus         @default(ENABLED)
+  version                  Int                  @default(1)
+  createdByUserId          String?
+  createdBy                User?                @relation("R2StorageCreator", fields: [createdByUserId], references: [id])
+  references               R2StorageReference[]
+  tests                    R2StorageTest[]
+  tasks                    Task[]               @relation("TaskR2Storage")
+  deletedAt                DateTime?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  @@index([accountId, bucketName])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model R2StorageReference {
+  id           String          @id @default(cuid())
+  r2ConfigId   String
+  r2Config     R2StorageConfig @relation(fields: [r2ConfigId], references: [id])
+  businessType String          @db.VarChar(50)
+  businessId   String          @db.VarChar(100)
+  createdAt    DateTime        @default(now())
+
+  @@unique([businessType, businessId])
+  @@index([r2ConfigId])
+}
+
+model R2StorageTest {
+  id              String          @id @default(cuid())
+  r2ConfigId      String
+  r2Config        R2StorageConfig @relation(fields: [r2ConfigId], references: [id])
+  fileName        String          @db.VarChar(15)
+  status          R2TestStatus    @default(PENDING)
+  errorCode       String?         @db.VarChar(50)
+  createdByUserId String?
+  createdBy       User?           @relation("R2StorageTestCreator", fields: [createdByUserId], references: [id])
+  createdAt       DateTime        @default(now())
+  completedAt     DateTime?
+
+  @@unique([r2ConfigId, fileName])
+  @@index([createdAt])
+}

@@ -1,0 +1,105 @@
+{
+  "recordNo": "202608200001",
+  "reviewName": "督导巡店test",
+  "scoreMode": "CUSTOM_SCORE",
+  "scoreModeLabel": "允许自定义得分",
+  "configVersion": 2,
+  "totalScore": 37,
+  "statistics": {
+    "sectionCount": 2,
+    "subsectionCount": 4,
+    "itemCount": 12
+  },
+  "sections": [
+    {
+      "name": "纪律与规范",
+      "children": [
+        {
+          "name": "仪容仪表",
+          "items": [
+            {
+              "id": "item_1",
+              "description": "服装：着工装、符合门店着装要求",
+              "maxScore": 1
+            },
+            {
+              "id": "item_2",
+              "description": "仪表：保持良好个人卫生、着装整洁、不蓬头垢面",
+              "maxScore": 1
+            },
+            {
+              "id": "item_3",
+              "description": "清洁：工装干净整洁无污渍、油渍、异味",
+              "maxScore": 1
+            },
+            {
+              "id": "item_4",
+              "description": "仪态：礼貌待客、积极热情，面带微笑",
+              "maxScore": 1
+            },
+            {
+              "id": "item_7",
+              "description": "当班时间不嬉笑打闹，不大声喧哗；时刻保持乐观心态",
+              "maxScore": 2
+            }
+          ]
+        },
+        {
+          "name": "记录与规范",
+          "items": [
+            {
+              "id": "item_5",
+              "description": "出勤：按时打卡、上下班。不得无故迟到、早退、脱岗、矿工",
+              "maxScore": 2
+            },
+            {
+              "id": "item_6",
+              "description": "服从岗位安排，工作时间不擅自离岗换岗、不顶撞上级",
+              "maxScore": 2
+            },
+            {
+              "id": "item_8",
+              "description": "不与就餐顾客争吵，冷静处理顾客投诉事件",
+              "maxScore": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "卫生清洁",
+      "children": [
+        {
+          "name": "餐具",
+          "items": [
+            {
+              "id": "item_9",
+              "description": "客用一次性餐具包装完整、无破损、无油渍",
+              "maxScore": 5
+            },
+            {
+              "id": "item_10",
+              "description": "客用一次性餐具独立包装保证在使用效期以内，不得过期或未先进先出使用",
+              "maxScore": 1
+            }
+          ]
+        },
+        {
+          "name": "厅面",
+          "items": [
+            {
+              "id": "item_11",
+              "description": "提供免费小吃独立包装不少于2种且备货不少于1/2",
+              "maxScore": 10
+            },
+            {
+              "id": "item_12",
+              "description": "收银台酒水柜保持干净整洁，无粉尘、无水渍、无杂物",
+              "maxScore": 10
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+import { Card, Descriptions } from "antd";
+import { AssessmentList } from "@/components/assessment-list";
+import { ClearBusinessData } from "@/components/clear-business-data";
+import { DictionaryManagement } from "@/components/dictionary-management";
+import { PageHeader } from "@/components/page-header";
+import { RoleManagement } from "@/components/role-management";
+import { R2StorageList } from "@/components/r2-storage-list";
+import { SettingsTable } from "@/components/settings-table";
+import { SystemParameters } from "@/components/system-parameters";
+import { UserManagement } from "@/components/user-management";
+import { db } from "@/lib/db";
+import { getPlatformConfig } from "@/lib/platform-config";
+import { requirePageAccess } from "@/lib/auth";
+
+const titles: Record<string, { title: string; description: string }> = {
+  "tasks/settings": { title: "任务设置", description: "管理每日、每周、每月及临时任务模板" }, "tasks/records": { title: "任务记录", description: "查看门店任务执行与完成情况" },
+  "settings/roles": { title: "角色管理", description: "管理系统角色以及页面、功能按钮权限" }, "settings/users": { title: "用户列表", description: "维护平台用户账号、角色和使用状态" }, "settings/dictionaries": { title: "数据字典", description: "统一维护业务枚举及下拉选项" }, "settings/assessments": { title: "考核表格", description: "配置平台检查、督导及运营考核评分模板" }, "settings/storage": { title: "R2存储空间", description: "管理平台 Cloudflare R2 存储桶及访问参数" }, "settings/parameters": { title: "系统参数", description: "维护平台信息与品牌工作日小时" }, "settings/operation-logs": { title: "操作日志", description: "追溯系统关键操作及执行结果" }, "settings/clear-data": { title: "清空业务数据", description: "仅限超级管理员执行的系统维护操作" },
+};
+const pageTitle = (section: string, page: string) => titles[`${section}/${page}`] ?? { title: "功能模块", description: "该模块已接入统一导航、权限和页面规范，可按业务规则逐步配置数据字段。" };
+
+export default async function GenericPage({ params }: { params: Promise<{ section: string; page: string }> }) {
+  const { section, page } = await params; const session = await requirePageAccess(`/lead_pc/${section}/${page}`); const meta = pageTitle(section, page); const key = `${section}/${page}`;
+  if (key === "settings/clear-data") return <main className="page-wrap"><PageHeader {...meta} /><ClearBusinessData /></main>;
+  if (key === "settings/roles") return <main className="page-wrap"><PageHeader {...meta} /><RoleManagement /></main>;
+  if (key === "settings/users") return <main className="page-wrap"><PageHeader {...meta} /><UserManagement /></main>;
+  if (key === "settings/assessments") return <main className="page-wrap"><PageHeader {...meta} /><AssessmentList permissions={session.permissions} /></main>;
+  if (key === "settings/storage") return <main className="page-wrap"><PageHeader {...meta} /><R2StorageList permissions={session.permissions} /></main>;
+  if (key === "settings/dictionaries") return <main className="page-wrap"><PageHeader {...meta} /><DictionaryManagement permissions={session.permissions} /></main>;
+  if (key === "settings/parameters") return <main className="page-wrap"><PageHeader {...meta} /><SystemParameters initialPlatform={await getPlatformConfig()} /></main>;
+  if (key === "settings/operation-logs") { const logs = await db.operationLog.findMany({ include: { user: { select: { realName: true } } }, orderBy: { createdAt: "desc" }, take: 100 }); return <main className="page-wrap"><PageHeader {...meta} /><SettingsTable kind="logs" rows={logs.map(({ user, ...log }) => ({ ...log, userName: user?.realName ?? null, createdAt: log.createdAt.toISOString() }))} /></main>; }
+  return <main className="page-wrap"><PageHeader {...meta} /><Card><Descriptions title="模块状态" column={1}><Descriptions.Item label="页面框架">已接入统一导航、登录会话与权限边界</Descriptions.Item><Descriptions.Item label="下一步">根据该模块的业务规则配置字段、数据采集来源和审批流程</Descriptions.Item></Descriptions></Card></main>;
+}

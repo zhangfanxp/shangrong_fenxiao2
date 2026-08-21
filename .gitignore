@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+
+# Next.js build output and deployment artifacts
+.next/
+out/
+.vercel/
+
+# Other generated build/cache directories
+dist/
+build/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Local environment files and secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# Runtime logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Temporary/runtime files
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+
+# macOS and editor metadata
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+
+# Local database files (MySQL schema/migrations remain tracked)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Local R2 credentials: contains secretAccessKey and must not be public
+data/R2_Bucket/cloudflare_R2.json
+data/R2_Bucket/cloudflare_R2.json.*.tmp
+
+# JSON files below are required project data and must be committed
+!package.json
+!package-lock.json
+!Data_Dictionary/
+!Data_Dictionary/**/*.json
+!District/
+!District/**/*.json

@@ -1,0 +1,150 @@
+{
+  "recordNo": "202608190001",
+  "taskName": "测试-班前会",
+  "taskType": "日任务",
+  "executorRole": {
+    "id": "cmszu2mly0000tnrre64hv1l2",
+    "name": "超级管理员"
+  },
+  "brands": [
+    {
+      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "name": "奋小二"
+    },
+    {
+      "id": "cmszu2mss0005tnrrddx1naed",
+      "name": "蚝家伙"
+    }
+  ],
+  "executionDays": [
+    "周一",
+    "周二",
+    "周三",
+    "周四",
+    "周五",
+    "周六",
+    "周日"
+  ],
+  "includeCompletionRate": true,
+  "status": "启用",
+  "configVersion": 1,
+  "submitItems": [
+    {
+      "name": "仪容仪表",
+      "description": "请拍摄并上传照片",
+      "required": true,
+      "weight": 1,
+      "component": "attachment",
+      "dataType": "photo",
+      "options": []
+    },
+    {
+      "name": "点名问好",
+      "description": "请拍摄并上传视频",
+      "required": true,
+      "weight": 1,
+      "component": "attachment",
+      "dataType": "video",
+      "options": []
+    },
+    {
+      "name": "员工关怀",
+      "description": "请拍摄并上传视频",
+      "required": true,
+      "weight": 1,
+      "component": "attachment",
+      "dataType": "video",
+      "options": []
+    },
+    {
+      "name": "企业文化朗诵",
+      "description": "请拍摄并上传视频",
+      "required": true,
+      "weight": 1,
+      "component": "attachment",
+      "dataType": "video",
+      "options": []
+    },
+    {
+      "name": "早读",
+      "description": "请拍摄并上传视频",
+      "required": true,
+      "weight": 1,
+      "component": "attachment",
+      "dataType": "video",
+      "options": []
+    },
+    {
+      "name": "跳舞",
+      "description": "请拍摄并上传视频",
+      "required": true,
+      "weight": 1,
+      "component": "attachment",
+      "dataType": "video",
+      "options": []
+    },
+    {
+      "name": "营业目标",
+      "description": "请填写今日的目标营业额",
+      "required": true,
+      "weight": 1,
+      "component": "input",
+      "dataType": "amount",
+      "options": []
+    },
+    {
+      "name": "岗位分配",
+      "description": "今日岗位分配工作是否已完成",
+      "required": true,
+      "weight": 1,
+      "component": "select",
+      "dataType": null,
+      "options": [
+        "已完成",
+        "未完成"
+      ]
+    },
+    {
+      "name": "会议传达",
+      "description": "今日传达总部会议内容",
+      "required": false,
+      "weight": 1,
+      "component": "select",
+      "dataType": null,
+      "options": [
+        "有",
+        "无"
+      ]
+    },
+    {
+      "name": "沽清菜品",
+      "description": "今日后厨已沽清菜品",
+      "required": true,
+      "weight": 1,
+      "component": "select",
+      "dataType": null,
+      "options": [
+        "已完成",
+        "未完成"
+      ]
+    },
+    {
+      "name": "预估用量：鸡肉(斤)",
+      "description": "请填写今日的鸡肉预估用量",
+      "required": true,
+      "weight": 1,
+      "component": "input",
+      "dataType": "quantity",
+      "options": []
+    },
+    {
+      "name": "预估用量：猪蹄(斤)",
+      "description": "请填写今日的猪蹄预估用量",
+      "required": true,
+      "weight": 1,
+      "component": "input",
+      "dataType": "quantity",
+      "options": []
+    }
+  ]
+}
