@@ -10,6 +10,7 @@ import {
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
+import { assessmentScopeConflictMessage, assessmentScopeRows, findAssessmentScopeConflict, isUniqueConflict } from "@/lib/assessment-scope";
 
 const assessmentSchema = z.object({
   name: z.string().trim().min(1, "请选择考核表类型"),
@@ -63,7 +64,7 @@ export async function GET(request: Request) {
       db.assessment.count({ where }),
       db.assessment.findMany({ where, include: { createdBy: { select: { realName: true } }, _count: { select: { records: true } } }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
     ]);
-    await writeOperationLog({ userId: session.userId, username: session.username, page: "考核表格", action: "筛选", result: "成功", detail: keyword ? `考核表名称：${keyword}` : "加载全部考核表", request }).catch(() => undefined);
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "考核表格", action: "筛选", result: "成功", detail: keyword ? `考核表类型：${keyword}` : "加载全部考核表", request }).catch(() => undefined);
     return NextResponse.json({ rows: rows.map(rowJson), total, page, pageSize });
   } catch {
     return NextResponse.json({ message: "考核表格加载失败，请稍后重试" }, { status: 500 });
@@ -88,6 +89,8 @@ export async function POST(request: Request) {
     const applicableBrands = Array.from(new Set(input.applicableBrands));
     if (applicableBrands.some(value => !validBrandValues.has(value))) throw new AssessmentConfigError("所选品牌不在已启用的BRAND数据字典中");
     input.applicableBrands = applicableBrands;
+    const scopeConflict = await findAssessmentScopeConflict(applicableBrands, input.name);
+    if (scopeConflict) throw new AssessmentConfigError(assessmentScopeConflictMessage(scopeConflict.brands));
     if (await assessmentFileExists(fileName) || await db.assessment.findFirst({ where: { configFileName: fileName, deletedAt: null } })) {
       throw new AssessmentConfigError("考核明细配置文件名称已存在，请重新输入");
     }
@@ -102,13 +105,17 @@ export async function POST(request: Request) {
           subsectionCount: parsedDetails.subsectionCount, itemCount: parsedDetails.itemCount,
           totalScore: parsedDetails.totalScore, remark: input.remark || null, status: RecordStatus.ENABLED,
           createdByUserId: session.userId,
+          brandScopes: { create: assessmentScopeRows(applicableBrands, input.name) },
         }, include: { createdBy: { select: { realName: true } } } });
         await writeOperationLog({ userId: session.userId, username: session.username, page: "考核表格", action: "新增", result: "成功", detail: `新增考核表：${recordNo}`, request }).catch(() => undefined);
         return NextResponse.json(rowJson(assessment), { status: 201 });
       } catch (error) {
-        const conflict = error as { code?: string; meta?: { target?: string | string[] } };
-        const target = Array.isArray(conflict.meta?.target) ? conflict.meta?.target.join(",") : conflict.meta?.target || "";
-        if (conflict.code !== "P2002" || (!String(target).includes("recordNo") && await db.assessment.findFirst({ where: { configFileName: fileName } }))) throw error;
+        if (!isUniqueConflict(error)) throw error;
+        const recordNumberTaken = await db.assessment.findUnique({ where: { recordNo }, select: { id: true } });
+        if (!recordNumberTaken) {
+          const concurrentScopeConflict = await findAssessmentScopeConflict(applicableBrands, input.name);
+          throw new AssessmentConfigError(assessmentScopeConflictMessage(concurrentScopeConflict?.brands));
+        }
         recordNo = await nextRecordNo();
         await writeAssessmentConfig(fileName, buildConfig(input, recordNo, 1, parsedDetails));
       }

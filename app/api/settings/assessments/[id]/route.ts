@@ -10,6 +10,7 @@ import {
 import { db } from "@/lib/db";
 import { writeOperationLog, type OperationLogResult } from "@/lib/operation-log";
 import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
+import { assessmentBrands, assessmentScopeConflictMessage, assessmentScopeRows, findAssessmentScopeConflict, isUniqueConflict } from "@/lib/assessment-scope";
 
 const editSchema = z.object({
   name: z.string().trim().min(1, "请选择考核表类型"),
@@ -80,11 +81,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const enabling = parsed.data.status === RecordStatus.ENABLED;
     if (!canAssessment(session, enabling ? "enable" : "disable")) return forbidden();
     if (!sameTimestamp(assessment.updatedAt, parsed.data.updatedAt)) return NextResponse.json({ message: "当前考核表配置已被其他用户修改，请刷新后重新操作。" }, { status: 409 });
-    const result = await db.assessment.updateMany({ where: { id, updatedAt: assessment.updatedAt }, data: { status: parsed.data.status } });
-    if (!result.count) return NextResponse.json({ message: "当前考核表配置已被其他用户修改，请刷新后重新操作。" }, { status: 409 });
     const action = enabling ? "启用" : "禁用";
-    await log(session.userId, action, "成功", `${action}考核表：${assessment.recordNo}`);
-    return NextResponse.json({ message: `考核表${action}成功` });
+    const applicableBrands = assessmentBrands(assessment.applicableBrands);
+    try {
+      if (enabling) {
+        const scopeConflict = await findAssessmentScopeConflict(applicableBrands, assessment.name, id);
+        if (scopeConflict) throw new AssessmentConfigError(assessmentScopeConflictMessage(scopeConflict.brands));
+      }
+      await db.$transaction(async tx => {
+        const result = await tx.assessment.updateMany({ where: { id, updatedAt: assessment.updatedAt }, data: { status: parsed.data.status } });
+        if (!result.count) throw new AssessmentConfigError("当前考核表配置已被其他用户修改，请刷新后重新操作。");
+        await tx.assessmentBrandScope.deleteMany({ where: { assessmentId: id } });
+        if (enabling && applicableBrands.length) await tx.assessmentBrandScope.createMany({ data: assessmentScopeRows(applicableBrands, assessment.name).map(scope => ({ assessmentId: id, ...scope })) });
+      });
+      await log(session.userId, action, "成功", `${action}考核表：${assessment.recordNo}`);
+      return NextResponse.json({ message: `考核表${action}成功` });
+    } catch (error) {
+      const message = error instanceof AssessmentConfigError ? error.message : isUniqueConflict(error) ? assessmentScopeConflictMessage() : `考核表${action}失败，请稍后重试`;
+      await log(session.userId, action, "失败", `${action}考核表：${assessment.recordNo}；${message}`);
+      return NextResponse.json({ message }, { status: message.includes("其他用户") ? 409 : 400 });
+    }
   }
   if (!canAssessment(session, "edit")) return forbidden();
   const parsedBody = editSchema.safeParse(body);
@@ -109,6 +125,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const applicableBrands = Array.from(new Set(input.applicableBrands));
     if (applicableBrands.some(value => !validBrandValues.has(value) && !previousBrands.includes(value))) throw new AssessmentConfigError("所选品牌不在已启用的BRAND数据字典中");
     input.applicableBrands = applicableBrands;
+    if (assessment.status === RecordStatus.ENABLED) {
+      const scopeConflict = await findAssessmentScopeConflict(applicableBrands, input.name, id);
+      if (scopeConflict) throw new AssessmentConfigError(assessmentScopeConflictMessage(scopeConflict.brands));
+    }
     const parsedDetails = parseAssessmentDetails(input.detailText);
     const nextVersion = assessment.configVersion + 1;
     const nextConfig = buildConfig(input, assessment.recordNo, nextVersion, parsedDetails);
@@ -119,16 +139,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       catch (error) { await deleteAssessmentConfig(nextFileName).catch(() => undefined); throw error; }
     }
     try {
-      const result = await db.assessment.updateMany({ where: { id, updatedAt: assessment.updatedAt }, data: {
-        name: input.name, scoreMode: input.scoreMode, configFileName: nextFileName, applicableBrands,
-        detailText: parsedDetails.normalizedText, sectionCount: parsedDetails.sectionCount,
-        subsectionCount: parsedDetails.subsectionCount, itemCount: parsedDetails.itemCount,
-        totalScore: parsedDetails.totalScore, remark: input.remark || null, configVersion: nextVersion,
-      } });
-      if (!result.count) throw new AssessmentConfigError("当前考核表配置已被其他用户修改，请刷新后重新操作。");
+      await db.$transaction(async tx => {
+        const result = await tx.assessment.updateMany({ where: { id, updatedAt: assessment.updatedAt }, data: {
+          name: input.name, scoreMode: input.scoreMode, configFileName: nextFileName, applicableBrands,
+          detailText: parsedDetails.normalizedText, sectionCount: parsedDetails.sectionCount,
+          subsectionCount: parsedDetails.subsectionCount, itemCount: parsedDetails.itemCount,
+          totalScore: parsedDetails.totalScore, remark: input.remark || null, configVersion: nextVersion,
+        } });
+        if (!result.count) throw new AssessmentConfigError("当前考核表配置已被其他用户修改，请刷新后重新操作。");
+        await tx.assessmentBrandScope.deleteMany({ where: { assessmentId: id } });
+        if (assessment.status === RecordStatus.ENABLED && applicableBrands.length) await tx.assessmentBrandScope.createMany({ data: assessmentScopeRows(applicableBrands, input.name).map(scope => ({ assessmentId: id, ...scope })) });
+      });
     } catch (error) {
       if (nextFileName !== assessment.configFileName) await deleteAssessmentConfig(nextFileName).catch(() => undefined);
       await writeAssessmentConfig(assessment.configFileName, oldConfig);
+      if (isUniqueConflict(error)) throw new AssessmentConfigError(assessmentScopeConflictMessage());
       throw error;
     }
     await log(session.userId, "编辑", "成功", `编辑考核表：${assessment.recordNo}，版本：${nextVersion}`);
@@ -151,7 +176,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   try {
     const oldConfig = await readAssessmentConfig(assessment.configFileName);
     await deleteAssessmentConfig(assessment.configFileName);
-    try { await db.assessment.update({ where: { id }, data: { deletedAt: new Date() } }); }
+    try { await db.$transaction([db.assessmentBrandScope.deleteMany({ where: { assessmentId: id } }), db.assessment.update({ where: { id }, data: { deletedAt: new Date() } })]); }
     catch (error) { await writeAssessmentConfig(assessment.configFileName, oldConfig); throw error; }
     await log(session.userId, "删除", "成功", `删除考核表：${assessment.recordNo}`);
     return NextResponse.json({ message: "考核表删除成功" });

@@ -5,14 +5,13 @@ import { Alert, Button, Card, InputNumber, Modal, Radio, Skeleton, Tag } from "a
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const REVIEW_TYPE = "FRONT_HALL_AUDIT";
 type Result = "PASS" | "PARTIAL" | "FAIL";
 type Item = { id: string; description: string; maxScore: number };
 type Config = { reviewName: string; scoreMode: "BINARY" | "CUSTOM_SCORE"; configVersion: number; totalScore: number; sections: { name: string; children: { name: string; items: Item[] }[] }[] };
 type TemplateData = { store: { id: string; name: string; brandName: string }; reviewer: { realName: string }; assessment: { id: string; name: string; configVersion: number }; config: Config };
 type ScoreState = Record<string, { result?: Result; score: number | null }>;
 
-export function LeadH5ReviewForm() {
+export function LeadH5ReviewForm({ reviewType, reviewTitle }: { reviewType: "FRONT_HALL_AUDIT" | "BACK_KITCHEN_AUDIT"; reviewTitle: string }) {
   const router = useRouter(); const search = useSearchParams();
   const scoreMonth = search.get("scoreMonth") || ""; const storeId = search.get("storeId") || "";
   const [data, setData] = useState<TemplateData>(); const [scores, setScores] = useState<ScoreState>({});
@@ -24,7 +23,7 @@ export function LeadH5ReviewForm() {
   const load = async () => {
     setLoading(true); setError(undefined);
     try {
-      const query = new URLSearchParams({ scoreMonth, scoreType: REVIEW_TYPE, storeId });
+      const query = new URLSearchParams({ scoreMonth, scoreType: reviewType, storeId });
       const response = await fetch(`/api/lead-h5/reviews/template?${query}`, { cache: "no-store" }); const result = await response.json();
       if (response.status === 401) { router.replace("/lead_h5/login"); return; }
       if (!response.ok) throw new Error(result.message || "评分表加载失败，请稍后重试");
@@ -32,7 +31,7 @@ export function LeadH5ReviewForm() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "评分表加载失败，请稍后重试"); }
     finally { setLoading(false); }
   };
-  useEffect(() => { void load(); }, [scoreMonth, storeId]);
+  useEffect(() => { void load(); }, [scoreMonth, storeId, reviewType]);
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => { if (dirty && !submitted.current) { event.preventDefault(); event.returnValue = ""; } };
     window.addEventListener("beforeunload", beforeUnload); return () => window.removeEventListener("beforeunload", beforeUnload);
@@ -79,7 +78,7 @@ export function LeadH5ReviewForm() {
     if (!data || submitting) return;
     setSubmitting(true); setSubmitError(undefined);
     try {
-      const response = await fetch("/api/lead-h5/reviews", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scoreMonth, scoreType: REVIEW_TYPE, storeId, reviewTemplateId: data.assessment.id, reviewTemplateVersion: data.assessment.configVersion, items: Object.entries(scores).map(([itemId, value]) => ({ itemId, result: value.result, score: value.score })) }) });
+      const response = await fetch("/api/lead-h5/reviews", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scoreMonth, scoreType: reviewType, storeId, reviewTemplateId: data.assessment.id, reviewTemplateVersion: data.assessment.configVersion, items: Object.entries(scores).map(([itemId, value]) => ({ itemId, result: value.result, score: value.score })) }) });
       const result = await response.json();
       if (response.status === 401) { submitted.current = true; router.replace("/lead_h5/login"); return; }
       if (!response.ok) throw new Error(result.message || "评分提交失败，请检查网络后重试。");
@@ -89,9 +88,9 @@ export function LeadH5ReviewForm() {
     } finally { setSubmitting(false); }
   };
   if (loading) return <main className="lead-h5-review-page"><div className="lead-h5-review-loading"><Skeleton active paragraph={{ rows: 14 }} /></div></main>;
-  if (error || !data) return <main className="lead-h5-review-page"><header className="lead-h5-review-header"><Button type="text" icon={<ArrowLeftOutlined />} onClick={leave}>返回</Button><strong>前厅稽核评分</strong><span /></header><div className="lead-h5-review-error"><Alert type="error" showIcon message={error || "评分表加载失败，请稍后重试"} action={<Button icon={<ReloadOutlined />} onClick={() => void load()}>重试</Button>} /><Button block onClick={() => router.replace("/lead_h5")}>返回首页</Button></div></main>;
+  if (error || !data) return <main className="lead-h5-review-page"><header className="lead-h5-review-header"><Button type="text" icon={<ArrowLeftOutlined />} onClick={leave}>返回</Button><strong>{reviewTitle}</strong><span /></header><div className="lead-h5-review-error"><Alert type="error" showIcon message={error || "评分表加载失败，请稍后重试"} action={<Button icon={<ReloadOutlined />} onClick={() => void load()}>重试</Button>} /><Button block onClick={() => router.replace("/lead_h5")}>返回首页</Button></div></main>;
   return <main className="lead-h5-review-page">
-    <header className="lead-h5-review-header"><Button type="text" icon={<ArrowLeftOutlined />} onClick={leave}>返回</Button><strong>前厅稽核评分</strong><span /></header>
+    <header className="lead-h5-review-header"><Button type="text" icon={<ArrowLeftOutlined />} onClick={leave}>返回</Button><strong>{reviewTitle}</strong><span /></header>
     <section className="lead-h5-review-summary"><div className="lead-h5-review-title"><span><ShopOutlined /></span><div><h1>{data.store.name}</h1><p>{data.store.brandName} · {scoreMonth.replace("-", "年")}月</p></div></div><div className="lead-h5-review-meta"><span><UserOutlined /> 评分人：{data.reviewer.realName}</span><Tag color="blue">满分 {data.config.totalScore}</Tag></div></section>
     <section className="lead-h5-review-content">
       {data.config.sections.map((section, sectionIndex) => <section key={`${section.name}-${sectionIndex}`} className="lead-h5-score-section"><div className="lead-h5-score-section-title"><span>{String(sectionIndex + 1).padStart(2, "0")}</span><h2>{section.name}</h2></div>
@@ -108,7 +107,7 @@ export function LeadH5ReviewForm() {
       </section>)}
     </section>
     <footer className="lead-h5-review-footer"><div><span>当前得分</span><strong>{currentScore}</strong><small>/ {data.config.totalScore}</small></div><Button type="primary" size="large" loading={submitting} disabled={submitting} onClick={submit}>{submitting ? "提交中..." : "提交"}</Button></footer>
-    <Modal className="lead-h5-submit-modal" title="确认提交本次前厅稽核评分？" open={submitConfirmOpen} centered maskClosable={false} closable={!submitting} okText="确认提交" cancelText="取消" confirmLoading={submitting} onCancel={() => { if (!submitting) setSubmitConfirmOpen(false); }} onOk={() => void confirmSubmit()}>
+    <Modal className="lead-h5-submit-modal" title={`确认提交本次${reviewTitle}？`} open={submitConfirmOpen} centered maskClosable={false} closable={!submitting} okText="确认提交" cancelText="取消" confirmLoading={submitting} onCancel={() => { if (!submitting) setSubmitConfirmOpen(false); }} onOk={() => void confirmSubmit()}>
       <p>提交后本次评分将正式保存，一个店铺同一评分月份仅允许提交一次，请确认评分内容无误。</p>
       <div className="lead-h5-submit-summary"><span>{data.store.name}</span><strong>{currentScore} / {data.config.totalScore} 分</strong></div>
     </Modal>

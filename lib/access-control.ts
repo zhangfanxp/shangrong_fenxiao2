@@ -15,6 +15,7 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (pathname === "/lead_pc/stores/contracts") return hasPermission(permissions, "stores:contracts:view");
   if (pathname === "/lead_pc/stores/list") return hasPermission(permissions, "stores:list:view");
   if (pathname.startsWith("/lead_pc/operations/")) return hasPermission(permissions, "operations:view");
+  if (pathname === "/lead_pc/inspection/2") return hasPermission(permissions, ["inspection:view", "store-reviews:query"]);
   if (pathname.startsWith("/lead_pc/inspection/")) return hasPermission(permissions, "inspection:view");
   if (pathname === "/lead_pc/tasks/settings") return hasPermission(permissions, "tasks:settings:view");
   if (pathname === "/lead_pc/tasks/records") return hasPermission(permissions, "tasks:records:view");

@@ -3,6 +3,19 @@ import { readAssessmentConfig, type AssessmentSection } from "@/lib/assessment-c
 
 export const FRONT_HALL_REVIEW_TYPE = "FRONT_HALL_AUDIT";
 export const FRONT_HALL_ASSESSMENT_NAME = "前厅稽核评分";
+export const BACK_KITCHEN_REVIEW_TYPE = "BACK_KITCHEN_AUDIT";
+export const BACK_KITCHEN_ASSESSMENT_NAME = "后厨稽核评分";
+
+export const REVIEW_DEFINITIONS = [
+  { reviewType: FRONT_HALL_REVIEW_TYPE, assessmentName: FRONT_HALL_ASSESSMENT_NAME, title: "前厅稽核评分", route: "front-hall" },
+  { reviewType: BACK_KITCHEN_REVIEW_TYPE, assessmentName: BACK_KITCHEN_ASSESSMENT_NAME, title: "后厨稽核评分", route: "back-kitchen" },
+] as const;
+
+export type LeadH5ReviewType = (typeof REVIEW_DEFINITIONS)[number]["reviewType"];
+
+export function getReviewDefinition(value: string) {
+  return REVIEW_DEFINITIONS.find(definition => definition.reviewType === value) || null;
+}
 
 export type ReviewResult = "PASS" | "PARTIAL" | "FAIL";
 export type ReviewAnswer = { itemId: string; result: ReviewResult; score?: number | null };

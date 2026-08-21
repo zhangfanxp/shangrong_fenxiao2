@@ -10,11 +10,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const FRONT_HALL_REVIEW_TYPE = "FRONT_HALL_AUDIT";
+const BACK_KITCHEN_REVIEW_TYPE = "BACK_KITCHEN_AUDIT";
 type Store = { id: string; name: string; recordNo: string; brand: { id: string; name: string } };
+type HomeEntry = { name: string; icon: React.ReactNode; active?: boolean; scoreType?: string; route?: string };
 
-const entries = [
-  { name: "前厅稽核评分", icon: <AuditOutlined />, active: true },
-  { name: "后厨稽核评分", icon: <SafetyCertificateOutlined /> },
+const entries: HomeEntry[] = [
+  { name: "前厅稽核评分", icon: <AuditOutlined />, active: true, scoreType: FRONT_HALL_REVIEW_TYPE, route: "front-hall" },
+  { name: "后厨稽核评分", icon: <SafetyCertificateOutlined />, active: true, scoreType: BACK_KITCHEN_REVIEW_TYPE, route: "back-kitchen" },
   { name: "门店信用评分", icon: <CheckSquareOutlined /> },
   { name: "门店调研表", icon: <FileSearchOutlined /> },
   { name: "通知", icon: <BellOutlined /> },
@@ -30,15 +32,17 @@ export function LeadH5Home({ realName }: { realName: string }) {
   const [storeId, setStoreId] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [selectedReview, setSelectedReview] = useState<HomeEntry>();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string>();
   const monthValue = month.format("YYYY-MM");
 
   const loadStores = async (selectedMonth = monthValue) => {
+    if (!selectedReview?.scoreType) return;
     setLoading(true); setError(false); setStoreId(undefined);
     try {
-      const query = new URLSearchParams({ scoreMonth: selectedMonth, scoreType: FRONT_HALL_REVIEW_TYPE });
+      const query = new URLSearchParams({ scoreMonth: selectedMonth, scoreType: selectedReview.scoreType });
       const response = await fetch(`/api/lead-h5/reviews/available-stores?${query}`, { cache: "no-store" });
       const data = await response.json();
       if (response.status === 401) { router.replace("/lead_h5/login"); return; }
@@ -47,7 +51,7 @@ export function LeadH5Home({ realName }: { realName: string }) {
     } catch { setError(true); setStores([]); }
     finally { setLoading(false); }
   };
-  useEffect(() => { if (open) void loadStores(); }, [open]);
+  useEffect(() => { if (open && selectedReview?.scoreType) void loadStores(); }, [open, selectedReview?.scoreType]);
   const changeMonth = (value: Dayjs | null) => { if (!value) return; setMonth(value); void loadStores(value.format("YYYY-MM")); };
   const logout = () => { setLogoutError(undefined); setLogoutOpen(true); };
   const confirmLogout = async () => {
@@ -63,17 +67,17 @@ export function LeadH5Home({ realName }: { realName: string }) {
     } finally { setLoggingOut(false); }
   };
   const enterReview = () => {
-    if (!storeId) return;
+    if (!storeId || !selectedReview?.route) return;
     const query = new URLSearchParams({ scoreMonth: monthValue, storeId });
-    setOpen(false); router.push(`/lead_h5/reviews/front-hall?${query}`);
+    setOpen(false); router.push(`/lead_h5/reviews/${selectedReview.route}?${query}`);
   };
   return <main className="lead-h5-page">
     <header className="lead-h5-home-header"><div><small>运营工作台</small><strong>你好：{realName}</strong></div><Button type="text" icon={<LogoutOutlined />} onClick={logout}>退出</Button></header>
     <section className="lead-h5-home-intro"><span><BookOutlined /></span><div><h1>今天也要认真巡店</h1><p>选择运营功能，快速完成门店日常工作</p></div></section>
     <section className="lead-h5-section"><h2>运营功能</h2><div className="lead-h5-entry-grid">
-      {entries.map(entry => <button key={entry.name} className={`lead-h5-entry ${entry.active ? "active" : ""}`} onClick={() => entry.active ? setOpen(true) : message.info(`${entry.name}功能将在后续开放`)}><span>{entry.icon}</span><strong>{entry.name}</strong>{!entry.active && <small>即将开放</small>}</button>)}
+      {entries.map(entry => <button key={entry.name} className={`lead-h5-entry ${entry.active ? "active" : ""}`} onClick={() => { if (entry.active) { setSelectedReview(entry); setOpen(true); } else message.info(`${entry.name}功能将在后续开放`); }}><span>{entry.icon}</span><strong>{entry.name}</strong>{!entry.active && <small>即将开放</small>}</button>)}
     </div></section>
-    <Modal className="lead-h5-select-modal" title="请选择" open={open} onCancel={() => setOpen(false)} okText="确定" cancelText="取消" onOk={enterReview} okButtonProps={{ disabled: !storeId || loading || !stores.length }} destroyOnHidden>
+    <Modal className="lead-h5-select-modal" title={selectedReview ? `请选择${selectedReview.name}信息` : "请选择"} open={open} onCancel={() => setOpen(false)} okText="确定" cancelText="取消" onOk={enterReview} okButtonProps={{ disabled: !storeId || loading || !stores.length }} destroyOnHidden>
       <label className="lead-h5-field-label">评分月份</label><DatePicker picker="month" allowClear={false} value={month} onChange={changeMonth} format="YYYY年MM月" suffixIcon={<CalendarOutlined />} />
       <label className="lead-h5-field-label store-label">店铺选择</label>
       {loading ? <div className="lead-h5-store-loading"><Skeleton active paragraph={{ rows: 3 }} title={false} /></div> : error ? <Alert type="error" showIcon message="店铺数据加载失败，请稍后重试" action={<Button size="small" onClick={() => void loadStores()}>重试</Button>} /> : !stores.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前月份暂无待评分店铺" /> : <Radio.Group className="lead-h5-store-list" value={storeId} onChange={event => setStoreId(event.target.value)}>

@@ -2,7 +2,7 @@ export const permissionGroups = [
   { key: "dashboard", label: "仪表板", permissions: [{ value: "dashboard:view", label: "查看仪表板" }] },
   { key: "stores", label: "门店", permissions: [{ value: "stores:contracts:view", label: "合同管理" }, { value: "stores:list:view", label: "门店列表" }] },
   { key: "operations", label: "运营", permissions: [{ value: "operations:view", label: "运营数据" }] },
-  { key: "inspection", label: "巡店", permissions: [{ value: "inspection:view", label: "巡店管理" }] },
+  { key: "inspection", label: "巡店", permissions: [{ value: "inspection:view", label: "巡店管理" }, { value: "store-reviews:query", label: "稽核评分查询" }, { value: "store-reviews:view", label: "稽核评分查看" }, { value: "store-reviews:export", label: "稽核评分导出" }, { value: "store-reviews:delete", label: "稽核评分删除" }] },
   { key: "tasks", label: "任务", permissions: [{ value: "tasks:settings:view", label: "任务设置" }, { value: "tasks:records:view", label: "任务记录" }] },
   { key: "staff", label: "员工", permissions: [{ value: "staff:view", label: "员工管理" }, { value: "personnel:query", label: "人员档案查询" }, { value: "personnel:create", label: "人员档案新增" }, { value: "personnel:edit", label: "人员档案编辑" }, { value: "personnel:view", label: "人员档案查看" }, { value: "personnel:import", label: "人员档案导入" }, { value: "personnel:export", label: "人员档案导出" }, { value: "personnel:salary", label: "人员档案调薪" }, { value: "personnel:position", label: "人员档案调岗" }, { value: "personnel:issues", label: "领用记录查看" }, { value: "personnel:resign", label: "人员离职" }, { value: "personnel:delete", label: "人员档案删除" }, { value: "personnel:sensitive", label: "人员敏感数据查看" }] },
   { key: "training", label: "培训", permissions: [{ value: "training:view", label: "培训管理" }] },

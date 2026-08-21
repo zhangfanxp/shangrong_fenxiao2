@@ -1,7 +1,7 @@
 "use client";
 
 import { DeleteOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Checkbox, Empty, Form, Input, message, Modal, Select, Space, Statistic, Tooltip } from "antd";
+import { Alert, Button, Card, Checkbox, Empty, Form, Input, message, Modal, Select, Space, Statistic, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
@@ -109,9 +109,9 @@ export function AssessmentList({ permissions }: { permissions: string[] }) {
 
   if (!can("query")) return <Alert type="warning" showIcon message="暂无考核表格查询权限" description="请联系管理员为当前角色配置相应权限。" />;
   const columns: ColumnsType<AssessmentRow> = [
-    { title: "记录编号", dataIndex: "recordNo", width: 145 }, { title: "考核表名称", dataIndex: "name", width: 190, ellipsis: true },
-    { title: "总项数", dataIndex: "sectionCount", width: 85, align: "center" }, { title: "子项数", dataIndex: "subsectionCount", width: 85, align: "center" },
+    { title: "记录编号", dataIndex: "recordNo", width: 145 }, { title: "考核表类型", dataIndex: "name", width: 190, ellipsis: true },
     { title: "检查明细项数", dataIndex: "itemCount", width: 115, align: "center" }, { title: "总分", dataIndex: "totalScore", width: 85, align: "center" },
+    { title: "适用品牌", dataIndex: "applicableBrands", width: 210, render: value => Array.isArray(value) && value.length ? <Space size={[4, 4]} wrap>{value.map(brand => <Tag key={brand} color="blue">{brand}</Tag>)}</Space> : <span style={{ color: "rgba(0,0,0,.45)" }}>未配置</span> },
     { title: "状态", dataIndex: "status", width: 90, render: value => <StatusTag value={value} /> }, { title: "创建人", dataIndex: ["createdBy", "realName"], width: 105, render: value => value || "系统" },
     { title: "创建时间", dataIndex: "createdAt", width: 175, render: formatTime },
     { title: "操作", fixed: "right", width: 300, render: (_, row) => <Space className="table-actions" size={0}>{can("preview") && <Button type="link" size="small" onClick={() => void openPreview(row)}>预览</Button>}{can("edit") && <Button type="link" size="small" onClick={() => void loadExisting(row, "edit")}>编辑</Button>}{can("view") && <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => void loadExisting(row, "view")}>查看</Button>}{((row.status === "ENABLED" && can("disable")) || (row.status === "DISABLED" && can("enable"))) && <Button type="link" size="small" onClick={() => changeStatus(row)}>{row.status === "ENABLED" ? "禁用" : "启用"}</Button>}{can("delete") && <Tooltip title={row._count.records ? "该考核表已有历史考核记录，请使用禁用操作" : undefined}><Button type="link" danger size="small" icon={<DeleteOutlined />} disabled={row._count.records > 0} onClick={() => remove(row)}>删除</Button></Tooltip>}</Space> },
@@ -121,7 +121,7 @@ export function AssessmentList({ permissions }: { permissions: string[] }) {
   const visibleBrandOptions: BrandOption[] = [...brandOptions, ...currentBrands.filter(value => !brandOptions.some(option => option.value === value)).map(value => ({ label: `${value}（已停用）`, value, disabled: true }))];
   const visibleAssessmentTypeOptions: BrandOption[] = [...assessmentTypeOptions, ...(current?.name && !assessmentTypeOptions.some(option => option.value === current.name) ? [{ label: `${current.name}（已停用）`, value: current.name, disabled: true }] : [])];
   return <>
-    <Card style={{ marginBottom: 16 }}><Space wrap><Input allowClear placeholder="请输入考核表名称" style={{ width: 280 }} value={keyword} onChange={event => setKeyword(event.target.value)} onPressEnter={applyFilter} /><Button onClick={resetFilter}>重置</Button><Button type="primary" onClick={applyFilter}>筛选</Button></Space></Card>
+    <Card style={{ marginBottom: 16 }}><Space wrap><Input allowClear placeholder="请输入考核表类型" style={{ width: 280 }} value={keyword} onChange={event => setKeyword(event.target.value)} onPressEnter={applyFilter} /><Button onClick={resetFilter}>重置</Button><Button type="primary" onClick={applyFilter}>筛选</Button></Space></Card>
     <Card extra={can("create") ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button> : null}>
       {error ? <Alert type="error" showIcon message="考核表格加载失败，请稍后重试" action={<Button size="small" onClick={() => void load()}>重新加载</Button>} /> : <DataTable<AssessmentRow> rowKey="id" columns={columns} dataSource={rows} loading={loading} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<><div>{filteredEmpty ? "没有找到符合当前条件的考核表格" : "暂无考核表格"}</div><small>{filteredEmpty ? "请调整筛选条件后重试" : "当前还没有创建考核模板"}</small></>}>{filteredEmpty ? <Button onClick={resetFilter}>重置筛选</Button> : can("create") ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button> : null}</Empty> }} pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: count => `共 ${count} 条`, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize); void load(nextPage, nextSize); } }} />}
     </Card>

@@ -6,9 +6,10 @@
   "scoreModeLabel": "允许自定义得分",
   "applicableBrands": [
     "奋小二",
-    "蚝家伙"
+    "蚝家伙",
+    "禾穆婆"
   ],
-  "configVersion": 4,
+  "configVersion": 5,
   "totalScore": 37,
   "statistics": {
     "sectionCount": 2,
