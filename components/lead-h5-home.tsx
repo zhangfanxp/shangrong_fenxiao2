@@ -8,6 +8,7 @@ import { Alert, Button, DatePicker, Empty, message, Modal, Radio, Skeleton } fro
 import dayjs, { type Dayjs } from "dayjs";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { LoginNotificationModal } from "@/components/login-notification-modal";
 
 const FRONT_HALL_REVIEW_TYPE = "FRONT_HALL_AUDIT";
 const BACK_KITCHEN_REVIEW_TYPE = "BACK_KITCHEN_AUDIT";
@@ -19,7 +20,7 @@ const entries: HomeEntry[] = [
   { name: "后厨稽核评分", icon: <SafetyCertificateOutlined />, active: true, scoreType: BACK_KITCHEN_REVIEW_TYPE, route: "back-kitchen" },
   { name: "门店信用评分", icon: <CheckSquareOutlined /> },
   { name: "门店调研表", icon: <FileSearchOutlined /> },
-  { name: "通知", icon: <BellOutlined /> },
+  { name: "通知", icon: <BellOutlined />, active: true, route: "notifications" },
   { name: "任务", icon: <CalendarOutlined /> },
   { name: "线上课堂", icon: <ReadOutlined /> },
 ];
@@ -75,7 +76,7 @@ export function LeadH5Home({ realName }: { realName: string }) {
     <header className="lead-h5-home-header"><div><small>运营工作台</small><strong>你好：{realName}</strong></div><Button type="text" icon={<LogoutOutlined />} onClick={logout}>退出</Button></header>
     <section className="lead-h5-home-intro"><span><BookOutlined /></span><div><h1>今天也要认真巡店</h1><p>选择运营功能，快速完成门店日常工作</p></div></section>
     <section className="lead-h5-section"><h2>运营功能</h2><div className="lead-h5-entry-grid">
-      {entries.map(entry => <button key={entry.name} className={`lead-h5-entry ${entry.active ? "active" : ""}`} onClick={() => { if (entry.active) { setSelectedReview(entry); setOpen(true); } else message.info(`${entry.name}功能将在后续开放`); }}><span>{entry.icon}</span><strong>{entry.name}</strong>{!entry.active && <small>即将开放</small>}</button>)}
+      {entries.map(entry => <button key={entry.name} className={`lead-h5-entry ${entry.active ? "active" : ""}`} onClick={() => { if (entry.route === "notifications") { router.push("/lead_h5/notifications"); } else if (entry.active) { setSelectedReview(entry); setOpen(true); } else message.info(`${entry.name}功能将在后续开放`); }}><span>{entry.icon}</span><strong>{entry.name}</strong>{!entry.active && <small>即将开放</small>}</button>)}
     </div></section>
     <Modal className="lead-h5-select-modal" title={selectedReview ? `请选择${selectedReview.name}信息` : "请选择"} open={open} onCancel={() => setOpen(false)} okText="确定" cancelText="取消" onOk={enterReview} okButtonProps={{ disabled: !storeId || loading || !stores.length }} destroyOnHidden>
       <label className="lead-h5-field-label">评分月份</label><DatePicker picker="month" allowClear={false} value={month} onChange={changeMonth} format="YYYY年MM月" suffixIcon={<CalendarOutlined />} />
@@ -88,5 +89,6 @@ export function LeadH5Home({ realName }: { realName: string }) {
       <p>退出后需要重新输入账号和密码登录。</p>
       {logoutError && <Alert type="error" showIcon message={logoutError} />}
     </Modal>
+    <LoginNotificationModal apiPath="/api/lead-h5/notifications/pending-login" />
   </main>;
 }

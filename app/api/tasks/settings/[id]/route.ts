@@ -7,12 +7,18 @@ import { writeOperationLog } from "@/lib/operation-log";
 import { configFileExists, createTaskConfig, deleteTaskConfig, normalizeConfigFileName, parseSubmitContent, readTaskConfig, TaskConfigError, writeTaskConfig } from "@/lib/task-config";
 
 const dayValues = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"] as const;
+const monthlyDayValues = [...Array.from({ length: 28 }, (_, index) => String(index + 1)), "LAST_DAY"];
 const taskSchema = z.object({
   title: z.string().trim().min(1, "请输入任务名称").refine(value => Array.from(value).length <= 20, "任务名称不能超过20个汉字"),
   type: z.nativeEnum(TaskType, { message: "请选择任务类型" }), executorRoleId: z.string().min(1, "请选择执行人角色"),
   r2StorageId: z.string().min(1, "请选择存储空间"),
-  brandIds: z.array(z.string()).default([]), executionDays: z.array(z.enum(dayValues)).default([]), includeCompletionRate: z.boolean().default(true),
+  brandIds: z.array(z.string()).default([]), executionDays: z.array(z.enum(dayValues)).default([]), weeklyExecutionDay: z.enum(dayValues).nullable().optional(), monthlyExecutionDay: z.string().refine(value => monthlyDayValues.includes(value), "请选择正确的月任务执行日期").nullable().optional(),
+  deadlineDayOffset: z.union([z.literal(0), z.literal(1)]), deadlineTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的任务截止时间"), includeCompletionRate: z.boolean().default(true),
   configFileBase: z.string().min(1, "请输入配置文件名称"), submitContent: z.string().min(1, "请输入提交内容"), status: z.nativeEnum(RecordStatus), updatedAt: z.string().min(1),
+}).superRefine((value, context) => {
+  if (value.type === TaskType.DAILY && !value.executionDays.length) context.addIssue({ code: "custom", path: ["executionDays"], message: "请至少选择一个日任务执行星期" });
+  if (value.type === TaskType.WEEKLY && !value.weeklyExecutionDay) context.addIssue({ code: "custom", path: ["weeklyExecutionDay"], message: "请选择周任务执行星期" });
+  if (value.type === TaskType.MONTHLY && !value.monthlyExecutionDay) context.addIssue({ code: "custom", path: ["monthlyExecutionDay"], message: "请选择月任务执行日期" });
 });
 const labels: Record<TaskType, string> = { DAILY: "日任务", WEEKLY: "周任务", MONTHLY: "月任务", TEMPORARY: "临时任务" };
 
@@ -72,11 +78,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (brands.length !== new Set(input.brandIds).size) return NextResponse.json({ message: "品牌数据无效，请重新选择" }, { status: 400 });
     if (!r2Storage) return NextResponse.json({ message: "请选择已启用的R2存储空间" }, { status: 400 });
     const { items, normalizedContent } = parseSubmitContent(input.submitContent); const nextVersion = task.configVersion + 1;
-    const nextConfig = { recordNo: task.recordNo, taskName: input.title, taskType: labels[input.type], executorRole: role, brands, storageSpace: r2Storage, executionDays: input.executionDays, includeCompletionRate: input.includeCompletionRate, status: input.status === RecordStatus.ENABLED ? "启用" : "禁用", configVersion: nextVersion, submitItems: items };
+    const normalizedExecutionDays = input.type === TaskType.DAILY ? input.executionDays : input.type === TaskType.WEEKLY && input.weeklyExecutionDay ? [input.weeklyExecutionDay] : [];
+    const nextConfig = { recordNo: task.recordNo, taskName: input.title, taskType: labels[input.type], executorRole: role, brands, storageSpace: r2Storage, executionDays: normalizedExecutionDays, weeklyExecutionDay: input.weeklyExecutionDay, monthlyExecutionDay: input.monthlyExecutionDay, deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, includeCompletionRate: input.includeCompletionRate, status: input.status === RecordStatus.ENABLED ? "启用" : "禁用", configVersion: nextVersion, submitItems: items };
     if (nextFileName === task.configFileName) await writeTaskConfig(nextFileName, nextConfig); else { await createTaskConfig(nextFileName, nextConfig); await deleteTaskConfig(task.configFileName); }
     try {
       const result = await db.$transaction(async tx => {
-        const update = await tx.task.updateMany({ where: { id, updatedAt: task.updatedAt }, data: { title: input.title, type: input.type, status: input.status, executorRoleId: role.id, r2StorageId: r2Storage.id, includeCompletionRate: input.includeCompletionRate, executionDays: input.executionDays, configFileName: nextFileName, submitItems: items, description: normalizedContent, configVersion: nextVersion } });
+        const update = await tx.task.updateMany({ where: { id, updatedAt: task.updatedAt }, data: { title: input.title, type: input.type, status: input.status, executorRoleId: role.id, r2StorageId: r2Storage.id, includeCompletionRate: input.includeCompletionRate, executionDays: normalizedExecutionDays, weeklyExecutionDay: input.type === TaskType.WEEKLY ? input.weeklyExecutionDay : null, monthlyExecutionDay: input.type === TaskType.MONTHLY ? input.monthlyExecutionDay : null, deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, configFileName: nextFileName, submitItems: items, description: normalizedContent, configVersion: nextVersion } });
         if (!update.count) throw new TaskConfigError("当前任务配置已被其他用户修改，请刷新后重新操作。");
         await tx.taskBrand.deleteMany({ where: { taskId: id } });
         if (brands.length) await tx.taskBrand.createMany({ data: brands.map(brand => ({ taskId: id, brandId: brand.id })) });

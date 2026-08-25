@@ -1,0 +1,152 @@
+"use client";
+
+import { ArrowLeftOutlined, CameraOutlined, CheckCircleFilled, CloseCircleFilled, DeleteOutlined, LoadingOutlined, UploadOutlined, VideoCameraOutlined } from "@ant-design/icons";
+import { Alert, Button, InputNumber, Modal, Select, Skeleton, Tag, Upload } from "antd";
+import type { UploadProps } from "antd";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { optimizeTaskPhoto, putFileWithProgress } from "@/lib/client/store-h5-direct-upload";
+
+type Item = { name: string; component: "attachment" | "input" | "select"; dataType: "photo" | "video" | "document" | "amount" | "quantity" | null; options: string[]; description: string; required: boolean; weight: number };
+type TaskDetail = { id: string; recordNo?: string; taskName: string; taskTypeLabel: string; storeName?: string; brandName?: string; executionDate: string; dueDate: string; items: Item[] };
+type Attachment = { id?: string; name: string; status: "uploading" | "success" | "error"; message?: string; progress?: number };
+
+export function StoreH5TaskForm({ taskInstanceId }: { taskInstanceId: string }) {
+  const router = useRouter();
+  const [task, setTask] = useState<TaskDetail>();
+  const [values, setValues] = useState<Record<number, string | number>>({});
+  const [attachments, setAttachments] = useState<Record<number, Attachment>>({});
+  const [errors, setErrors] = useState<Record<number, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [leaveTarget, setLeaveTarget] = useState("/store_h5/tasks");
+  const itemRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const historyGuard = useRef(false);
+
+  const load = useCallback(async () => {
+    setLoading(true); setLoadError("");
+    try {
+      const response = await fetch(`/api/store-h5/tasks/${taskInstanceId}`, { cache: "no-store" });
+      const data = await response.json();
+      if (response.status === 401) { router.replace("/store_h5/login"); return; }
+      if (!response.ok) throw new Error(data.message || "任务内容加载失败，请稍后重试");
+      setTask(data);
+    } catch (reason) { setLoadError(reason instanceof Error ? reason.message : "任务内容加载失败，请稍后重试"); }
+    finally { setLoading(false); }
+  }, [router, taskInstanceId]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (dirty && !successOpen && !historyGuard.current) {
+      window.history.pushState({ storeTaskGuard: true }, "", window.location.href);
+      historyGuard.current = true;
+    }
+    const interceptBack = () => {
+      if (!dirty || successOpen || !historyGuard.current) return;
+      window.history.pushState({ storeTaskGuard: true }, "", window.location.href);
+      setLeaveTarget("/store_h5/tasks"); setLeaveOpen(true);
+    };
+    window.addEventListener("popstate", interceptBack);
+    return () => window.removeEventListener("popstate", interceptBack);
+  }, [dirty, successOpen]);
+
+  const requestLeave = (target = "/store_h5/tasks") => {
+    if (!dirty) return void router.push(target);
+    setLeaveTarget(target); setLeaveOpen(true);
+  };
+  const upload = (index: number, item: Item): UploadProps["beforeUpload"] => async file => {
+    const typeOkay = item.dataType === "video" ? file.type.startsWith("video/") : item.dataType === "document" ? file.type.startsWith("application/") || file.type.startsWith("text/") : file.type.startsWith("image/");
+    const maxMb = item.dataType === "photo" ? 10 : 20;
+    if (!typeOkay || file.size > maxMb * 1024 * 1024) {
+      setAttachments(current => ({ ...current, [index]: { name: file.name, status: "error", message: !typeOkay ? "文件类型不符合要求" : `文件不能超过 ${maxMb}MB` } }));
+      return Upload.LIST_IGNORE;
+    }
+    setDirty(true); setErrors(current => ({ ...current, [index]: "" }));
+    setAttachments(current => ({ ...current, [index]: { name: file.name, status: "uploading", progress: 0, message: item.dataType === "photo" ? "正在优化图片..." : "正在准备直传..." } }));
+    try {
+      const prepared = item.dataType === "photo" ? await optimizeTaskPhoto(file) : { file, optimized: false };
+      const directFile = prepared.file;
+      const savedBytes = prepared.optimized ? file.size - directFile.size : 0;
+      const preparationMessage = prepared.optimized ? `图片已优化，减少 ${(savedBytes / 1024 / 1024).toFixed(1)}MB` : "正在上传到R2...";
+      setAttachments(current => ({ ...current, [index]: { name: directFile.name, status: "uploading", progress: 0, message: preparationMessage } }));
+      const signResponse = await fetch(`/api/store-h5/tasks/${taskInstanceId}/attachments/sign`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIndex: index, name: directFile.name, type: directFile.type || "application/octet-stream", size: directFile.size }),
+      });
+      const sign = await signResponse.json();
+      if (signResponse.status === 401) { router.replace("/store_h5/login"); return Upload.LIST_IGNORE; }
+      if (!signResponse.ok) throw new Error(sign.message || "生成R2直传地址失败，请稍后重试");
+      const uploaded = await putFileWithProgress({
+        url: sign.uploadUrl, file: directFile, headers: sign.headers,
+        onProgress: progress => setAttachments(current => ({ ...current, [index]: { ...current[index], name: directFile.name, status: "uploading", progress, message: preparationMessage } })),
+      });
+      const confirmResponse = await fetch(`/api/store-h5/tasks/${taskInstanceId}/attachments/confirm`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadToken: sign.uploadToken, etag: uploaded.etag }),
+      });
+      const confirmed = await confirmResponse.json();
+      if (confirmResponse.status === 401) { router.replace("/store_h5/login"); return Upload.LIST_IGNORE; }
+      if (!confirmResponse.ok) throw new Error(confirmed.message || "确认R2附件失败，请重新上传");
+      setAttachments(current => ({ ...current, [index]: { id: confirmed.id, name: confirmed.name, status: "success", progress: 100, message: prepared.optimized ? preparationMessage : undefined } }));
+    } catch (reason) {
+      setAttachments(current => ({ ...current, [index]: { name: current[index]?.name || file.name, status: "error", progress: current[index]?.progress, message: reason instanceof Error ? reason.message : "附件上传失败，请重新上传" } }));
+    }
+    return Upload.LIST_IGNORE;
+  };
+  const validate = () => {
+    if (!task) return false;
+    const next: Record<number, string> = {};
+    let uploading = false;
+    task.items.forEach((item, index) => {
+      if (item.component === "attachment") {
+        if (attachments[index]?.status === "uploading") uploading = true;
+        else if (item.required && attachments[index]?.status !== "success") next[index] = `请上传${item.name}`;
+      } else if (item.required && (values[index] === undefined || values[index] === null || String(values[index]).trim() === "")) next[index] = `请完成${item.name}`;
+    });
+    if (uploading) { setSubmitError("附件正在上传，请上传完成后再提交"); return false; }
+    setErrors(next);
+    if (Object.keys(next).length) {
+      setSubmitError("还有必填任务内容未完成，请完成后再提交。");
+      const first = Number(Object.keys(next)[0]); setTimeout(() => itemRefs.current[first]?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+      return false;
+    }
+    setSubmitError(""); return true;
+  };
+  const beginSubmit = () => { if (validate()) setConfirmOpen(true); };
+  const submit = async () => {
+    if (!task || submitting) return;
+    setSubmitting(true); setSubmitError("");
+    try {
+      const items = task.items.map((item, index) => item.component === "attachment" ? { index, attachmentIds: attachments[index]?.id ? [attachments[index].id] : [] } : { index, value: values[index] });
+      const response = await fetch(`/api/store-h5/tasks/${taskInstanceId}/submit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }) });
+      const data = await response.json();
+      if (response.status === 401) { router.replace("/store_h5/login"); return; }
+      if (!response.ok) throw new Error(data.message || "任务提交失败，请检查网络后重试");
+      setConfirmOpen(false); setDirty(false); setSuccessOpen(true);
+    } catch (reason) { setConfirmOpen(false); setSubmitError(reason instanceof Error ? reason.message : "任务提交失败，请检查网络后重试"); }
+    finally { setSubmitting(false); }
+  };
+  if (loading) return <main className="store-h5-page store-h5-task-page"><header className="store-h5-subheader"><span /><div><strong>任务加载中...</strong><small>请稍候</small></div><span /></header><section className="store-h5-task-content"><Skeleton active paragraph={{ rows: 7 }} /></section></main>;
+  if (loadError || !task) return <main className="store-h5-page store-h5-task-page"><header className="store-h5-subheader"><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => router.push("/store_h5/tasks")} /><div><strong>任务执行</strong></div><span /></header><section className="store-h5-task-content"><Alert type="error" showIcon message={loadError || "任务内容加载失败，请稍后重试"} action={<Button size="small" onClick={() => void load()}>重新加载</Button>} /></section></main>;
+  return <main className="store-h5-page store-h5-task-page store-h5-execution-page">
+    <header className="store-h5-subheader"><Button type="text" aria-label="返回任务列表" icon={<ArrowLeftOutlined />} onClick={() => requestLeave()} /><div><strong>任务执行</strong><small>{task.recordNo}</small></div><span /></header>
+    <section className="store-h5-task-summary"><div><h1>{task.taskName}</h1><Tag color="blue">{task.taskTypeLabel}</Tag></div><dl><div><dt>执行日期</dt><dd>{String(task.executionDate).slice(0, 10)}</dd></div><div><dt>截止时间</dt><dd>{new Date(task.dueDate).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</dd></div><div><dt>门店</dt><dd>{task.storeName || "-"}</dd></div></dl></section>
+    <section className="store-h5-form-list">
+      {task.items.map((item, index) => <div ref={node => { itemRefs.current[index] = node; }} className={`store-h5-form-item ${errors[index] ? "error" : ""}`} key={`${item.name}-${index}`}><div className="store-h5-form-title"><span>{index + 1}</span><div><h2>{item.name}{item.required && <b>*</b>}</h2><small>{item.required ? "必填" : "选填"} · 权重 {item.weight}</small></div></div><p>{item.description}</p>
+        {item.component === "attachment" ? <div><Upload showUploadList={false} maxCount={1} accept={item.dataType === "video" ? "video/*" : item.dataType === "document" ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" : "image/*"} capture={item.dataType === "photo" ? "environment" : undefined} beforeUpload={upload(index, item)}><Button block disabled={attachments[index]?.status === "uploading"} icon={item.dataType === "video" ? <VideoCameraOutlined /> : item.dataType === "photo" ? <CameraOutlined /> : <UploadOutlined />}>{attachments[index]?.status === "uploading" ? "上传中..." : `拍摄 / 上传${item.dataType === "video" ? "视频" : item.dataType === "document" ? "文档" : "照片"}`}</Button></Upload>
+          {attachments[index] && <div className={`store-h5-upload-status ${attachments[index].status}`}><span>{attachments[index].status === "uploading" ? <LoadingOutlined /> : attachments[index].status === "success" ? <CheckCircleFilled /> : <CloseCircleFilled />}{attachments[index].status === "uploading" ? `上传中 ${attachments[index].progress || 0}%` : attachments[index].status === "success" ? "上传成功" : "上传失败"}：{attachments[index].name}</span>{attachments[index].status !== "uploading" && <Button type="text" aria-label="删除附件" icon={<DeleteOutlined />} onClick={() => setAttachments(current => { const next = { ...current }; delete next[index]; return next; })} />} {attachments[index].status === "uploading" && <i className="store-h5-upload-progress"><b style={{ width: `${attachments[index].progress || 0}%` }} /></i>}{attachments[index].message && <small>{attachments[index].message}</small>}</div>}
+        </div> : item.component === "select" ? <Select value={values[index]} placeholder="请选择" options={item.options.map(option => ({ value: option, label: option }))} onChange={value => { setDirty(true); setValues(current => ({ ...current, [index]: value })); setErrors(current => ({ ...current, [index]: "" })); }} /> : <InputNumber value={values[index]} min={0} precision={item.dataType === "amount" ? 2 : undefined} stringMode={item.dataType === "amount"} inputMode="decimal" placeholder={item.dataType === "amount" ? "请输入金额" : "请输入数量"} addonBefore={item.dataType === "amount" ? "¥" : undefined} onChange={value => { setDirty(true); setValues(current => ({ ...current, [index]: value === null ? "" : value })); setErrors(current => ({ ...current, [index]: "" })); }} />}
+        {errors[index] && <div className="store-h5-field-error">{errors[index]}</div>}
+      </div>)}
+    </section>
+    <div className="store-h5-submit-space" /><footer className="store-h5-submit-bar">{submitError && <Alert type="error" showIcon message={submitError} closable onClose={() => setSubmitError("")} />}<Button block type="primary" size="large" loading={submitting} disabled={submitting} onClick={beginSubmit}>{submitting ? "提交中..." : "提交"}</Button></footer>
+    <Modal title="确认提交当前任务？" open={confirmOpen} centered maskClosable={false} closable={!submitting} okText="确认提交" cancelText="取消" confirmLoading={submitting} onCancel={() => !submitting && setConfirmOpen(false)} onOk={() => void submit()}><p>提交后当前任务将变为已完成，请确认填写内容无误。</p></Modal>
+    <Modal title="当前任务尚未提交" open={leaveOpen} centered okText="确认离开" cancelText="继续填写" okButtonProps={{ danger: true }} onCancel={() => setLeaveOpen(false)} onOk={() => { setDirty(false); setLeaveOpen(false); router.push(leaveTarget); }}><p>离开后已填写内容可能丢失，是否继续？</p></Modal>
+    <Modal title="温馨提示" open={successOpen} centered closable={false} maskClosable={false} footer={<Button block type="primary" onClick={() => { setSuccessOpen(false); router.replace("/store_h5/tasks"); router.refresh(); }}>我知道了</Button>}><div className="store-h5-success"><CheckCircleFilled /><strong>当前任务已提交并完成。</strong></div></Modal>
+  </main>;
+}

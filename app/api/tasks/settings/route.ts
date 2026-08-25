@@ -7,6 +7,7 @@ import { writeOperationLog } from "@/lib/operation-log";
 import { configFileExists, createTaskConfig, deleteTaskConfig, normalizeConfigFileName, parseSubmitContent, TaskConfigError } from "@/lib/task-config";
 
 const dayValues = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"] as const;
+const monthlyDayValues = [...Array.from({ length: 28 }, (_, index) => String(index + 1)), "LAST_DAY"];
 const taskSchema = z.object({
   title: z.string().trim().min(1, "请输入任务名称").refine(value => Array.from(value).length <= 20, "任务名称不能超过20个汉字"),
   type: z.nativeEnum(TaskType, { message: "请选择任务类型" }),
@@ -14,10 +15,18 @@ const taskSchema = z.object({
   r2StorageId: z.string().min(1, "请选择存储空间"),
   brandIds: z.array(z.string()).default([]),
   executionDays: z.array(z.enum(dayValues)).default([]),
+  weeklyExecutionDay: z.enum(dayValues).nullable().optional(),
+  monthlyExecutionDay: z.string().refine(value => monthlyDayValues.includes(value), "请选择正确的月任务执行日期").nullable().optional(),
+  deadlineDayOffset: z.union([z.literal(0), z.literal(1)]),
+  deadlineTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的任务截止时间"),
   includeCompletionRate: z.boolean().default(true),
   configFileBase: z.string().min(1, "请输入配置文件名称"),
   submitContent: z.string().min(1, "请输入提交内容"),
   status: z.nativeEnum(RecordStatus).default(RecordStatus.ENABLED),
+}).superRefine((value, context) => {
+  if (value.type === TaskType.DAILY && !value.executionDays.length) context.addIssue({ code: "custom", path: ["executionDays"], message: "请至少选择一个日任务执行星期" });
+  if (value.type === TaskType.WEEKLY && !value.weeklyExecutionDay) context.addIssue({ code: "custom", path: ["weeklyExecutionDay"], message: "请选择周任务执行星期" });
+  if (value.type === TaskType.MONTHLY && !value.monthlyExecutionDay) context.addIssue({ code: "custom", path: ["monthlyExecutionDay"], message: "请选择月任务执行日期" });
 });
 
 const typeLabels: Record<TaskType, string> = { DAILY: "日任务", WEEKLY: "周任务", MONTHLY: "月任务", TEMPORARY: "临时任务" };
@@ -26,7 +35,8 @@ function buildConfig(input: z.infer<typeof taskSchema>, recordNo: string, role: 
   const { items } = parseSubmitContent(input.submitContent);
   return {
     recordNo, taskName: input.title, taskType: typeLabels[input.type], executorRole: role,
-    brands, storageSpace: r2Storage, executionDays: input.executionDays, includeCompletionRate: input.includeCompletionRate,
+    brands, storageSpace: r2Storage, executionDays: input.executionDays, weeklyExecutionDay: input.weeklyExecutionDay, monthlyExecutionDay: input.monthlyExecutionDay,
+    deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, includeCompletionRate: input.includeCompletionRate,
     status: input.status === RecordStatus.ENABLED ? "启用" : "禁用", configVersion: version, submitItems: items,
   };
 }
@@ -86,7 +96,8 @@ export async function POST(request: Request) {
     await createTaskConfig(fileName, config);
     try {
       const task = await db.$transaction(async tx => {
-        const created = await tx.task.create({ data: { recordNo, title: input.title, type: input.type, status: input.status, executorRoleId: role.id, r2StorageId: r2Storage.id, includeCompletionRate: input.includeCompletionRate, executionDays: input.executionDays, configFileName: fileName, submitItems: items, description: normalizedContent, createdByUserId: session.userId, brands: { create: brands.map(brand => ({ brandId: brand.id })) } } });
+        const normalizedExecutionDays = input.type === TaskType.DAILY ? input.executionDays : input.type === TaskType.WEEKLY && input.weeklyExecutionDay ? [input.weeklyExecutionDay] : [];
+        const created = await tx.task.create({ data: { recordNo, title: input.title, type: input.type, status: input.status, executorRoleId: role.id, r2StorageId: r2Storage.id, includeCompletionRate: input.includeCompletionRate, executionDays: normalizedExecutionDays, weeklyExecutionDay: input.type === TaskType.WEEKLY ? input.weeklyExecutionDay : null, monthlyExecutionDay: input.type === TaskType.MONTHLY ? input.monthlyExecutionDay : null, deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, configFileName: fileName, submitItems: items, description: normalizedContent, createdByUserId: session.userId, brands: { create: brands.map(brand => ({ brandId: brand.id })) } } });
         await tx.r2StorageReference.create({ data: { r2ConfigId: r2Storage.id, businessType: "TASK", businessId: created.id } });
         return created;
       });

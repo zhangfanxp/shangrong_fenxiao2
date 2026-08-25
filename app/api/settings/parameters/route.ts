@@ -25,6 +25,9 @@ const inputSchema = z.object({
   storeH5LoginTags: z.string().trim().max(200, "门店H5移动端登录用户标签不能超过200个字符").optional().default(""),
   removeLogo: z.boolean().optional().default(false),
   removeLoginBackground: z.boolean().optional().default(false),
+  automaticTaskExecutionTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的自动执行时间"),
+  defaultTaskDeadlineDayOffset: z.union([z.literal(0), z.literal(1)]),
+  defaultTaskDeadlineTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的默认截止时间"),
 });
 
 export async function GET() {
@@ -46,6 +49,9 @@ export async function PUT(request: Request) {
       leadPcLoginTags: normalizeLoginTags(parsed.data.leadPcLoginTags),
       leadH5LoginTags: normalizeLoginTags(parsed.data.leadH5LoginTags),
       storeH5LoginTags: normalizeLoginTags(parsed.data.storeH5LoginTags),
+      automaticTaskExecutionTime: parsed.data.automaticTaskExecutionTime,
+      defaultTaskDeadlineDayOffset: parsed.data.defaultTaskDeadlineDayOffset,
+      defaultTaskDeadlineTime: parsed.data.defaultTaskDeadlineTime,
     });
     await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "修改参数", result: "成功", detail: `保存平台信息；平台名称：${saved.platformName}`, request }).catch(() => undefined);
     return NextResponse.json(saved);

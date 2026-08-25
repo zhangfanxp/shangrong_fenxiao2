@@ -167,3 +167,16 @@ export async function getEnabledR2Config(id: string) {
     signedUrlExpireSeconds: row.signedUrlExpireSeconds,
   };
 }
+
+/** Credentials for deleting existing business objects. Disabled spaces may be cleaned up, but never used for new uploads. */
+export async function getR2ConfigForCleanup(id: string) {
+  const row = await db.r2StorageConfig.findFirst({ where: { id, deletedAt: null }, include });
+  if (!row) throw new R2ConfigError("not-found", "原附件对应的R2存储空间不存在，无法完成覆盖清理");
+  const document = await currentDocument();
+  if (!document.buckets.some(bucket => bucket.id === id)) throw new R2ConfigError("file", "R2配置文件与数据库记录不一致，请联系系统管理员处理");
+  return {
+    id: row.id, accountId: row.accountId, bucketName: row.bucketName, endpoint: row.endpoint,
+    accessKeyId: decryptR2Credential(row.accessKeyIdEncrypted), secretAccessKey: decryptR2Credential(row.secretAccessKeyEncrypted),
+    signedUrlExpireSeconds: row.signedUrlExpireSeconds,
+  };
+}

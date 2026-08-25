@@ -197,6 +197,7 @@ export function StoreReviewList({ permissions, initialRows = [], initialTotal = 
     { title: "记录编号", dataIndex: "recordNo", width: 140, fixed: "left" },
     { title: "品牌", dataIndex: "brandNameSnapshot", width: 130, ellipsis: true },
     { title: "考核门店", dataIndex: "storeNameSnapshot", width: 210, ellipsis: true },
+    { title: "考核月份", dataIndex: "reviewMonth", width: 120, render: (value: string) => value.replace("-", "年") + "月" },
     { title: "考核表类型", dataIndex: "assessmentName", width: 160 },
     { title: "负责人", dataIndex: "responsiblePersonNameSnapshot", width: 110 },
     { title: "考核日期", dataIndex: "assessmentDate", width: 120 },
@@ -225,7 +226,7 @@ export function StoreReviewList({ permissions, initialRows = [], initialTotal = 
     <Card className="store-review-list-card">
       <div className="store-review-toolbar"><span>已选择 <strong>{selectedRowKeys.length}</strong> 条</span><Space><Button icon={<ReloadOutlined />} disabled={exporting} onClick={() => void load()}>刷新</Button>{canExport && <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => void exportRows()}>{exporting ? "导出中..." : "批量导出"}</Button>}</Space></div>
       {loadError ? <Alert type="error" showIcon message="门店稽核评分数据加载失败，请稍后重试" action={<Button size="small" icon={<ReloadOutlined />} onClick={() => void load()}>重新加载</Button>} /> : <Table<ReviewRow>
-        rowKey="id" dataSource={rows} loading={loading} columns={columns} rowSelection={rowSelection} scroll={{ x: 1220 }}
+        rowKey="id" dataSource={rows} loading={loading} columns={columns} rowSelection={rowSelection} scroll={{ x: 1340 }}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={Object.values(filters).some(Boolean) ? <><div>没有找到符合当前条件的门店稽核评分</div><small>请调整筛选条件后重试</small><div><Button type="link" onClick={resetFilters}>重置筛选</Button></div></> : "暂无门店稽核评分记录"} /> }}
         pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [20, 50, 100], showTotal: value => `共 ${value} 条`, onChange: (nextPage, nextSize) => { const targetPage = nextSize !== pageSize ? 1 : nextPage; setPage(targetPage); setPageSize(nextSize); void load(targetPage, nextSize, filters); } }}
       />}

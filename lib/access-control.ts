@@ -18,13 +18,13 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (pathname === "/lead_pc/inspection/2") return hasPermission(permissions, ["inspection:view", "store-reviews:query"]);
   if (pathname.startsWith("/lead_pc/inspection/")) return hasPermission(permissions, "inspection:view");
   if (pathname === "/lead_pc/tasks/settings") return hasPermission(permissions, "tasks:settings:view");
-  if (pathname === "/lead_pc/tasks/records") return hasPermission(permissions, "tasks:records:view");
+  if (pathname === "/lead_pc/tasks/records") return hasPermission(permissions, ["tasks:records:query", "tasks:records:view"]);
   if (pathname === "/lead_pc/staff/0") return hasPermission(permissions, "staff:view") || anyPrefix(permissions, "personnel:");
   if (pathname.startsWith("/lead_pc/staff/")) return hasPermission(permissions, "staff:view");
   if (pathname.startsWith("/lead_pc/training/")) return hasPermission(permissions, "training:view");
   if (pathname.startsWith("/lead_pc/meetings/")) return hasPermission(permissions, "meetings:view");
-  if (pathname === "/lead_pc/notifications/publish") return hasPermission(permissions, "notifications:publish");
-  if (pathname === "/lead_pc/notifications/manage") return hasPermission(permissions, "notifications:manage");
+  if (pathname === "/lead_pc/notifications/publish") return hasPermission(permissions, ["notifications:publish", "notifications:publish:access"]);
+  if (pathname === "/lead_pc/notifications/manage") return hasPermission(permissions, "notifications:manage") || anyPrefix(permissions, "notifications:manage:");
   if (pathname === "/lead_pc/settings/roles") return hasPermission(permissions, "settings:roles");
   if (pathname === "/lead_pc/settings/users") return hasPermission(permissions, "settings:users");
   if (pathname === "/lead_pc/settings/dictionaries") return hasPermission(permissions, "settings:dictionaries") || anyPrefix(permissions, "dictionaries:");

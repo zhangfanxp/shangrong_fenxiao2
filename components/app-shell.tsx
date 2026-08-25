@@ -1,7 +1,7 @@
 "use client";
 
-import { KeyOutlined, LogoutOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons";
-import { Avatar, Button, Dropdown, Form, Input, Layout, Menu, Modal, Tooltip, message } from "antd";
+import { BellOutlined, KeyOutlined, LogoutOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons";
+import { Avatar, Button, Drawer, Dropdown, Empty, Form, Input, Layout, Menu, Modal, Skeleton, Tooltip, message } from "antd";
 import type { MenuProps } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -9,12 +9,16 @@ import { useEffect, useMemo, useState } from "react";
 import { firstAccessiblePath } from "@/lib/access-control";
 import { findNavigation, navigationForPermissions } from "@/lib/navigation";
 import type { PlatformConfig } from "@/lib/platform-config";
+import { LoginNotificationModal } from "@/components/login-notification-modal";
 
 const { Header, Content } = Layout;
+type HeaderNotification = { id: string; recordNo: string; title: string; content: string; publisherName: string; releaseAt: string; releaseAtText: string };
 
 export function AppShell({ children, realName, permissions, platform }: { children: React.ReactNode; realName: string; permissions: string[]; platform: PlatformConfig }) {
   const pathname = usePathname(); const router = useRouter();
   const [passwordOpen, setPasswordOpen] = useState(false); const [passwordSaving, setPasswordSaving] = useState(false); const [logoutOpen, setLogoutOpen] = useState(false); const [logoutSaving, setLogoutSaving] = useState(false); const [passwordForm] = Form.useForm<{ oldPassword: string; newPassword: string; confirmPassword: string }>();
+  const [notificationOpen, setNotificationOpen] = useState(false); const [notificationLoading, setNotificationLoading] = useState(false); const [notificationRows, setNotificationRows] = useState<HeaderNotification[]>([]); const [notificationError, setNotificationError] = useState(false); const [currentNotification, setCurrentNotification] = useState<HeaderNotification | null>(null);
+  const [notificationAcknowledging, setNotificationAcknowledging] = useState(false);
   const allowedNavigation = useMemo(() => navigationForPermissions(permissions), [permissions]);
   const current = useMemo(() => findNavigation(pathname, allowedNavigation), [pathname, allowedNavigation]);
   const landingPath = firstAccessiblePath(permissions);
@@ -56,10 +60,30 @@ export function AppShell({ children, realName, permissions, platform }: { childr
     if (key === "password") setPasswordOpen(true);
     if (key === "logout") setLogoutOpen(true);
   };
+  const openNotifications = async () => {
+    setNotificationOpen(true); setNotificationLoading(true); setNotificationError(false);
+    try { const response = await fetch("/api/notifications/mine?page=1&pageSize=100", { cache: "no-store" }); const data = await response.json(); if (!response.ok) throw new Error(data.message); setNotificationRows(data.rows || []); }
+    catch { setNotificationError(true); } finally { setNotificationLoading(false); }
+  };
+  const acknowledgeNotification = async () => {
+    if (!currentNotification || notificationAcknowledging) return;
+    setNotificationAcknowledging(true);
+    try {
+      const response = await fetch(`/api/notifications/${currentNotification.id}/read`, { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "通知确认失败，请稍后重试");
+      setCurrentNotification(null);
+    } catch (reason) {
+      message.error(reason instanceof Error ? reason.message : "通知确认失败，请稍后重试");
+      setCurrentNotification(null);
+      void openNotifications();
+    } finally { setNotificationAcknowledging(false); }
+  };
   return <Layout className="content-shell">
       <Header style={{ background: "#fff", padding: "0 24px", height: 64, display: "flex", alignItems: "center", borderBottom: "1px solid #f0f0f0", gap: 18 }}>
         <Link href={landingPath} className="header-brand"><span className="header-brand-mark">{platform.logoDataUrl ? <img src={platform.logoDataUrl} alt="后台LOGO" /> : "餐"}</span><span>{platform.platformName}</span></Link>
         <div style={{ flex: 1, minWidth: 0 }} className="top-nav"><Menu mode="horizontal" selectedKeys={activeGroup ? [activeGroup.key] : []} items={menuItems} onClick={handlePrimaryMenuClick} style={{ borderBottom: 0, lineHeight: "63px" }} /></div>
+        <Tooltip title="我的通知"><Button type="text" icon={<BellOutlined />} aria-label="我的通知" onClick={() => void openNotifications()} /></Tooltip>
         <Tooltip title="帮助"><Button type="text" icon={<QuestionCircleOutlined />} aria-label="帮助" /></Tooltip>
         <Dropdown menu={{ items: userItems, onClick: handleUserMenuClick }} placement="bottomRight" trigger={["hover", "click"]}><Button type="text" style={{ height: 40 }} icon={<Avatar size="small" icon={<UserOutlined />} />}>{realName}</Button></Dropdown>
       </Header>
@@ -75,5 +99,12 @@ export function AppShell({ children, realName, permissions, platform }: { childr
       <Modal title="确认退出当前账号？" open={logoutOpen} onCancel={() => setLogoutOpen(false)} onOk={logout} okText="退出登录" cancelText="取消" okButtonProps={{ danger: true }} confirmLoading={logoutSaving} destroyOnHidden>
         退出后需要重新登录才能访问系统。
       </Modal>
+      <Drawer title="我的通知" open={notificationOpen} onClose={() => setNotificationOpen(false)} width={420}>
+        {notificationLoading ? <Skeleton active paragraph={{ rows: 6 }} /> : notificationError ? <div className="header-notification-error"><p>通知加载失败，请稍后重试</p><Button onClick={() => void openNotifications()}>重新加载</Button></div> : !notificationRows.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无已发布通知" /> : <div className="header-notification-list">{notificationRows.map(item => <button key={item.id} onClick={() => setCurrentNotification(item)}><span><BellOutlined /></span><div><strong>{item.title}</strong><small>{item.publisherName} · {item.releaseAtText}</small><p>{item.content}</p></div></button>)}</div>}
+      </Drawer>
+      <Modal title={currentNotification?.title} open={!!currentNotification} onCancel={() => !notificationAcknowledging && setCurrentNotification(null)} closable={!notificationAcknowledging} maskClosable={!notificationAcknowledging} footer={<Button type="primary" loading={notificationAcknowledging} onClick={() => void acknowledgeNotification()}>{notificationAcknowledging ? "确认中..." : "我已知晓"}</Button>}>
+        {currentNotification && <div className="header-notification-detail"><div>发布人：{currentNotification.publisherName}</div><div>发布时间：{currentNotification.releaseAtText}</div><p>{currentNotification.content}</p><small>记录编号：{currentNotification.recordNo}</small></div>}
+      </Modal>
+      <LoginNotificationModal apiPath="/api/notifications/pending-login" />
   </Layout>;
 }

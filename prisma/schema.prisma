@@ -78,6 +78,13 @@ enum PlatformAccess {
   NO
 }
 
+enum NotificationStatus {
+  PENDING
+  PUBLISHED
+  STOPPED
+  FAILED
+}
+
 model Role {
   id            String       @id @default(cuid())
   code          String       @unique
@@ -92,34 +99,39 @@ model Role {
 }
 
 model User {
-  id                      String            @id @default(cuid())
-  username                String            @unique
+  id                      String                  @id @default(cuid())
+  username                String                  @unique
   passwordHash            String
   realName                String
   phone                   String?
-  tags                    String?           @db.VarChar(200)
+  tags                    String?                 @db.VarChar(200)
   leadH5BrandIds          Json?
   leadH5StoreIds          Json?
-  type                    UserType          @default(CUSTOM)
-  status                  RecordStatus      @default(ENABLED)
+  type                    UserType                @default(CUSTOM)
+  status                  RecordStatus            @default(ENABLED)
   roleId                  String
-  role                    Role              @relation(fields: [roleId], references: [id])
+  role                    Role                    @relation(fields: [roleId], references: [id])
   createdByUserId         String?
-  createdBy               User?             @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdUsers            User[]            @relation("UserCreator")
+  createdBy               User?                   @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdUsers            User[]                  @relation("UserCreator")
   lastLoginAt             DateTime?
-  createdAt               DateTime          @default(now())
-  updatedAt               DateTime          @updatedAt
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
   logs                    OperationLog[]
-  createdTasks            Task[]            @relation("TaskCreator")
-  createdAssessments      Assessment[]      @relation("AssessmentCreator")
-  createdR2StorageConfigs R2StorageConfig[] @relation("R2StorageCreator")
-  r2StorageTests          R2StorageTest[]   @relation("R2StorageTestCreator")
-  personnelProfile        Personnel?        @relation("PersonnelPlatformUser")
-  createdPersonnel        Personnel[]       @relation("PersonnelCreator")
-  salaryAdjustments       SalaryHistory[]   @relation("SalaryOperator")
-  positionTransfers       PositionHistory[] @relation("PositionOperator")
-  leadH5Reviews           LeadH5Review[]    @relation("LeadH5Reviewer")
+  createdTasks            Task[]                  @relation("TaskCreator")
+  createdAssessments      Assessment[]            @relation("AssessmentCreator")
+  createdR2StorageConfigs R2StorageConfig[]       @relation("R2StorageCreator")
+  r2StorageTests          R2StorageTest[]         @relation("R2StorageTestCreator")
+  personnelProfile        Personnel?              @relation("PersonnelPlatformUser")
+  createdPersonnel        Personnel[]             @relation("PersonnelCreator")
+  salaryAdjustments       SalaryHistory[]         @relation("SalaryOperator")
+  positionTransfers       PositionHistory[]       @relation("PositionOperator")
+  leadH5Reviews           LeadH5Review[]          @relation("LeadH5Reviewer")
+  assignedTaskRecords     TaskRecord[]            @relation("TaskRecordAssignee")
+  taskSubmissions         TaskSubmission[]        @relation("TaskSubmissionUser")
+  taskAttachments         TaskAttachment[]        @relation("TaskAttachmentUploader")
+  createdNotifications    Notification[]          @relation("NotificationCreator")
+  notificationRecipients  NotificationRecipient[] @relation("NotificationRecipientUser")
 
   @@index([createdByUserId])
 }
@@ -270,6 +282,8 @@ model Store {
   updatedAt        DateTime             @updatedAt
   personnel        Personnel[]
   leadH5Reviews    LeadH5Review[]
+  taskRecords      TaskRecord[]
+  taskSubmissions  TaskSubmission[]
 }
 
 model LeadH5Review {
@@ -427,6 +441,10 @@ model Task {
   executorRole          Role?            @relation("TaskExecutorRole", fields: [executorRoleId], references: [id])
   includeCompletionRate Boolean          @default(true)
   executionDays         Json?
+  weeklyExecutionDay    String?          @db.VarChar(3)
+  monthlyExecutionDay   String?          @db.VarChar(10)
+  deadlineDayOffset     Int              @default(0)
+  deadlineTime          String           @default("23:59") @db.VarChar(5)
   configFileName        String?          @unique
   submitItems           Json?
   configVersion         Int              @default(1)
@@ -455,16 +473,130 @@ model TaskBrand {
 }
 
 model TaskRecord {
-  id             String           @id @default(cuid())
-  taskId         String
-  task           Task             @relation(fields: [taskId], references: [id])
-  storeId        String?
-  status         TaskRecordStatus @default(PENDING)
-  dueDate        DateTime
-  completedAt    DateTime?
-  configVersion  Int?
-  configSnapshot Json?
-  submission     Json?
+  id                       String           @id @default(cuid())
+  recordNo                 String?          @unique @db.VarChar(24)
+  taskId                   String
+  task                     Task             @relation(fields: [taskId], references: [id])
+  taskNameSnapshot         String?          @db.VarChar(100)
+  taskType                 TaskType?
+  storeId                  String?
+  store                    Store?           @relation(fields: [storeId], references: [id])
+  storeNameSnapshot        String?          @db.VarChar(100)
+  brandIdSnapshot          String?          @db.VarChar(191)
+  brandNameSnapshot        String?          @db.VarChar(100)
+  assignedUserId           String?
+  assignedUser             User?            @relation("TaskRecordAssignee", fields: [assignedUserId], references: [id])
+  assignedUserNameSnapshot String?          @db.VarChar(50)
+  assignedRoleIdSnapshot   String?          @db.VarChar(191)
+  assignedRoleNameSnapshot String?          @db.VarChar(50)
+  executionDate            DateTime?        @db.Date
+  effectiveStartAt         DateTime?
+  effectiveEndAt           DateTime?
+  includeCompletionRate    Boolean?         @default(true)
+  status                   TaskRecordStatus @default(PENDING)
+  dueDate                  DateTime
+  triggeredAt              DateTime         @default(now())
+  completedAt              DateTime?
+  configVersion            Int?
+  configSnapshot           Json?
+  submission               Json?
+  formalSubmission         TaskSubmission?
+  attachments              TaskAttachment[]
+  createdAt                DateTime         @default(now())
+
+  @@unique([taskId, assignedUserId, storeId, executionDate])
+  @@index([assignedUserId, executionDate, status])
+  @@index([storeId, executionDate])
+  @@index([status, dueDate])
+}
+
+model TaskSchedulerRun {
+  id            String    @id @default(cuid())
+  executionDate DateTime  @unique @db.Date
+  scheduledTime String    @db.VarChar(5)
+  status        String    @db.VarChar(20)
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  result        Json?
+  error         String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, startedAt])
+}
+
+model TaskSubmission {
+  id                   String               @id @default(cuid())
+  recordNo             String               @unique @db.VarChar(14)
+  taskRecordId         String               @unique
+  taskRecord           TaskRecord           @relation(fields: [taskRecordId], references: [id])
+  taskIdSnapshot       String               @db.VarChar(191)
+  taskSettingRecordNo  String?              @db.VarChar(24)
+  taskNameSnapshot     String               @db.VarChar(100)
+  taskType             TaskType
+  storeId              String
+  store                Store                @relation(fields: [storeId], references: [id])
+  storeNameSnapshot    String               @db.VarChar(100)
+  brandIdSnapshot      String               @db.VarChar(191)
+  brandNameSnapshot    String               @db.VarChar(100)
+  userId               String
+  user                 User                 @relation("TaskSubmissionUser", fields: [userId], references: [id])
+  userRealNameSnapshot String               @db.VarChar(50)
+  executionDate        DateTime             @db.Date
+  configVersion        Int
+  configSnapshot       Json
+  submittedAt          DateTime             @default(now())
+  createdAt            DateTime             @default(now())
+  items                TaskSubmissionItem[]
+
+  @@index([userId, submittedAt])
+  @@index([storeId, executionDate])
+}
+
+model TaskSubmissionSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model TaskSubmissionItem {
+  id                  String         @id @default(cuid())
+  submissionId        String
+  submission          TaskSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  itemName            String         @db.VarChar(100)
+  componentType       String         @db.VarChar(20)
+  dataType            String?        @db.VarChar(20)
+  description         String         @db.Text
+  required            Boolean
+  weight              Int
+  value               String?        @db.Text
+  attachmentObjectKey String?        @db.VarChar(512)
+  attachmentName      String?        @db.VarChar(255)
+  attachmentMimeType  String?        @db.VarChar(100)
+  r2StorageId         String?        @db.VarChar(191)
+  sortOrder           Int
+  submittedAt         DateTime       @default(now())
+
+  @@unique([submissionId, sortOrder])
+  @@index([submissionId])
+}
+
+model TaskAttachment {
+  id             String     @id @default(cuid())
+  taskRecordId   String
+  taskRecord     TaskRecord @relation(fields: [taskRecordId], references: [id])
+  itemIndex      Int
+  uploaderUserId String
+  uploader       User       @relation("TaskAttachmentUploader", fields: [uploaderUserId], references: [id])
+  r2StorageId    String     @db.VarChar(191)
+  objectKey      String     @unique @db.VarChar(512)
+  originalName   String     @db.VarChar(255)
+  mimeType       String     @db.VarChar(100)
+  size           Int
+  consumedAt     DateTime?
+  createdAt      DateTime   @default(now())
+
+  @@index([taskRecordId, itemIndex, uploaderUserId])
 }
 
 model DictionaryItem {
@@ -522,6 +654,57 @@ model OperationLog {
 }
 
 model OperationLogSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id              String                  @id @default(cuid())
+  recordNo        String                  @unique @db.VarChar(12)
+  clientRequestId String                  @unique @db.VarChar(64)
+  title           String                  @db.VarChar(30)
+  content         String                  @db.VarChar(500)
+  releaseDate     DateTime                @db.Date
+  releaseAt       DateTime
+  publisherName   String                  @db.VarChar(10)
+  showAfterLogin  Boolean                 @default(false)
+  status          NotificationStatus      @default(PENDING)
+  createdByUserId String?
+  createdBy       User?                   @relation("NotificationCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByName   String                  @db.VarChar(30)
+  publishedAt     DateTime?
+  stoppedAt       DateTime?
+  stoppedByUserId String?
+  stoppedByName   String?                 @db.VarChar(30)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  recipients      NotificationRecipient[]
+
+  @@index([status, releaseAt])
+  @@index([createdByUserId, createdAt])
+}
+
+model NotificationRecipient {
+  id               String       @id @default(cuid())
+  notificationId   String
+  notification     Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  userId           String?
+  user             User?        @relation("NotificationRecipientUser", fields: [userId], references: [id], onDelete: SetNull)
+  usernameSnapshot String       @db.VarChar(30)
+  realNameSnapshot String       @db.VarChar(30)
+  roleSnapshot     String       @db.VarChar(50)
+  readAt           DateTime?
+  acknowledgedAt   DateTime?
+  createdAt        DateTime     @default(now())
+
+  @@unique([notificationId, userId])
+  @@index([userId, notificationId])
+  @@index([notificationId, readAt])
+  @@index([userId, acknowledgedAt])
+}
+
+model NotificationSequence {
   dateKey   String   @id @db.VarChar(8)
   nextValue Int      @default(1)
   updatedAt DateTime @updatedAt

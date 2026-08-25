@@ -10,6 +10,9 @@ export type PlatformConfig = {
   leadPcLoginTags: string;
   leadH5LoginTags: string;
   storeH5LoginTags: string;
+  automaticTaskExecutionTime: string;
+  defaultTaskDeadlineDayOffset: 0 | 1;
+  defaultTaskDeadlineTime: string;
 };
 
 const targetPath = () => path.join(process.cwd(), "config", "platform.config.json");
@@ -28,13 +31,16 @@ export function userHasAnyLoginTag(userTags: string | null | undefined, configur
 
 export async function getPlatformConfig(): Promise<PlatformConfig> {
   try {
-    const value = JSON.parse(await readFile(targetPath(), "utf8")) as { platformName?: unknown; logoDataUrl?: unknown; loginBackgroundDataUrl?: unknown; leadPcLoginTags?: unknown; leadH5LoginTags?: unknown; storeH5LoginTags?: unknown };
+    const value = JSON.parse(await readFile(targetPath(), "utf8")) as { platformName?: unknown; logoDataUrl?: unknown; loginBackgroundDataUrl?: unknown; leadPcLoginTags?: unknown; leadH5LoginTags?: unknown; storeH5LoginTags?: unknown; automaticTaskExecutionTime?: unknown; defaultTaskDeadlineDayOffset?: unknown; defaultTaskDeadlineTime?: unknown };
     const platformName = typeof value.platformName === "string" && value.platformName.trim() ? value.platformName.trim() : DEFAULT_PLATFORM_NAME;
     const logoDataUrl = typeof value.logoDataUrl === "string" && value.logoDataUrl.startsWith("data:image/") ? value.logoDataUrl : null;
     const loginBackgroundDataUrl = typeof value.loginBackgroundDataUrl === "string" && value.loginBackgroundDataUrl.startsWith("data:image/") ? value.loginBackgroundDataUrl : null;
-    return { platformName, logoDataUrl, loginBackgroundDataUrl, leadPcLoginTags: normalizeLoginTags(value.leadPcLoginTags), leadH5LoginTags: normalizeLoginTags(value.leadH5LoginTags), storeH5LoginTags: normalizeLoginTags(value.storeH5LoginTags) };
+    const automaticTaskExecutionTime = typeof value.automaticTaskExecutionTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.automaticTaskExecutionTime) ? value.automaticTaskExecutionTime : "05:30";
+    const defaultTaskDeadlineDayOffset = value.defaultTaskDeadlineDayOffset === 1 ? 1 : 0;
+    const defaultTaskDeadlineTime = typeof value.defaultTaskDeadlineTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.defaultTaskDeadlineTime) ? value.defaultTaskDeadlineTime : "23:59";
+    return { platformName, logoDataUrl, loginBackgroundDataUrl, leadPcLoginTags: normalizeLoginTags(value.leadPcLoginTags), leadH5LoginTags: normalizeLoginTags(value.leadH5LoginTags), storeH5LoginTags: normalizeLoginTags(value.storeH5LoginTags), automaticTaskExecutionTime, defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime };
   } catch {
-    return { platformName: DEFAULT_PLATFORM_NAME, logoDataUrl: null, loginBackgroundDataUrl: null, leadPcLoginTags: "", leadH5LoginTags: "", storeH5LoginTags: "" };
+    return { platformName: DEFAULT_PLATFORM_NAME, logoDataUrl: null, loginBackgroundDataUrl: null, leadPcLoginTags: "", leadH5LoginTags: "", storeH5LoginTags: "", automaticTaskExecutionTime: "05:30", defaultTaskDeadlineDayOffset: 0, defaultTaskDeadlineTime: "23:59" };
   }
 }
 

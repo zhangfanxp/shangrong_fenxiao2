@@ -9,8 +9,22 @@ import type { PlatformConfig } from "@/lib/platform-config";
 
 type BrandOption = { label: string; value: string };
 type BrandDayHour = { brand: string; workdayHours: number };
-type PlatformValues = { platformName: string; leadPcLoginTags: string; leadH5LoginTags: string; storeH5LoginTags: string };
+type PlatformValues = { platformName: string; leadPcLoginTags: string; leadH5LoginTags: string; storeH5LoginTags: string; automaticTaskExecutionTime: string; defaultTaskDeadlineDayOffset: 0 | 1; defaultTaskDeadlineTime: string };
 type BrandHourValues = { brand: string; workdayHours: number };
+type SchedulerStatus = {
+  scheduledTime: string;
+  today: string;
+  dueToday: boolean;
+  todayStatus: "SUCCESS" | "RUNNING" | "FAILED" | "WAITING" | "NOT_DUE";
+  lastRun: null | {
+    executionDate: string;
+    status: "SUCCESS" | "RUNNING" | "FAILED";
+    startedAt: string;
+    completedAt: string | null;
+    result: null | { created?: number; covered?: number; notGenerated?: number; ignoredTasks?: number };
+    error: string | null;
+  };
+};
 
 const loginAddresses: Array<{ title: string; path: string; field: "leadPcLoginTags" | "leadH5LoginTags" | "storeH5LoginTags"; adminBypass?: boolean }> = [
   { title: "运营PC端", path: "/lead_pc/login", field: "leadPcLoginTags", adminBypass: true },
@@ -34,6 +48,16 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
   const [loadError, setLoadError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
+
+  const loadSchedulerStatus = async () => {
+    try {
+      const response = await fetch("/api/settings/task-scheduler/status", { cache: "no-store" });
+      if (response.ok) setSchedulerStatus(await response.json());
+    } catch {
+      // 状态展示不影响系统参数和品牌工时的正常维护。
+    }
+  };
 
   const loadBrandHours = async () => {
     setLoading(true); setLoadError("");
@@ -49,7 +73,7 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
     }
   };
 
-  useEffect(() => { setSiteOrigin(window.location.origin); void loadBrandHours(); }, []);
+  useEffect(() => { setSiteOrigin(window.location.origin); void loadBrandHours(); void loadSchedulerStatus(); }, []);
 
   const beforeLogoUpload: UploadProps["beforeUpload"] = file => {
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
@@ -99,6 +123,7 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
       if (!response.ok) return void message.error(data.message || "平台信息保存失败，请稍后重试");
       message.success("平台信息保存成功");
       setLogoChanged(false); setLoginBackgroundChanged(false);
+      await loadSchedulerStatus();
       router.refresh();
     } catch (error) {
       if (error instanceof Error) message.error(error.message);
@@ -131,10 +156,20 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
 
   const configuredBrands = new Set(rows.map(row => row.brand));
   const selectOptions = brandOptions.map(option => ({ ...option, disabled: configuredBrands.has(option.value), label: configuredBrands.has(option.value) ? `${option.label}（已添加）` : option.label }));
+  const schedulerStatusView = (() => {
+    if (!schedulerStatus) return null;
+    const formatTime = (value: string | null) => value ? new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date(value)) : "—";
+    const last = schedulerStatus.lastRun;
+    if (schedulerStatus.todayStatus === "SUCCESS") return { type: "success" as const, message: `今日自动任务已执行（${schedulerStatus.today}）`, description: `完成时间：${formatTime(last?.completedAt ?? null)}；新生成 ${last?.result?.created ?? 0} 条，已存在未覆盖 ${last?.result?.notGenerated ?? 0} 条。` };
+    if (schedulerStatus.todayStatus === "RUNNING") return { type: "info" as const, message: "今日自动任务正在执行", description: `开始时间：${formatTime(last?.startedAt ?? null)}。系统采用单日唯一执行锁，不会重复生成。` };
+    if (schedulerStatus.todayStatus === "FAILED") return { type: "error" as const, message: "今日自动任务执行失败，将在下一次检查时重试", description: last?.error || "请检查定时任务错误日志。" };
+    if (schedulerStatus.todayStatus === "WAITING") return { type: "warning" as const, message: `已到今日自动执行时间 ${schedulerStatus.scheduledTime}，正在等待 Mac 定时服务检查`, description: last ? `最近一次成功执行日期：${last.executionDate}。` : "当前还没有自动执行记录。" };
+    return { type: "info" as const, message: `今日计划于 ${schedulerStatus.scheduledTime} 自动执行`, description: last ? `最近执行日期：${last.executionDate}，完成时间：${formatTime(last.completedAt)}。` : "当前还没有自动执行记录。" };
+  })();
 
   return <>
     <Card title="平台信息" className="system-parameter-card" style={{ marginBottom: 16 }} extra={<Button type="primary" loading={platformSaving} onClick={() => void savePlatform()}>保存</Button>}>
-      <Form form={platformForm} layout="vertical" initialValues={{ platformName: initialPlatform.platformName, leadPcLoginTags: initialPlatform.leadPcLoginTags, leadH5LoginTags: initialPlatform.leadH5LoginTags, storeH5LoginTags: initialPlatform.storeH5LoginTags }}>
+      <Form form={platformForm} layout="vertical" initialValues={{ platformName: initialPlatform.platformName, leadPcLoginTags: initialPlatform.leadPcLoginTags, leadH5LoginTags: initialPlatform.leadH5LoginTags, storeH5LoginTags: initialPlatform.storeH5LoginTags, automaticTaskExecutionTime: initialPlatform.automaticTaskExecutionTime, defaultTaskDeadlineDayOffset: initialPlatform.defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime: initialPlatform.defaultTaskDeadlineTime }}>
         <div className="platform-parameter-grid">
           <Form.Item label="平台名称" name="platformName" rules={[{ required: true, whitespace: true, message: "请输入平台名称" }, { max: 30, message: "平台名称不能超过30个字符" }]} extra="将显示在运营端登录页“欢迎登录”下方及登录后的页面左上角">
             <Input maxLength={30} showCount placeholder="请输入平台名称" />
@@ -168,6 +203,21 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
                 </Form.Item>
               </div>)}
             </div>
+          </section>
+          <section className="platform-scheduler-settings">
+            <div className="platform-login-addresses-heading"><strong>定时任务自动执行</strong><span>系统按北京时间每天自动生成一次应执行的日、周、月任务</span></div>
+            <div className="platform-scheduler-grid">
+              <Form.Item label="自动执行时间" name="automaticTaskExecutionTime" rules={[{ required: true, message: "请选择自动执行时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的自动执行时间" }]} extra="管理员可修改；Mac恢复运行后只补执行当天，不补历史日期">
+                <Input type="time" step={60} />
+              </Form.Item>
+              <Form.Item label="默认任务截止日期" name="defaultTaskDeadlineDayOffset" rules={[{ required: true, message: "请选择默认任务截止日期" }]} extra="新增任务时自动带出，任务仍可单独修改">
+                <Select options={[{ value: 0, label: "当日" }, { value: 1, label: "次日" }]} />
+              </Form.Item>
+              <Form.Item label="默认任务截止时间" name="defaultTaskDeadlineTime" rules={[{ required: true, message: "请选择默认任务截止时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的默认截止时间" }]} extra="例如闭店任务可在任务设置中改为次日05:00">
+                <Input type="time" step={60} />
+              </Form.Item>
+            </div>
+            {schedulerStatusView && <Alert showIcon type={schedulerStatusView.type} message={schedulerStatusView.message} description={schedulerStatusView.description} />}
           </section>
         </div>
       </Form>

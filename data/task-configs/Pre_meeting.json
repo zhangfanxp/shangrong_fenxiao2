@@ -3,8 +3,8 @@
   "taskName": "测试-班前会",
   "taskType": "日任务",
   "executorRole": {
-    "id": "cmszu2mly0000tnrre64hv1l2",
-    "name": "超级管理员"
+    "id": "cmt6jn0cl000ctn6y5ukshkil",
+    "name": "店长"
   },
   "brands": [
     {
@@ -12,10 +12,19 @@
       "name": "奋小二"
     },
     {
+      "id": "cmszu2mss0004tnrrkllc8x5y",
+      "name": "禾穆婆"
+    },
+    {
       "id": "cmszu2mss0005tnrrddx1naed",
       "name": "蚝家伙"
     }
   ],
+  "storageSpace": {
+    "id": "cmt0xbey80005tncek1xtase8",
+    "name": "R2-test",
+    "bucketName": "videolist"
+  },
   "executionDays": [
     "周一",
     "周二",
@@ -27,7 +36,7 @@
   ],
   "includeCompletionRate": true,
   "status": "启用",
-  "configVersion": 1,
+  "configVersion": 4,
   "submitItems": [
     {
       "name": "仪容仪表",
@@ -40,29 +49,29 @@
     },
     {
       "name": "点名问好",
-      "description": "请拍摄并上传视频",
+      "description": "请拍摄并上传照片",
       "required": true,
       "weight": 1,
       "component": "attachment",
-      "dataType": "video",
+      "dataType": "photo",
       "options": []
     },
     {
       "name": "员工关怀",
-      "description": "请拍摄并上传视频",
+      "description": "请拍摄并上传照片",
       "required": true,
       "weight": 1,
       "component": "attachment",
-      "dataType": "video",
+      "dataType": "photo",
       "options": []
     },
     {
       "name": "企业文化朗诵",
-      "description": "请拍摄并上传视频",
+      "description": "请拍摄并上传照片",
       "required": true,
       "weight": 1,
       "component": "attachment",
-      "dataType": "video",
+      "dataType": "photo",
       "options": []
     },
     {
@@ -76,11 +85,11 @@
     },
     {
       "name": "跳舞",
-      "description": "请拍摄并上传视频",
+      "description": "请拍摄并上传照片",
       "required": true,
       "weight": 1,
       "component": "attachment",
-      "dataType": "video",
+      "dataType": "photo",
       "options": []
     },
     {

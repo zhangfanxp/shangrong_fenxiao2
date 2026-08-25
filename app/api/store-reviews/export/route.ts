@@ -41,16 +41,17 @@ export async function POST(request: Request) {
     const sheet = workbook.addWorksheet("门店稽核评分");
     sheet.columns = [
       { header: "记录编号", key: "recordNo", width: 17 }, { header: "品牌", key: "brand", width: 16 },
-      { header: "考核门店", key: "store", width: 28 }, { header: "考核表类型", key: "type", width: 20 },
+      { header: "考核门店", key: "store", width: 28 }, { header: "考核月份", key: "month", width: 14 },
+      { header: "考核表类型", key: "type", width: 20 },
       { header: "负责人", key: "responsible", width: 14 }, { header: "考核日期", key: "date", width: 14 },
       { header: "考核得分", key: "score", width: 14 }, { header: "考核督导", key: "reviewer", width: 14 },
     ];
-    for (const row of rows) sheet.addRow({ recordNo: row.recordNo, brand: row.brandNameSnapshot, store: row.storeNameSnapshot, type: row.assessmentName, responsible: row.responsiblePersonNameSnapshot || "-", date: formatReviewDate(row.assessmentDate), score: Number(row.actualScore), reviewer: row.reviewerRealName });
+    for (const row of rows) sheet.addRow({ recordNo: row.recordNo, brand: row.brandNameSnapshot, store: row.storeNameSnapshot, month: row.reviewMonth.replace("-", "年") + "月", type: row.assessmentName, responsible: row.responsiblePersonNameSnapshot || "-", date: formatReviewDate(row.assessmentDate), score: Number(row.actualScore), reviewer: row.reviewerRealName });
     sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
     sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1677FF" } };
     sheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
     sheet.views = [{ state: "frozen", ySplit: 1 }];
-    sheet.autoFilter = { from: "A1", to: "H1" };
+    sheet.autoFilter = { from: "A1", to: "I1" };
     const buffer = await workbook.xlsx.writeBuffer();
     const fileName = `门店稽核评分_${timestamp()}.xlsx`;
     await writeOperationLog({ userId: session.userId, username: session.username, page: "门店稽核评分", action: "批量导出", result: "成功", detail: `导出 ${rows.length} 条评分记录`, request }).catch(() => undefined);
