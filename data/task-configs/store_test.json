@@ -1,0 +1,53 @@
+{
+  "recordNo": "202608260001",
+  "taskName": "店长任务测试",
+  "taskType": "日任务",
+  "executorRole": {
+    "id": "cmt6jn0cl000ctn6y5ukshkil",
+    "name": "店长"
+  },
+  "brands": [
+    {
+      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "name": "奋小二"
+    }
+  ],
+  "storageSpace": {
+    "id": "cmt0xbey80005tncek1xtase8",
+    "name": "R2-test",
+    "bucketName": "videolist"
+  },
+  "executionDays": [
+    "周一",
+    "周三",
+    "周五",
+    "周日"
+  ],
+  "deadlineDayOffset": 1,
+  "deadlineTime": "03:59",
+  "includeCompletionRate": true,
+  "status": "启用",
+  "configVersion": 2,
+  "submitItems": [
+    {
+      "name": "门店门头",
+      "description": "请拍照上传",
+      "required": true,
+      "weight": 1,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "门店室内",
+      "description": "请上传照片",
+      "required": false,
+      "weight": 1,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": false,
+      "options": []
+    }
+  ]
+}

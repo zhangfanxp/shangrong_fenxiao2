@@ -7,7 +7,7 @@ import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type TaskStatus = "COMPLETED" | "PENDING";
+type TaskStatus = "COMPLETED" | "PENDING" | "OVERDUE";
 type TaskType = "DAILY" | "WEEKLY" | "MONTHLY" | "TEMPORARY";
 type TaskRecordRow = {
   id: string;
@@ -58,6 +58,11 @@ const taskTypeOptions = [
   { value: "MONTHLY", label: "月任务" },
   { value: "TEMPORARY", label: "临时任务" },
 ] satisfies { value: TaskType; label: string }[];
+const taskStatusMeta: Record<TaskStatus, { label: string; color: "success" | "processing" | "error" }> = {
+  COMPLETED: { label: "已完成", color: "success" },
+  PENDING: { label: "待完成", color: "processing" },
+  OVERDUE: { label: "已逾期", color: "error" },
+};
 
 function responseFileName(response: Response) {
   const encoded = response.headers.get("Content-Disposition")?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
@@ -202,7 +207,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     { title: "参与核算完成率", dataIndex: "includeCompletionRate", width: 145, render: value => <Tag color={value ? "blue" : "default"}>{value ? "参与" : "不参与"}</Tag> },
     { title: "任务创建日期", dataIndex: "createdAt", width: 170 },
     { title: "任务提交日期", dataIndex: "submittedAt", width: 170 },
-    { title: "任务状态", dataIndex: "status", width: 100, render: value => <Tag color={value === "COMPLETED" ? "success" : "warning"}>{value === "COMPLETED" ? "已完成" : "未完成"}</Tag> },
+    { title: "任务状态", dataIndex: "status", width: 100, render: (value: TaskStatus) => <Tag color={taskStatusMeta[value].color}>{taskStatusMeta[value].label}</Tag> },
     { title: "操作", key: "actions", width: canView && canDelete ? 128 : 76, fixed: "right", render: (_, row) => <Space size={4} className="table-actions">{canView && row.status === "COMPLETED" && <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => void openDetail(row.id)}>查看</Button>}{canDelete && <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => setDeleteRow(row)}>删除</Button>}</Space> },
   ];
   const rowSelection: TableRowSelection<TaskRecordRow> = { selectedRowKeys, preserveSelectedRowKeys: true, onChange: setSelectedRowKeys, columnWidth: 48 };
@@ -211,7 +216,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     <Card className="task-record-filter-card">
       <Form form={form} layout="vertical">
         <div className="task-record-filter-grid">
-          <Form.Item label="任务状态" name="status"><Select allowClear placeholder="全部" options={[{ value: "COMPLETED", label: "已完成" }, { value: "PENDING", label: "未完成" }]} /></Form.Item>
+          <Form.Item label="任务状态" name="status"><Select allowClear placeholder="全部" options={[{ value: "PENDING", label: "待完成" }, { value: "COMPLETED", label: "已完成" }, { value: "OVERDUE", label: "已逾期" }]} /></Form.Item>
           <Form.Item label="任务名称" name="taskName"><Input allowClear placeholder="请输入任务名称" onPressEnter={applyFilters} /></Form.Item>
           <Form.Item label="任务类型" name="taskType"><Select allowClear placeholder="全部" options={taskTypeOptions} /></Form.Item>
           <Form.Item label="任务执行人" name="executorKeyword"><Input allowClear placeholder="请输入执行人姓名" onPressEnter={applyFilters} /></Form.Item>
@@ -246,7 +251,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     </Modal>
 
     <Modal open={!!deleteRow} title={<Space><WarningOutlined style={{ color: "#ff4d4f" }} />温馨提示</Space>} onCancel={() => !deleting && setDeleteRow(undefined)} closable={!deleting} maskClosable={!deleting} footer={<Space><Button disabled={deleting} onClick={() => setDeleteRow(undefined)}>我再想想</Button><Button danger type="primary" loading={deleting} onClick={() => void performDelete()}>{deleting ? "删除中..." : "我知道了，继续删除"}</Button></Space>}>
-      <Alert type="error" showIcon message="删除操作不可逆" description={deleteRow ? `${deleteRow.taskName} · ${deleteRow.executor} · ${deleteRow.status === "COMPLETED" ? "已完成" : "未完成"}` : undefined} />
+      <Alert type="error" showIcon message="删除操作不可逆" description={deleteRow ? `${deleteRow.taskName} · ${deleteRow.executor} · ${taskStatusMeta[deleteRow.status].label}` : undefined} />
       <div className="task-record-delete-copy"><p>一旦删除成功，当前任务记录及已经提交的任务数据将无法恢复。</p><p>删除后，当前用户的此项任务将恢复为“未生成”状态，需要重新生成任务后才能再次执行。</p><p>请谨慎操作。</p></div>
     </Modal>
   </>;

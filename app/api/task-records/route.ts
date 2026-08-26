@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
+import { expireOverdueTaskInstances } from "@/lib/store-h5-tasks";
 import {
   canTaskRecord, readTaskRecordFilters, serializeTaskRecord, taskRecordDataScope,
   taskRecordFilterWhere, taskRecordListSelect, validTaskRecordDate,
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "任务提交开始日期不能晚于任务提交截止日期" }, { status: 400 });
   }
   try {
+    await expireOverdueTaskInstances();
     const where = { AND: [await taskRecordDataScope(session), taskRecordFilterWhere(filters)] };
     const [rows, total] = await db.$transaction([
       db.taskRecord.findMany({ where, select: taskRecordListSelect, orderBy: [{ triggeredAt: "desc" }, { id: "desc" }], skip: (page - 1) * pageSize, take: pageSize }),

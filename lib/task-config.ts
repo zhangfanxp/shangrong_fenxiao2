@@ -7,6 +7,7 @@ export type SubmitItem = {
   name: string;
   component: "attachment" | "input" | "select";
   dataType: "photo" | "video" | "document" | "amount" | "quantity" | null;
+  captureOnly?: boolean;
   options: string[];
   description: string;
   required: boolean;
@@ -23,10 +24,12 @@ export function normalizeConfigFileName(value: string) {
   return `${baseName}.json`;
 }
 
-function parseComponent(value: string, lineNumber: number): Pick<SubmitItem, "component" | "dataType" | "options"> {
-  if (value === "[附件]照片") return { component: "attachment", dataType: "photo", options: [] };
-  if (value === "[附件]视频") return { component: "attachment", dataType: "video", options: [] };
-  if (value === "[附件]文档") return { component: "attachment", dataType: "document", options: [] };
+function parseComponent(value: string, lineNumber: number): Pick<SubmitItem, "component" | "dataType" | "captureOnly" | "options"> {
+  if (value === "[附件]照片") return { component: "attachment", dataType: "photo", captureOnly: false, options: [] };
+  if (value === "[附件]拍照") return { component: "attachment", dataType: "photo", captureOnly: true, options: [] };
+  if (value === "[附件]视频") return { component: "attachment", dataType: "video", captureOnly: false, options: [] };
+  if (value === "[附件]录像") return { component: "attachment", dataType: "video", captureOnly: true, options: [] };
+  if (value === "[附件]文档") return { component: "attachment", dataType: "document", captureOnly: false, options: [] };
   if (value === "[输入框]金额") return { component: "input", dataType: "amount", options: [] };
   if (value === "[输入框]数量") return { component: "input", dataType: "quantity", options: [] };
   if (value.startsWith("[下拉选框]")) {

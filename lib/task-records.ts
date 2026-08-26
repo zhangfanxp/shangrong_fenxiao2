@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 export type TaskRecordAction = "query" | "view" | "export" | "delete";
 
 export type TaskRecordFilters = {
-  status?: "COMPLETED" | "PENDING";
+  status?: "COMPLETED" | "PENDING" | "OVERDUE";
   taskName?: string;
   taskType?: TaskType;
   executorKeyword?: string;
@@ -60,7 +60,7 @@ export function readTaskRecordFilters(search: URLSearchParams): TaskRecordFilter
   const status = read("status");
   const taskType = read("taskType");
   return {
-    status: status === "COMPLETED" || status === "PENDING" ? status : undefined,
+    status: status === "COMPLETED" || status === "PENDING" || status === "OVERDUE" ? status : undefined,
     taskName: read("taskName"),
     taskType: Object.values(TaskType).includes(taskType as TaskType) ? taskType as TaskType : undefined,
     executorKeyword: read("executorKeyword"),
@@ -72,7 +72,8 @@ export function readTaskRecordFilters(search: URLSearchParams): TaskRecordFilter
 export function taskRecordFilterWhere(filters: TaskRecordFilters): Prisma.TaskRecordWhereInput {
   const AND: Prisma.TaskRecordWhereInput[] = [];
   if (filters.status === "COMPLETED") AND.push({ status: TaskRecordStatus.COMPLETED });
-  if (filters.status === "PENDING") AND.push({ status: { in: [TaskRecordStatus.PENDING, TaskRecordStatus.OVERDUE] } });
+  if (filters.status === "PENDING") AND.push({ status: TaskRecordStatus.PENDING });
+  if (filters.status === "OVERDUE") AND.push({ status: TaskRecordStatus.OVERDUE });
   if (filters.taskName) AND.push({ taskNameSnapshot: { contains: filters.taskName.trim() } });
   if (filters.taskType) AND.push({ taskType: filters.taskType });
   if (filters.executorKeyword) AND.push({ assignedUserNameSnapshot: { contains: filters.executorKeyword.trim() } });
@@ -137,7 +138,7 @@ export function serializeTaskRecord(row: SelectedTaskRecord) {
     includeCompletionRate: row.includeCompletionRate !== false,
     createdAt: formatTaskRecordDateTime(row.triggeredAt),
     submittedAt: completed ? formatTaskRecordDateTime(row.formalSubmission?.submittedAt || row.completedAt) : "-",
-    status: completed ? "COMPLETED" as const : "PENDING" as const,
+    status: row.status,
   };
 }
 

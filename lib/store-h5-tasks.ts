@@ -8,6 +8,7 @@ export type StoreTaskItem = {
   name: string;
   component: "attachment" | "input" | "select";
   dataType: "photo" | "video" | "document" | "amount" | "quantity" | null;
+  captureOnly?: boolean;
   options: string[];
   description: string;
   required: boolean;
@@ -34,6 +35,7 @@ export function isStoreTaskSnapshot(value: unknown): value is StoreTaskSnapshot 
   const candidate = value as Partial<StoreTaskSnapshot>;
   return typeof candidate.taskName === "string" && Array.isArray(candidate.submitItems) && candidate.submitItems.every(item =>
     item && typeof item.name === "string" && ["attachment", "input", "select"].includes(item.component)
+      && (item.captureOnly === undefined || typeof item.captureOnly === "boolean")
       && typeof item.description === "string" && typeof item.required === "boolean" && Number.isInteger(item.weight));
 }
 
@@ -57,6 +59,13 @@ export function dateKeyAsDbDate(value: string) {
 export async function expireOverdueTaskInstances(now = new Date()) {
   const result = await db.taskRecord.updateMany({ where: { status: TaskRecordStatus.PENDING, dueDate: { lt: now } }, data: { status: TaskRecordStatus.OVERDUE } });
   return result.count;
+}
+
+export async function countPendingStoreTaskInstances(userId: string, now = new Date()) {
+  await expireOverdueTaskInstances(now);
+  return db.taskRecord.count({
+    where: { assignedUserId: userId, status: TaskRecordStatus.PENDING, dueDate: { gte: now } },
+  });
 }
 
 function weekdayLabel(dateKey: string) {

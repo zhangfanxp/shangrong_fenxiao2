@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { readAssessmentConfig, type AssessmentSection } from "@/lib/assessment-config";
+import { leadH5StoreDataScope, leadH5StoreScopeInfo, type LeadH5DataAccess } from "@/lib/lead-h5-store-scope";
 
 export const FRONT_HALL_REVIEW_TYPE = "FRONT_HALL_AUDIT";
 export const FRONT_HALL_ASSESSMENT_NAME = "前厅稽核评分";
@@ -38,23 +39,12 @@ export function validReviewMonth(value: string) {
   return /^\d{4}-(?:0[1-9]|1[0-2])$/.test(value);
 }
 
-type ReviewDataAccess = { permissions: string[]; brandPermissionIds: string[] | null; storePermissionIds: string[] | null };
-
-export function reviewDataScope(access: ReviewDataAccess) {
-  const { all, brandIds, storeIds } = reviewDataScopeInfo(access);
-  if (all) return {};
-  const where: Prisma.StoreWhereInput = {};
-  if (brandIds.length) where.brandId = { in: brandIds };
-  if (storeIds.length) where.id = { in: storeIds };
-  return where;
+export function reviewDataScope(access: LeadH5DataAccess): Prisma.StoreWhereInput {
+  return leadH5StoreDataScope(access);
 }
 
-export function reviewDataScopeInfo(access: ReviewDataAccess) {
-  const hasExplicitScope = access.brandPermissionIds !== null || access.storePermissionIds !== null;
-  const all = !hasExplicitScope && (access.permissions.includes("*") || access.permissions.includes("data:all"));
-  const brandIds = access.brandPermissionIds || [];
-  const storeIds = access.storePermissionIds || [];
-  return { all, brandIds, storeIds };
+export function reviewDataScopeInfo(access: LeadH5DataAccess) {
+  return leadH5StoreScopeInfo(access);
 }
 
 function isReviewConfig(value: Record<string, unknown>): value is Record<string, unknown> & ReviewConfig {

@@ -5,6 +5,7 @@ import { DictionaryConfigError, readDictionaryValues } from "@/lib/dictionary-co
 export type BusinessDictionaryCode =
   | "BRAND"
   | "ASSESSMENT_TYPE"
+  | "RESEARCH_TEMPLATE_TYPE"
   | "CONTRACT_STATUS"
   | "COOPERATION_TYPE"
   | "REBATE_TYPE"
@@ -20,6 +21,7 @@ export type DictionaryOption = { label: string; value: string };
 const aliases: Record<BusinessDictionaryCode, string[]> = {
   BRAND: ["BRAND"],
   ASSESSMENT_TYPE: ["Assessment_Type", "ASSESSMENT_TYPE"],
+  RESEARCH_TEMPLATE_TYPE: ["Research_Template_Type", "RESEARCH_TEMPLATE_TYPE"],
   CONTRACT_STATUS: ["CONTRACT_STATUS"],
   COOPERATION_TYPE: ["COOPERATION_TYPE"],
   REBATE_TYPE: ["REBATE_TYPE"],

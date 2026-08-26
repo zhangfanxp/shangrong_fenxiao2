@@ -1,0 +1,206 @@
+{
+  "recordNo": "202608250001",
+  "templateType": "督导巡店调研",
+  "brands": [
+    "奋小二",
+    "蚝家伙",
+    "禾穆婆"
+  ],
+  "status": "已启用",
+  "statusCode": "ENABLED",
+  "configVersion": 1,
+  "items": [
+    {
+      "id": "item_1",
+      "section": "周边竞调",
+      "subSection": "竞品1（同城火锅鸡）",
+      "label": "竞品名称及距离",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_2",
+      "section": "周边竞调",
+      "subSection": "竞品1（同城火锅鸡）",
+      "label": "竞品套餐定价",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_3",
+      "section": "周边竞调",
+      "subSection": "竞品1（同城火锅鸡）",
+      "label": "主打特色产品",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_4",
+      "section": "周边竞调",
+      "subSection": "竞品1（同城火锅鸡）",
+      "label": "优惠活动力度",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_5",
+      "section": "周边竞调",
+      "subSection": "竞品1（同城火锅鸡）",
+      "label": "门店环境及服务",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_6",
+      "section": "周边竞调",
+      "subSection": "竞品1（同城火锅鸡）",
+      "label": "线上评分及销量",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_7",
+      "section": "周边竞调",
+      "subSection": "竞品1（同城火锅鸡）",
+      "label": "顾客核心评价及亮点",
+      "component": "input",
+      "required": false
+    },
+    {
+      "id": "item_8",
+      "section": "周边竞调",
+      "subSection": "竞品1（同城火锅鸡）",
+      "label": "竞品核心短板",
+      "component": "input",
+      "required": false
+    },
+    {
+      "id": "item_9",
+      "section": "周边竞调",
+      "subSection": "竞品2（火锅类）",
+      "label": "竞品名称及距离",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_10",
+      "section": "周边竞调",
+      "subSection": "竞品2（火锅类）",
+      "label": "竞品套餐定价",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_11",
+      "section": "周边竞调",
+      "subSection": "竞品2（火锅类）",
+      "label": "主打特色产品",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_12",
+      "section": "周边竞调",
+      "subSection": "竞品2（火锅类）",
+      "label": "优惠活动力度",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_13",
+      "section": "周边竞调",
+      "subSection": "竞品2（火锅类）",
+      "label": "门店环境及服务",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_14",
+      "section": "周边竞调",
+      "subSection": "竞品2（火锅类）",
+      "label": "线上评分及销量",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_15",
+      "section": "周边竞调",
+      "subSection": "竞品2（火锅类）",
+      "label": "顾客核心评价及亮点",
+      "component": "input",
+      "required": false
+    },
+    {
+      "id": "item_16",
+      "section": "周边竞调",
+      "subSection": "竞品2（火锅类）",
+      "label": "竞品核心短板",
+      "component": "input",
+      "required": false
+    },
+    {
+      "id": "item_17",
+      "section": "周边竞调",
+      "subSection": "竞品3（自助类）",
+      "label": "竞品名称及距离",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_18",
+      "section": "周边竞调",
+      "subSection": "竞品3（自助类）",
+      "label": "竞品套餐定价",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_19",
+      "section": "周边竞调",
+      "subSection": "竞品3（自助类）",
+      "label": "主打特色产品",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_20",
+      "section": "周边竞调",
+      "subSection": "竞品3（自助类）",
+      "label": "优惠活动力度",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_21",
+      "section": "周边竞调",
+      "subSection": "竞品3（自助类）",
+      "label": "门店环境及服务",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_22",
+      "section": "周边竞调",
+      "subSection": "竞品3（自助类）",
+      "label": "线上评分及销量",
+      "component": "input",
+      "required": true
+    },
+    {
+      "id": "item_23",
+      "section": "周边竞调",
+      "subSection": "竞品3（自助类）",
+      "label": "顾客核心评价及亮点",
+      "component": "input",
+      "required": false
+    },
+    {
+      "id": "item_24",
+      "section": "周边竞调",
+      "subSection": "竞品3（自助类）",
+      "label": "竞品核心短板",
+      "component": "input",
+      "required": false
+    }
+  ]
+}

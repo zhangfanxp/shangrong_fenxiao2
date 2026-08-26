@@ -99,39 +99,41 @@ model Role {
 }
 
 model User {
-  id                      String                  @id @default(cuid())
-  username                String                  @unique
-  passwordHash            String
-  realName                String
-  phone                   String?
-  tags                    String?                 @db.VarChar(200)
-  leadH5BrandIds          Json?
-  leadH5StoreIds          Json?
-  type                    UserType                @default(CUSTOM)
-  status                  RecordStatus            @default(ENABLED)
-  roleId                  String
-  role                    Role                    @relation(fields: [roleId], references: [id])
-  createdByUserId         String?
-  createdBy               User?                   @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdUsers            User[]                  @relation("UserCreator")
-  lastLoginAt             DateTime?
-  createdAt               DateTime                @default(now())
-  updatedAt               DateTime                @updatedAt
-  logs                    OperationLog[]
-  createdTasks            Task[]                  @relation("TaskCreator")
-  createdAssessments      Assessment[]            @relation("AssessmentCreator")
-  createdR2StorageConfigs R2StorageConfig[]       @relation("R2StorageCreator")
-  r2StorageTests          R2StorageTest[]         @relation("R2StorageTestCreator")
-  personnelProfile        Personnel?              @relation("PersonnelPlatformUser")
-  createdPersonnel        Personnel[]             @relation("PersonnelCreator")
-  salaryAdjustments       SalaryHistory[]         @relation("SalaryOperator")
-  positionTransfers       PositionHistory[]       @relation("PositionOperator")
-  leadH5Reviews           LeadH5Review[]          @relation("LeadH5Reviewer")
-  assignedTaskRecords     TaskRecord[]            @relation("TaskRecordAssignee")
-  taskSubmissions         TaskSubmission[]        @relation("TaskSubmissionUser")
-  taskAttachments         TaskAttachment[]        @relation("TaskAttachmentUploader")
-  createdNotifications    Notification[]          @relation("NotificationCreator")
-  notificationRecipients  NotificationRecipient[] @relation("NotificationRecipientUser")
+  id                       String                   @id @default(cuid())
+  username                 String                   @unique
+  passwordHash             String
+  realName                 String
+  phone                    String?
+  tags                     String?                  @db.VarChar(200)
+  leadH5BrandIds           Json?
+  leadH5StoreIds           Json?
+  type                     UserType                 @default(CUSTOM)
+  status                   RecordStatus             @default(ENABLED)
+  roleId                   String
+  role                     Role                     @relation(fields: [roleId], references: [id])
+  createdByUserId          String?
+  createdBy                User?                    @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdUsers             User[]                   @relation("UserCreator")
+  lastLoginAt              DateTime?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  logs                     OperationLog[]
+  createdTasks             Task[]                   @relation("TaskCreator")
+  createdAssessments       Assessment[]             @relation("AssessmentCreator")
+  createdResearchTemplates ResearchTemplate[]       @relation("ResearchTemplateCreator")
+  createdR2StorageConfigs  R2StorageConfig[]        @relation("R2StorageCreator")
+  r2StorageTests           R2StorageTest[]          @relation("R2StorageTestCreator")
+  personnelProfile         Personnel?               @relation("PersonnelPlatformUser")
+  createdPersonnel         Personnel[]              @relation("PersonnelCreator")
+  salaryAdjustments        SalaryHistory[]          @relation("SalaryOperator")
+  positionTransfers        PositionHistory[]        @relation("PositionOperator")
+  leadH5Reviews            LeadH5Review[]           @relation("LeadH5Reviewer")
+  leadH5ResearchRecords    ResearchTemplateRecord[] @relation("LeadH5ResearchSubmitter")
+  assignedTaskRecords      TaskRecord[]             @relation("TaskRecordAssignee")
+  taskSubmissions          TaskSubmission[]         @relation("TaskSubmissionUser")
+  taskAttachments          TaskAttachment[]         @relation("TaskAttachmentUploader")
+  createdNotifications     Notification[]           @relation("NotificationCreator")
+  notificationRecipients   NotificationRecipient[]  @relation("NotificationRecipientUser")
 
   @@index([createdByUserId])
 }
@@ -187,6 +189,77 @@ model AssessmentRecord {
   createdAt        DateTime   @default(now())
 
   @@index([assessmentId])
+}
+
+model ResearchTemplate {
+  id              String                   @id @default(cuid())
+  recordNo        String                   @unique @db.VarChar(12)
+  templateType    String                   @db.VarChar(100)
+  configFileName  String                   @unique @db.VarChar(25)
+  detailText      String                   @db.LongText
+  itemCount       Int
+  remark          String?                  @db.VarChar(50)
+  status          RecordStatus             @default(ENABLED)
+  configVersion   Int                      @default(1)
+  createdByUserId String?
+  createdBy       User?                    @relation("ResearchTemplateCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByName   String                   @db.VarChar(50)
+  deletedAt       DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  brandScopes     ResearchTemplateBrand[]
+  records         ResearchTemplateRecord[]
+
+  @@index([templateType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ResearchTemplateBrand {
+  id                 String           @id @default(cuid())
+  researchTemplateId String
+  researchTemplate   ResearchTemplate @relation(fields: [researchTemplateId], references: [id], onDelete: Cascade)
+  brandValue         String           @db.VarChar(100)
+
+  @@unique([researchTemplateId, brandValue])
+  @@index([brandValue])
+}
+
+model ResearchTemplateRecord {
+  id                       String           @id @default(cuid())
+  recordNo                 String           @unique @db.VarChar(12)
+  researchMonth            String           @db.VarChar(7)
+  templateType             String           @db.VarChar(100)
+  status                   String           @default("SUBMITTED") @db.VarChar(20)
+  storeId                  String
+  store                    Store            @relation(fields: [storeId], references: [id])
+  storeNameSnapshot        String           @db.VarChar(100)
+  brandId                  String
+  brandNameSnapshot        String           @db.VarChar(100)
+  storeManagerNameSnapshot String?          @db.VarChar(50)
+  submittedByUserId        String
+  submittedBy              User             @relation("LeadH5ResearchSubmitter", fields: [submittedByUserId], references: [id])
+  submittedUsername        String           @db.VarChar(50)
+  supervisorRealName       String           @db.VarChar(50)
+  researchTemplateId       String
+  researchTemplate         ResearchTemplate @relation(fields: [researchTemplateId], references: [id])
+  researchTemplateRecordNo String           @db.VarChar(12)
+  configVersion            Int
+  configSnapshot           Json
+  resultSnapshot           Json
+  submittedAt              DateTime         @db.DateTime(0)
+  createdAt                DateTime         @default(now())
+
+  @@unique([storeId, researchMonth, templateType])
+  @@index([researchTemplateId])
+  @@index([researchMonth, templateType])
+  @@index([submittedByUserId])
+}
+
+model LeadH5ResearchSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
 }
 
 model Brand {
@@ -252,38 +325,39 @@ model ContractRebate {
 }
 
 model Store {
-  id               String               @id @default(cuid())
-  recordNo         String               @unique
-  contractId       String?              @unique
-  contract         Contract?            @relation(fields: [contractId], references: [id])
-  brandId          String
-  brand            Brand                @relation(fields: [brandId], references: [id])
-  name             String
-  operationStatus  StoreOperationStatus @default(PREPARING)
-  region           String?
-  supervisorName   String?
-  province         String?
-  city             String?
-  district         String?
-  address          String?
-  cooperationType  CooperationType
-  startDate        DateTime?
-  endDate          DateTime?
-  businessDistrict String?
-  locationType     String?
-  trialOpenDate    DateTime?
-  formalOpenDate   DateTime?
-  managerName      String?
-  chefName         String?
-  ownerName        String?
-  ownerPhone       String?
-  ownerIdNumber    String?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  personnel        Personnel[]
-  leadH5Reviews    LeadH5Review[]
-  taskRecords      TaskRecord[]
-  taskSubmissions  TaskSubmission[]
+  id                    String                   @id @default(cuid())
+  recordNo              String                   @unique
+  contractId            String?                  @unique
+  contract              Contract?                @relation(fields: [contractId], references: [id])
+  brandId               String
+  brand                 Brand                    @relation(fields: [brandId], references: [id])
+  name                  String
+  operationStatus       StoreOperationStatus     @default(PREPARING)
+  region                String?
+  supervisorName        String?
+  province              String?
+  city                  String?
+  district              String?
+  address               String?
+  cooperationType       CooperationType
+  startDate             DateTime?
+  endDate               DateTime?
+  businessDistrict      String?
+  locationType          String?
+  trialOpenDate         DateTime?
+  formalOpenDate        DateTime?
+  managerName           String?
+  chefName              String?
+  ownerName             String?
+  ownerPhone            String?
+  ownerIdNumber         String?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  personnel             Personnel[]
+  leadH5Reviews         LeadH5Review[]
+  leadH5ResearchRecords ResearchTemplateRecord[]
+  taskRecords           TaskRecord[]
+  taskSubmissions       TaskSubmission[]
 }
 
 model LeadH5Review {

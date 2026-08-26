@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/auth";
 import { getBusinessDictionaries, type BusinessDictionaryCode } from "@/lib/business-dictionaries";
 
-const allowed = new Set<BusinessDictionaryCode>(["BRAND", "ASSESSMENT_TYPE", "CONTRACT_STATUS", "COOPERATION_TYPE", "REBATE_TYPE", "STORE_OPERATION_STATUS", "STORE_AREA", "LOCATION_TYPE", "POSITION_LEVEL", "PERSONNEL_STATUS", "SOCIAL_SECURITY_STATUS"]);
+const allowed = new Set<BusinessDictionaryCode>(["BRAND", "ASSESSMENT_TYPE", "RESEARCH_TEMPLATE_TYPE", "CONTRACT_STATUS", "COOPERATION_TYPE", "REBATE_TYPE", "STORE_OPERATION_STATUS", "STORE_AREA", "LOCATION_TYPE", "POSITION_LEVEL", "PERSONNEL_STATUS", "SOCIAL_SECURITY_STATUS"]);
 
 export async function GET(request: Request) {
   if (!(await requireApiSession())) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });

@@ -83,7 +83,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         page: "任务记录",
         action: "删除",
         result: "成功",
-        detail: `原任务实例ID：${current.id}；原记录编号：${current.formalSubmission?.recordNo || "-"}；任务名称：${current.taskNameSnapshot || "-"}；任务类型：${taskTypeLabel(current.taskType)}；执行用户ID：${current.assignedUserId || "-"}；执行人：${current.assignedUserNameSnapshot || "-"}；原任务状态：${current.status === TaskRecordStatus.COMPLETED ? "已完成" : "未完成"}；参与完成率：${current.includeCompletionRate !== false ? "参与" : "不参与"}；原任务创建时间：${formatTaskRecordDateTime(current.triggeredAt)}；原任务提交时间：${formatTaskRecordDateTime(current.formalSubmission?.submittedAt || current.completedAt)}；R2附件对象保留`,
+        detail: `原任务实例ID：${current.id}；原记录编号：${current.formalSubmission?.recordNo || "-"}；任务名称：${current.taskNameSnapshot || "-"}；任务类型：${taskTypeLabel(current.taskType)}；执行用户ID：${current.assignedUserId || "-"}；执行人：${current.assignedUserNameSnapshot || "-"}；原任务状态：${current.status === TaskRecordStatus.COMPLETED ? "已完成" : current.status === TaskRecordStatus.OVERDUE ? "已逾期" : "待完成"}；参与完成率：${current.includeCompletionRate !== false ? "参与" : "不参与"}；原任务创建时间：${formatTaskRecordDateTime(current.triggeredAt)}；原任务提交时间：${formatTaskRecordDateTime(current.formalSubmission?.submittedAt || current.completedAt)}；R2附件对象保留`,
         request,
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5_000, timeout: 30_000 });

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireApiSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
+import { expireOverdueTaskInstances } from "@/lib/store-h5-tasks";
 import {
   canTaskRecord, serializeTaskRecord, taskRecordDataScope, taskRecordFilterWhere,
   taskRecordListSelect, validTaskRecordDate,
@@ -12,7 +13,7 @@ import {
 const bodySchema = z.object({
   taskInstanceIds: z.array(z.string().min(1)).max(10000).optional(),
   filters: z.object({
-    status: z.enum(["COMPLETED", "PENDING"]).optional(),
+    status: z.enum(["COMPLETED", "PENDING", "OVERDUE"]).optional(),
     taskName: z.string().optional(),
     taskType: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TEMPORARY"]).optional(),
     executorKeyword: z.string().optional(),
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "任务提交日期范围不正确" }, { status: 400 });
   }
   try {
+    await expireOverdueTaskInstances();
     const where = { AND: [await taskRecordDataScope(session), taskInstanceIds?.length ? { id: { in: taskInstanceIds } } : taskRecordFilterWhere(filters)] };
     const total = await db.taskRecord.count({ where });
     if (total > 50000) return NextResponse.json({ message: "当前筛选结果超过 50000 条，请缩小筛选范围后导出" }, { status: 413 });
@@ -57,7 +59,7 @@ export async function POST(request: Request) {
     ];
     for (const source of rows) {
       const row = serializeTaskRecord(source);
-      sheet.addRow({ ...row, taskType: row.taskTypeLabel, includeCompletionRate: row.includeCompletionRate ? "参与" : "不参与", status: row.status === "COMPLETED" ? "已完成" : "未完成" });
+      sheet.addRow({ ...row, taskType: row.taskTypeLabel, includeCompletionRate: row.includeCompletionRate ? "参与" : "不参与", status: row.status === "COMPLETED" ? "已完成" : row.status === "OVERDUE" ? "已逾期" : "待完成" });
     }
     sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
     sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1677FF" } };

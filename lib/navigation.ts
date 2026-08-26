@@ -12,7 +12,11 @@ export const navigation: NavGroup[] = [
   { key: "dashboard", label: "仪表板", icon: DashboardOutlined, href: "/lead_pc/dashboard" },
   { key: "stores", label: "门店", icon: HomeOutlined, children: [{ key: "contracts", label: "合同管理", href: "/lead_pc/stores/contracts" }, { key: "list", label: "门店列表", href: "/lead_pc/stores/list" }] },
   { key: "operations", label: "运营", icon: FundOutlined, children: ["目标营业额","实际营业额","人力成本","用工记录","千元用量表","每日保本营业额","线上线下销售占比","产品类别销售占比","微信私域每日新增","线上团购数据","线上外卖数据","每月采销比","百日筑基表"].map((label, i) => ({ key: `op-${i}`, label, href: `/lead_pc/operations/${i}` })) },
-  { key: "inspection", label: "巡店", icon: AuditOutlined, children: ["督导巡店","老总复查","门店稽核评分","门店信用得分","巡店调研表"].map((label, i) => ({ key: `inspection-${i}`, label, href: `/lead_pc/inspection/${i}` })) },
+  { key: "inspection", label: "巡店", icon: AuditOutlined, children: [
+    { key: "inspection-2", label: "门店稽核评分", href: "/lead_pc/inspection/2" },
+    { key: "inspection-3", label: "门店信用得分", href: "/lead_pc/inspection/3" },
+    { key: "inspection-4", label: "巡店调研表", href: "/lead_pc/inspection/4" },
+  ] },
   { key: "tasks", label: "任务", icon: UnorderedListOutlined, children: [{ key: "task-config", label: "任务设置", href: "/lead_pc/tasks/settings" }, { key: "task-records", label: "任务记录", href: "/lead_pc/tasks/records" }] },
   { key: "staff", label: "员工", icon: TeamOutlined, children: [
     { key: "staff-0", label: "人员档案", href: "/lead_pc/staff/0" },
@@ -24,7 +28,7 @@ export const navigation: NavGroup[] = [
   { key: "training", label: "培训", icon: ReadOutlined, children: ["每日学习","课程管理","题库管理"].map((label, i) => ({ key: `training-${i}`, label, href: `/lead_pc/training/${i}` })) },
   { key: "meetings", label: "会议", icon: AppstoreOutlined, children: ["每月线上会","月中线下会"].map((label, i) => ({ key: `meetings-${i}`, label, href: `/lead_pc/meetings/${i}` })) },
   { key: "notifications", label: "通知", icon: BellOutlined, children: [{ key: "notify-publish", label: "发布通知", href: "/lead_pc/notifications/publish" }, { key: "notify-manage", label: "通知管理", href: "/lead_pc/notifications/manage" }] },
-  { key: "settings", label: "设置", icon: SettingOutlined, children: [{ key: "roles", label: "角色管理", href: "/lead_pc/settings/roles" }, { key: "users", label: "用户列表", href: "/lead_pc/settings/users" }, { key: "dict", label: "数据字典", href: "/lead_pc/settings/dictionaries" }, { key: "assessment", label: "考核表格", href: "/lead_pc/settings/assessments" }, { key: "reminders", label: "提醒规则", href: "/lead_pc/settings/reminders" }, { key: "storage", label: "R2存储空间", href: "/lead_pc/settings/storage" }, { key: "backup", label: "数据库备份", href: "/lead_pc/settings/backups" }, { key: "clear", label: "清空业务数据", href: "/lead_pc/settings/clear-data" }, { key: "parameters", label: "系统参数", href: "/lead_pc/settings/parameters" }, { key: "logs", label: "操作日志", href: "/lead_pc/settings/operation-logs" }] },
+  { key: "settings", label: "设置", icon: SettingOutlined, children: [{ key: "roles", label: "角色管理", href: "/lead_pc/settings/roles" }, { key: "users", label: "用户列表", href: "/lead_pc/settings/users" }, { key: "dict", label: "数据字典", href: "/lead_pc/settings/dictionaries" }, { key: "assessment", label: "考核表格", href: "/lead_pc/settings/assessments" }, { key: "survey-template", label: "调研模版", href: "/lead_pc/settings/survey-templates" }, { key: "reminders", label: "提醒规则", href: "/lead_pc/settings/reminders" }, { key: "storage", label: "R2存储空间", href: "/lead_pc/settings/storage" }, { key: "backup", label: "数据库备份", href: "/lead_pc/settings/backups" }, { key: "clear", label: "清空业务数据", href: "/lead_pc/settings/clear-data" }, { key: "parameters", label: "系统参数", href: "/lead_pc/settings/parameters" }, { key: "logs", label: "操作日志", href: "/lead_pc/settings/operation-logs" }] },
 ];
 
 export function navigationForPermissions(permissions: string[]) {
