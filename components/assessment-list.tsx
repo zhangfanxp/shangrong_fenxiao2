@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AssessmentPreviewModal, type AssessmentPreviewConfig } from "@/components/assessment-preview-modal";
 import { DataTable } from "@/components/data-table";
 import { StatusTag } from "@/components/status-tag";
+import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 
 type Permission = "query" | "create" | "preview" | "edit" | "view" | "enable" | "disable" | "delete";
 type AssessmentRow = {
@@ -42,6 +43,7 @@ export function AssessmentList({ permissions }: { permissions: string[] }) {
   const [rows, setRows] = useState<AssessmentRow[]>([]); const [total, setTotal] = useState(0); const [loading, setLoading] = useState(true); const [error, setError] = useState(false);
   const [keyword, setKeyword] = useState(""); const [appliedKeyword, setAppliedKeyword] = useState(""); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10);
   const [mode, setMode] = useState<"create" | "edit" | "view" | null>(null); const [current, setCurrent] = useState<AssessmentRow | null>(null); const [saving, setSaving] = useState(false); const [dirty, setDirty] = useState(false); const [form] = Form.useForm<FormValues>();
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [brandOptions, setBrandOptions] = useState<BrandOption[]>([]); const [assessmentTypeOptions, setAssessmentTypeOptions] = useState<BrandOption[]>([]); const [dictionaryOptionsError, setDictionaryOptionsError] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false); const [previewLoading, setPreviewLoading] = useState(false); const [previewConfig, setPreviewConfig] = useState<AssessmentPreviewConfig | null>(null);
   const detailText = Form.useWatch("detailText", form) || ""; const liveStats = useMemo(() => calculateStats(detailText), [detailText]);
@@ -83,7 +85,7 @@ export function AssessmentList({ permissions }: { permissions: string[] }) {
   };
   const closeForm = () => {
     if (saving) return;
-    if (dirty && mode !== "view") { Modal.confirm({ title: "当前考核表内容尚未保存", content: "关闭后修改内容将丢失，是否继续？", okText: "确认关闭", cancelText: "继续编辑", onOk: () => { setMode(null); setDirty(false); } }); return; }
+    if (dirty && mode !== "view") { setDiscardOpen(true); return; }
     setMode(null); setDirty(false);
   };
   const submit = async () => {
@@ -141,6 +143,7 @@ export function AssessmentList({ permissions }: { permissions: string[] }) {
         <h3 className="assessment-form-heading">系统信息</h3><div className="assessment-form-grid two-columns"><Form.Item label="创建人"><Input disabled value={current?.createdBy?.realName} placeholder="保存后自动生成" /></Form.Item><Form.Item label="创建时间"><Input disabled value={current?.createdAt ? formatTime(current.createdAt) : undefined} placeholder="保存后自动生成" /></Form.Item></div>
       </Form>
     </Modal>
+    <UnsavedChangesModal open={discardOpen} title="当前考核表内容尚未保存" onKeep={() => setDiscardOpen(false)} onDiscard={() => { setDiscardOpen(false); setMode(null); setDirty(false); }} />
     <AssessmentPreviewModal open={previewOpen} loading={previewLoading} config={previewConfig} onClose={() => { setPreviewOpen(false); setPreviewConfig(null); }} />
   </>;
 }

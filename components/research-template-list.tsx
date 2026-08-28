@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { ResearchTemplatePreviewModal, type ResearchTemplatePreviewConfig } from "@/components/research-template-preview-modal";
 import { StatusTag } from "@/components/status-tag";
+import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 
 type Permission = "query" | "create" | "preview" | "edit" | "view" | "enable" | "disable" | "delete";
 type Option = { label: string; value: string; disabled?: boolean };
@@ -44,6 +45,7 @@ export function ResearchTemplateList({ permissions }: { permissions: string[] })
   const [filters, setFilters] = useState<Filters>(emptyFilters); const [appliedFilters, setAppliedFilters] = useState<Filters>(emptyFilters); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]); const [mode, setMode] = useState<"create" | "edit" | "view" | null>(null); const [current, setCurrent] = useState<ResearchTemplateRow | null>(null);
   const [saving, setSaving] = useState(false); const [dirty, setDirty] = useState(false); const [form] = Form.useForm<FormValues>();
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [brandOptions, setBrandOptions] = useState<Option[]>([]); const [typeOptions, setTypeOptions] = useState<Option[]>([]); const [dictionaryError, setDictionaryError] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false); const [previewLoading, setPreviewLoading] = useState(false); const [previewConfig, setPreviewConfig] = useState<ResearchTemplatePreviewConfig | null>(null);
   const detailText = Form.useWatch("detailText", form) || ""; const stats = useMemo(() => detailStats(detailText), [detailText]);
@@ -85,7 +87,7 @@ export function ResearchTemplateList({ permissions }: { permissions: string[] })
   };
   const closeForm = () => {
     if (saving) return;
-    if (dirty && mode !== "view") { Modal.confirm({ title: "当前调研模版尚未保存", content: "关闭后修改内容将丢失，是否继续？", okText: "确认关闭", cancelText: "继续编辑", onOk: () => { setMode(null); setDirty(false); } }); return; }
+    if (dirty && mode !== "view") { setDiscardOpen(true); return; }
     setMode(null); setDirty(false);
   };
   const submit = async () => {
@@ -140,6 +142,7 @@ export function ResearchTemplateList({ permissions }: { permissions: string[] })
         <h3 className="assessment-form-heading">系统信息</h3><div className="assessment-form-grid two-columns"><Form.Item label="创建人"><Input disabled value={current?.createdByName} placeholder="保存后自动生成" /></Form.Item><Form.Item label="创建时间"><Input disabled value={current?.createdAt ? formatTime(current.createdAt) : undefined} placeholder="保存后自动生成" /></Form.Item></div>
       </Form>
     </Modal>
+    <UnsavedChangesModal open={discardOpen} title="当前调研模版尚未保存" onKeep={() => setDiscardOpen(false)} onDiscard={() => { setDiscardOpen(false); setMode(null); setDirty(false); }} />
     <ResearchTemplatePreviewModal open={previewOpen} loading={previewLoading} config={previewConfig} onClose={() => { setPreviewOpen(false); setPreviewConfig(null); }} />
   </>;
 }

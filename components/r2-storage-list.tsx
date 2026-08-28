@@ -7,6 +7,7 @@ import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { StatusTag } from "@/components/status-tag";
+import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 
 type Permission = "query" | "create" | "edit" | "view" | "test" | "enable" | "disable" | "delete";
 type R2Row = {
@@ -29,6 +30,7 @@ export function R2StorageList({ permissions }: { permissions: string[] }) {
   const [applied, setApplied] = useState({ accountId: "", bucketName: "" }); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10);
   const [mode, setMode] = useState<"create" | "edit" | "view" | null>(null); const [current, setCurrent] = useState<R2Row | null>(null);
   const [saving, setSaving] = useState(false); const [actionId, setActionId] = useState(""); const [dirty, setDirty] = useState(false); const [form] = Form.useForm<FormValues>();
+  const [discardOpen, setDiscardOpen] = useState(false);
 
   const load = async (nextPage = page, nextPageSize = pageSize, filters = applied) => {
     setLoading(true); setErrorMessage("");
@@ -65,7 +67,7 @@ export function R2StorageList({ permissions }: { permissions: string[] }) {
   const closeForm = () => {
     if (saving) return;
     if (dirty && mode !== "view") {
-      Modal.confirm({ title: "当前R2配置尚未保存", content: "关闭后修改内容将丢失，是否继续？", okText: "确认关闭", cancelText: "继续编辑", onOk: () => { setMode(null); setDirty(false); } });
+      setDiscardOpen(true);
       return;
     }
     setMode(null); setDirty(false);
@@ -186,5 +188,6 @@ export function R2StorageList({ permissions }: { permissions: string[] }) {
         </div>
       </Form>
     </Modal>
+    <UnsavedChangesModal open={discardOpen} title="当前R2配置尚未保存" onKeep={() => setDiscardOpen(false)} onDiscard={() => { setDiscardOpen(false); setMode(null); setDirty(false); }} />
   </>;
 }

@@ -25,7 +25,12 @@ export const navigation: NavGroup[] = [
     { key: "staff-4", label: "工装库存", href: "/lead_pc/staff/4" },
     { key: "staff-5", label: "人员考核", href: "/lead_pc/staff/5" },
   ] },
-  { key: "training", label: "培训", icon: ReadOutlined, children: ["每日学习","课程管理","题库管理"].map((label, i) => ({ key: `training-${i}`, label, href: `/lead_pc/training/${i}` })) },
+  { key: "training", label: "培训", icon: ReadOutlined, children: [
+    { key: "training-0", label: "每日学习", href: "/lead_pc/training/0" },
+    { key: "training-1", label: "课程管理", href: "/lead_pc/training/1" },
+    { key: "training-3", label: "课程分配记录", href: "/lead_pc/training/3" },
+    { key: "training-2", label: "题库管理", href: "/lead_pc/training/2" },
+  ] },
   { key: "meetings", label: "会议", icon: AppstoreOutlined, children: ["每月线上会","月中线下会"].map((label, i) => ({ key: `meetings-${i}`, label, href: `/lead_pc/meetings/${i}` })) },
   { key: "notifications", label: "通知", icon: BellOutlined, children: [{ key: "notify-publish", label: "发布通知", href: "/lead_pc/notifications/publish" }, { key: "notify-manage", label: "通知管理", href: "/lead_pc/notifications/manage" }] },
   { key: "settings", label: "设置", icon: SettingOutlined, children: [{ key: "roles", label: "角色管理", href: "/lead_pc/settings/roles" }, { key: "users", label: "用户列表", href: "/lead_pc/settings/users" }, { key: "dict", label: "数据字典", href: "/lead_pc/settings/dictionaries" }, { key: "assessment", label: "考核表格", href: "/lead_pc/settings/assessments" }, { key: "survey-template", label: "调研模版", href: "/lead_pc/settings/survey-templates" }, { key: "reminders", label: "提醒规则", href: "/lead_pc/settings/reminders" }, { key: "storage", label: "R2存储空间", href: "/lead_pc/settings/storage" }, { key: "backup", label: "数据库备份", href: "/lead_pc/settings/backups" }, { key: "clear", label: "清空业务数据", href: "/lead_pc/settings/clear-data" }, { key: "parameters", label: "系统参数", href: "/lead_pc/settings/parameters" }, { key: "logs", label: "操作日志", href: "/lead_pc/settings/operation-logs" }] },

@@ -7,6 +7,7 @@ import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { StatusTag } from "@/components/status-tag";
+import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 
 type Permission = "query" | "create" | "edit" | "view" | "enable" | "disable" | "values:view" | "values:edit";
 type Status = "ENABLED" | "DISABLED";
@@ -28,6 +29,7 @@ export function DictionaryManagement({ permissions }: { permissions: string[] })
   const [mode, setMode] = useState<"create" | "edit" | "view" | null>(null); const [current, setCurrent] = useState<DictionaryRow | null>(null); const [hasValues, setHasValues] = useState(false);
   const [saving, setSaving] = useState(false); const [dirty, setDirty] = useState(false); const [form] = Form.useForm<DictionaryFormValues>();
   const [valuesTarget, setValuesTarget] = useState<DictionaryRow | null>(null); const [valuesText, setValuesText] = useState(""); const [initialValuesText, setInitialValuesText] = useState(""); const [valuesLoading, setValuesLoading] = useState(false); const [valuesSaving, setValuesSaving] = useState(false);
+  const [formDiscardOpen, setFormDiscardOpen] = useState(false); const [valuesDiscardOpen, setValuesDiscardOpen] = useState(false);
 
   const load = async (nextPage = page, nextPageSize = pageSize, nextFilters = appliedFilters) => {
     setLoading(true); setError(false);
@@ -51,10 +53,10 @@ export function DictionaryManagement({ permissions }: { permissions: string[] })
       form.setFieldsValue({ name: next.name, code: next.code, fileBase: next.fileName.replace(/\.json$/i, ""), remark: next.remark || "", status: next.status }); setDirty(false); setMode(nextMode);
     } catch { message.error("数据字典加载失败，请稍后重试"); } finally { setSaving(false); }
   };
-  const finishCloseForm = () => { setMode(null); setCurrent(null); setDirty(false); form.resetFields(); };
+  const finishCloseForm = () => { setFormDiscardOpen(false); setMode(null); setCurrent(null); setDirty(false); form.resetFields(); };
   const closeForm = () => {
     if (saving) return;
-    if (dirty && mode !== "view") { Modal.confirm({ title: "当前内容尚未保存", content: "关闭后修改内容将丢失，是否继续？", okText: "确认关闭", cancelText: "继续编辑", onOk: finishCloseForm }); return; }
+    if (dirty && mode !== "view") { setFormDiscardOpen(true); return; }
     finishCloseForm();
   };
   const submit = async () => {
@@ -80,10 +82,10 @@ export function DictionaryManagement({ permissions }: { permissions: string[] })
       setValuesTarget(data.dictionary); setValuesText(data.valuesText); setInitialValuesText(data.valuesText);
     } catch { message.error("枚举值加载失败，请稍后重试"); setValuesTarget(null); } finally { setValuesLoading(false); }
   };
-  const finishCloseValues = () => { setValuesTarget(null); setValuesText(""); setInitialValuesText(""); };
+  const finishCloseValues = () => { setValuesDiscardOpen(false); setValuesTarget(null); setValuesText(""); setInitialValuesText(""); };
   const closeValues = () => {
     if (valuesSaving) return;
-    if (valuesText !== initialValuesText && can("values:edit")) { Modal.confirm({ title: "当前枚举值尚未保存", content: "关闭后修改内容将丢失，是否继续？", okText: "确认关闭", cancelText: "继续编辑", onOk: finishCloseValues }); return; }
+    if (valuesText !== initialValuesText && can("values:edit")) { setValuesDiscardOpen(true); return; }
     finishCloseValues();
   };
   const saveValues = async () => {
@@ -118,5 +120,7 @@ export function DictionaryManagement({ permissions }: { permissions: string[] })
     <Modal title="数据字典-枚举值" open={Boolean(valuesTarget)} width={720} onCancel={closeValues} destroyOnHidden maskClosable={false} footer={can("values:edit") ? <Space><Button onClick={closeValues}>取消</Button><Button type="primary" loading={valuesSaving} disabled={valuesLoading} onClick={() => void saveValues()}>保存</Button></Space> : <Button onClick={closeValues}>关闭</Button>}>
       {valuesTarget && <><Descriptions size="small" column={1} bordered style={{ marginBottom: 16 }}><Descriptions.Item label="字典中文名称">{valuesTarget.name}</Descriptions.Item><Descriptions.Item label="字典英文名称">{valuesTarget.code}</Descriptions.Item><Descriptions.Item label="本地JSON文件">{valuesTarget.fileName}</Descriptions.Item></Descriptions><Alert type="warning" showIcon message="温馨提示" description="修改或删除枚举值可能影响系统相关业务页面，请确认后操作。枚举值之间请使用“|”分隔，排列顺序即业务下拉选项展示顺序。" style={{ marginBottom: 16 }} /><Typography.Text strong>枚举值</Typography.Text><Input.TextArea value={valuesText} onChange={event => setValuesText(event.target.value)} disabled={valuesLoading || !can("values:edit")} rows={7} placeholder="例如：1区|2区|3区|4区|5区" style={{ marginTop: 8 }} /></>}
     </Modal>
+    <UnsavedChangesModal open={formDiscardOpen} title="当前内容尚未保存" onKeep={() => setFormDiscardOpen(false)} onDiscard={finishCloseForm} />
+    <UnsavedChangesModal open={valuesDiscardOpen} title="当前枚举值尚未保存" onKeep={() => setValuesDiscardOpen(false)} onDiscard={finishCloseValues} />
   </>;
 }

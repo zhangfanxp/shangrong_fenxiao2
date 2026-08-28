@@ -20,11 +20,23 @@ const inputSchema = z.object({
     const match = value.match(/^data:image\/(png|jpeg);base64,([A-Za-z0-9+/]+={0,2})$/);
     return Boolean(match && Math.ceil(match[2].length * 3 / 4) <= 5 * 1024 * 1024);
   }, "登录页背景图片仅支持PNG、JPG或JPEG格式，且文件不能超过5MB"),
+  courseCoverDataUrl: z.string().nullable().optional().refine(value => {
+    if (value === undefined || value === null) return true;
+    const match = value.match(imagePattern);
+    return Boolean(match && Math.ceil(match[2].length * 3 / 4) <= 5 * 1024 * 1024);
+  }, "课程封面图片仅支持PNG、JPG、JPEG或WEBP格式，且文件不能超过5MB"),
+  lessonCoverDataUrl: z.string().nullable().optional().refine(value => {
+    if (value === undefined || value === null) return true;
+    const match = value.match(imagePattern);
+    return Boolean(match && Math.ceil(match[2].length * 3 / 4) <= 5 * 1024 * 1024);
+  }, "课时封面图片仅支持PNG、JPG、JPEG或WEBP格式，且文件不能超过5MB"),
   leadPcLoginTags: z.string().trim().max(200, "运营PC端登录用户标签不能超过200个字符").optional().default(""),
   leadH5LoginTags: z.string().trim().max(200, "运营H5移动端登录用户标签不能超过200个字符").optional().default(""),
   storeH5LoginTags: z.string().trim().max(200, "门店H5移动端登录用户标签不能超过200个字符").optional().default(""),
   removeLogo: z.boolean().optional().default(false),
   removeLoginBackground: z.boolean().optional().default(false),
+  removeCourseCover: z.boolean().optional().default(false),
+  removeLessonCover: z.boolean().optional().default(false),
   automaticTaskExecutionTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的自动执行时间"),
   defaultTaskDeadlineDayOffset: z.union([z.literal(0), z.literal(1)]),
   defaultTaskDeadlineTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的默认截止时间"),
@@ -35,7 +47,8 @@ const inputSchema = z.object({
 });
 
 export async function GET() {
-  return NextResponse.json(await getPlatformConfig(), { headers: { "Cache-Control": "no-store" } });
+  const platform = await getPlatformConfig();
+  return NextResponse.json({ platformName: platform.platformName, loginBackgroundDataUrl: platform.loginBackgroundDataUrl }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function PUT(request: Request) {
@@ -65,6 +78,8 @@ export async function PUT(request: Request) {
       platformName: parsed.data.platformName,
       logoDataUrl: parsed.data.removeLogo ? null : parsed.data.logoDataUrl ?? current.logoDataUrl,
       loginBackgroundDataUrl: parsed.data.removeLoginBackground ? null : parsed.data.loginBackgroundDataUrl ?? current.loginBackgroundDataUrl,
+      courseCoverDataUrl: parsed.data.removeCourseCover ? null : parsed.data.courseCoverDataUrl ?? current.courseCoverDataUrl,
+      lessonCoverDataUrl: parsed.data.removeLessonCover ? null : parsed.data.lessonCoverDataUrl ?? current.lessonCoverDataUrl,
       leadPcLoginTags: normalizeLoginTags(parsed.data.leadPcLoginTags),
       leadH5LoginTags: normalizeLoginTags(parsed.data.leadH5LoginTags),
       storeH5LoginTags: normalizeLoginTags(parsed.data.storeH5LoginTags),
@@ -95,7 +110,7 @@ export async function PUT(request: Request) {
       throw error;
     }
     await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "修改参数", result: "成功", detail: `保存平台信息；平台名称：${saved.platformName}`, request }).catch(() => undefined);
-    return NextResponse.json(saved);
+    return NextResponse.json({ success: true, message: "系统参数已保存成功" });
   } catch {
     return NextResponse.json({ message: "平台信息保存失败，请稍后重试" }, { status: 500 });
   }

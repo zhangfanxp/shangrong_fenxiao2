@@ -23,7 +23,7 @@ const entries: HomeEntry[] = [
   { name: "每日学习", icon: <BookOutlined />, active: true, route: "daily-learning" },
   { name: "通知", icon: <BellOutlined />, active: true, route: "notifications" },
   { name: "任务", icon: <CalendarOutlined /> },
-  { name: "线上课堂", icon: <ReadOutlined /> },
+  { name: "线上课堂", icon: <ReadOutlined />, active: true, route: "online-courses" },
 ];
 
 export function LeadH5Home({ realName, initialDailyLearningPending }: { realName: string; initialDailyLearningPending: boolean }) {
@@ -125,7 +125,7 @@ export function LeadH5Home({ realName, initialDailyLearningPending }: { realName
     <header className="lead-h5-home-header"><div><small>运营工作台</small><strong>你好：{realName}</strong></div><Button type="text" icon={<LogoutOutlined />} onClick={logout}>退出</Button></header>
     <section className="lead-h5-home-intro"><span><BookOutlined /></span><div><h1>今天也要认真巡店</h1><p>选择运营功能，快速完成门店日常工作</p></div></section>
     <section className="lead-h5-section"><h2>运营功能</h2><div className="lead-h5-entry-grid">
-      {entries.map(entry => <button key={entry.name} disabled={entry.route === "daily-learning" && learningLoading} className={`lead-h5-entry ${entry.active ? "active" : ""}`} onClick={() => { if (entry.route === "daily-learning") { void openDailyLearning(); } else if (entry.route === "notifications") { router.push(`/lead_h5/${entry.route}`); } else if (entry.active) { setSelectedReview(entry); setOpen(true); } else message.info(`${entry.name}功能将在后续开放`); }}><span>{entry.icon}{entry.route === "daily-learning" && dailyLearningPending && <i className="mobile-h5-entry-dot" role="status" aria-label="有未完成的每日学习" />}</span><strong>{entry.name}</strong>{entry.route === "daily-learning" && learningLoading ? <small>正在查询</small> : !entry.active && <small>即将开放</small>}</button>)}
+      {entries.map(entry => <button key={entry.name} disabled={entry.route === "daily-learning" && learningLoading} className={`lead-h5-entry ${entry.active ? "active" : ""}`} onClick={() => { if (entry.route === "daily-learning") { void openDailyLearning(); } else if (entry.route === "notifications" || entry.route === "online-courses") { router.push(`/lead_h5/${entry.route}`); } else if (entry.active) { setSelectedReview(entry); setOpen(true); } else message.info(`${entry.name}功能将在后续开放`); }}><span>{entry.icon}{entry.route === "daily-learning" && dailyLearningPending && <i className="mobile-h5-entry-dot" role="status" aria-label="有未完成的每日学习" />}</span><strong>{entry.name}</strong>{entry.route === "daily-learning" && learningLoading ? <small>正在查询</small> : !entry.active && <small>即将开放</small>}</button>)}
     </div></section>
     <Modal className="lead-h5-select-modal" title={selectedReview?.research ? "请选择调研门店" : selectedReview ? `请选择${selectedReview.name}信息` : "请选择"} open={open} onCancel={() => setOpen(false)} okText="确定" cancelText="取消" onOk={enterReview} okButtonProps={{ disabled: !storeId || loading || !stores.length }} destroyOnHidden>
       <label className="lead-h5-field-label">{selectedReview?.research ? "调研月份" : "评分月份"}</label><DatePicker picker="month" allowClear={false} value={month} onChange={changeMonth} format="YYYY年MM月" suffixIcon={<CalendarOutlined />} />

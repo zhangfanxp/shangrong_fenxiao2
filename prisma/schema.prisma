@@ -106,6 +106,13 @@ enum MeetingAttendanceStatus {
   SIGNED
 }
 
+enum CoursewareType {
+  VIDEO
+  AUDIO
+  PDF
+  PPT
+}
+
 model Role {
   id            String       @id @default(cuid())
   code          String       @unique
@@ -160,6 +167,8 @@ model User {
   createdDailyLearningPlans DailyLearningPlan[]      @relation("DailyLearningPlanCreator")
   dailyLearningAssignments  DailyLearningAssignee[]  @relation("DailyLearningAssigneeUser")
   dailyLearningProgress     DailyLearningProgress[]  @relation("DailyLearningProgressUser")
+  courseAssignments         CourseAssignment[]       @relation("CourseAssignmentUser")
+  createdCourseAssignments  CourseAssignment[]       @relation("CourseAssignmentCreator")
 
   @@index([createdByUserId])
 }
@@ -832,6 +841,152 @@ model DailyLearningProgress {
 }
 
 model DailyLearningSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model CourseDraft {
+  id              String         @id @default(uuid()) @db.VarChar(36)
+  createdByUserId String         @db.VarChar(191)
+  createdByName   String         @db.VarChar(50)
+  expiresAt       DateTime
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  lessons         CourseLesson[]
+
+  @@index([createdByUserId, expiresAt])
+}
+
+model Course {
+  id                 String                   @id @default(cuid())
+  recordNo           String                   @unique @db.VarChar(12)
+  courseName         String                   @db.VarChar(30)
+  courseDescription  String?                  @db.VarChar(200)
+  coverR2StorageId   String?                  @db.VarChar(191)
+  coverObjectKey     String?                  @db.VarChar(1024)
+  coverOriginalName  String?                  @db.VarChar(255)
+  coverMimeType      String?                  @db.VarChar(100)
+  coverSizeBytes     Int?
+  coverDataUrl       String?                  @db.LongText
+  applicablePosition String                   @db.VarChar(30)
+  status             RecordStatus             @default(ENABLED)
+  createdByUserId    String?                  @db.VarChar(191)
+  createdByName      String                   @db.VarChar(50)
+  deletedAt          DateTime?
+  version            Int                      @default(1)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  brands             CourseBrand[]
+  lessons            CourseLesson[]
+  learningProgress   CourseLearningProgress[]
+  assignments        CourseAssignment[]
+
+  @@index([courseName, deletedAt])
+  @@index([applicablePosition, deletedAt])
+  @@index([status, deletedAt])
+  @@index([createdAt])
+}
+
+model CourseAssignment {
+  id               String   @id @default(cuid())
+  courseId         String
+  course           Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId           String   @db.VarChar(191)
+  user             User     @relation("CourseAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedByUserId String?  @db.VarChar(191)
+  assignedBy       User?    @relation("CourseAssignmentCreator", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  assignedByName   String   @db.VarChar(50)
+  createdAt        DateTime @default(now())
+
+  @@unique([courseId, userId])
+  @@index([userId, createdAt])
+  @@index([assignedByUserId, createdAt])
+}
+
+model CourseBrand {
+  id         String @id @default(cuid())
+  courseId   String
+  course     Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  brandCode  String @db.VarChar(100)
+  brandLabel String @db.VarChar(100)
+
+  @@unique([courseId, brandCode])
+  @@index([brandCode, courseId])
+}
+
+model CourseLesson {
+  id                 String                 @id @default(cuid())
+  recordNo           String                 @unique @db.VarChar(12)
+  courseId           String?
+  course             Course?                @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseDraftId      String?                @db.VarChar(36)
+  courseDraft        CourseDraft?           @relation(fields: [courseDraftId], references: [id], onDelete: Cascade)
+  chapterName        String                 @db.VarChar(30)
+  chapterDescription String?                @db.VarChar(200)
+  coverR2StorageId   String?                @db.VarChar(191)
+  coverObjectKey     String?                @db.VarChar(1024)
+  coverOriginalName  String?                @db.VarChar(255)
+  coverMimeType      String?                @db.VarChar(100)
+  coverSizeBytes     Int?
+  coverDataUrl       String?                @db.LongText
+  coursewareType     CoursewareType
+  fileR2StorageId    String                 @db.VarChar(191)
+  originalFileName   String                 @db.VarChar(255)
+  fileObjectKey      String                 @db.VarChar(1024)
+  fileSizeBytes      Int
+  mimeType           String                 @db.VarChar(100)
+  remark             String?                @db.VarChar(200)
+  sortOrder          Int
+  createdByUserId    String?                @db.VarChar(191)
+  createdByName      String                 @db.VarChar(50)
+  deletedAt          DateTime?
+  version            Int                    @default(1)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  learningProgress   CourseLessonProgress[]
+
+  @@unique([courseId, sortOrder])
+  @@unique([courseDraftId, sortOrder])
+  @@index([courseId, deletedAt, sortOrder])
+  @@index([courseDraftId, deletedAt, sortOrder])
+}
+
+model CourseLearningProgress {
+  id          String    @id @default(cuid())
+  courseId    String
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  userId      String    @db.VarChar(191)
+  progress    Int       @default(0)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([courseId, userId])
+  @@index([userId, createdAt])
+}
+
+model CourseLessonProgress {
+  id              String       @id @default(cuid())
+  lessonId        String
+  lesson          CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Restrict)
+  userId          String       @db.VarChar(191)
+  progressSeconds Int          @default(0)
+  completedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([lessonId, userId])
+  @@index([userId, createdAt])
+}
+
+model CourseSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model CourseLessonSequence {
   dateKey   String   @id @db.VarChar(8)
   nextValue Int      @default(1)
   updatedAt DateTime @updatedAt

@@ -11,7 +11,7 @@ const entries = [
   { name: "已完成任务", icon: <CheckCircleOutlined />, active: true, href: "/store_h5/tasks?status=completed" },
   { key: "daily-learning", name: "每日学习", icon: <BookOutlined />, active: true, href: "/store_h5/daily-learning" },
   { name: "通知", icon: <BellOutlined />, active: true, href: "/store_h5/notifications" },
-  { name: "线上课堂", icon: <ReadOutlined /> },
+  { name: "线上课堂", icon: <ReadOutlined />, active: true, href: "/store_h5/online-courses" },
   { name: "我的", icon: <UserOutlined /> },
 ];
 

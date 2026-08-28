@@ -3,7 +3,6 @@
 import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, Empty, Form, Input, InputNumber, message, Modal, Select, Space, Table, Upload } from "antd";
 import type { UploadProps } from "antd";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { PlatformConfig } from "@/lib/platform-config";
 
@@ -34,13 +33,16 @@ const loginAddresses: Array<{ title: string; path: string; field: "leadPcLoginTa
 ];
 
 export function SystemParameters({ initialPlatform, r2StorageOptions }: { initialPlatform: PlatformConfig; r2StorageOptions: R2StorageOption[] }) {
-  const router = useRouter();
   const [platformForm] = Form.useForm<PlatformValues>();
   const [brandHourForm] = Form.useForm<BrandHourValues>();
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(initialPlatform.logoDataUrl);
   const [loginBackgroundDataUrl, setLoginBackgroundDataUrl] = useState<string | null>(initialPlatform.loginBackgroundDataUrl);
+  const [courseCoverDataUrl, setCourseCoverDataUrl] = useState<string | null>(initialPlatform.courseCoverDataUrl);
+  const [lessonCoverDataUrl, setLessonCoverDataUrl] = useState<string | null>(initialPlatform.lessonCoverDataUrl);
   const [logoChanged, setLogoChanged] = useState(false);
   const [loginBackgroundChanged, setLoginBackgroundChanged] = useState(false);
+  const [courseCoverChanged, setCourseCoverChanged] = useState(false);
+  const [lessonCoverChanged, setLessonCoverChanged] = useState(false);
   const [platformSaving, setPlatformSaving] = useState(false);
   const [siteOrigin, setSiteOrigin] = useState("");
   const [rows, setRows] = useState<BrandDayHour[]>([]);
@@ -109,26 +111,54 @@ export function SystemParameters({ initialPlatform, r2StorageOptions }: { initia
     return false;
   };
 
+  const readCoverImage = (file: Parameters<NonNullable<UploadProps["beforeUpload"]>>[0], label: string, setDataUrl: (value: string | null) => void, setChanged: (value: boolean) => void) => {
+    const supportedType = ["image/png", "image/jpeg", "image/webp"].includes(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name);
+    if (!supportedType) {
+      message.error(`${label}仅支持PNG、JPG、JPEG或WEBP格式`);
+      return Upload.LIST_IGNORE;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      message.error(`${label}文件不能超过5MB`);
+      return Upload.LIST_IGNORE;
+    }
+    const reader = new FileReader();
+    reader.onload = () => { setDataUrl(typeof reader.result === "string" ? reader.result : null); setChanged(true); };
+    reader.onerror = () => message.error(`${label}读取失败，请重新选择`);
+    reader.readAsDataURL(file);
+    return false;
+  };
+
+  const beforeCourseCoverUpload: UploadProps["beforeUpload"] = file => readCoverImage(file, "课程封面图片", setCourseCoverDataUrl, setCourseCoverChanged);
+  const beforeLessonCoverUpload: UploadProps["beforeUpload"] = file => readCoverImage(file, "课时封面图片", setLessonCoverDataUrl, setLessonCoverChanged);
+
   const savePlatform = async () => {
+    if (platformSaving) return;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 60_000);
     try {
       const values = await platformForm.validateFields();
       setPlatformSaving(true);
       const imageChanges = {
         ...(logoChanged && logoDataUrl ? { logoDataUrl } : {}),
         ...(loginBackgroundChanged && loginBackgroundDataUrl ? { loginBackgroundDataUrl } : {}),
+        ...(courseCoverChanged && courseCoverDataUrl ? { courseCoverDataUrl } : {}),
+        ...(lessonCoverChanged && lessonCoverDataUrl ? { lessonCoverDataUrl } : {}),
         removeLogo: logoChanged && logoDataUrl === null,
         removeLoginBackground: loginBackgroundChanged && loginBackgroundDataUrl === null,
+        removeCourseCover: courseCoverChanged && courseCoverDataUrl === null,
+        removeLessonCover: lessonCoverChanged && lessonCoverDataUrl === null,
       };
-      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, ...imageChanges }) });
-      const data = await response.json();
+      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, ...imageChanges }), signal: controller.signal });
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) return void message.error(data.message || "平台信息保存失败，请稍后重试");
-      message.success("平台信息保存成功");
-      setLogoChanged(false); setLoginBackgroundChanged(false);
-      await loadSchedulerStatus();
-      router.refresh();
+      setLogoChanged(false); setLoginBackgroundChanged(false); setCourseCoverChanged(false); setLessonCoverChanged(false);
+      void loadSchedulerStatus();
+      Modal.success({ title: "温馨提示", content: data.message || "系统参数已保存成功。", okText: "我知道了", centered: true });
     } catch (error) {
-      if (error instanceof Error) message.error(error.message);
+      if (error instanceof DOMException && error.name === "AbortError") message.warning("保存等待超时，请刷新页面确认保存结果后再试");
+      else if (error instanceof Error) message.error(error.message);
     } finally {
+      window.clearTimeout(timeoutId);
       setPlatformSaving(false);
     }
   };
@@ -190,6 +220,24 @@ export function SystemParameters({ initialPlatform, r2StorageOptions }: { initia
               <Space wrap>
                 <Upload accept=".png,.jpg,.jpeg,image/png,image/jpeg" showUploadList={false} beforeUpload={beforeBackgroundUpload}><Button icon={<UploadOutlined />}>选择图片</Button></Upload>
                 {loginBackgroundDataUrl && <Button onClick={() => { setLoginBackgroundDataUrl(null); setLoginBackgroundChanged(true); }}>恢复默认背景</Button>}
+              </Space>
+            </div>
+          </Form.Item>
+          <Form.Item label="课程封面图片" extra="建议尺寸：1280×720像素（16:9）；支持PNG、JPG、JPEG、WEBP，文件不超过5MB。">
+            <div className="platform-cover-editor">
+              <div className="platform-cover-preview">{courseCoverDataUrl ? <img src={courseCoverDataUrl} alt="课程封面图片预览" /> : <span>暂无课程封面</span>}</div>
+              <Space wrap>
+                <Upload accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" showUploadList={false} beforeUpload={beforeCourseCoverUpload}><Button icon={<UploadOutlined />}>选择图片</Button></Upload>
+                {courseCoverDataUrl && <Button onClick={() => { setCourseCoverDataUrl(null); setCourseCoverChanged(true); }}>恢复默认封面</Button>}
+              </Space>
+            </div>
+          </Form.Item>
+          <Form.Item label="课时封面图片" extra="建议尺寸：1280×720像素（16:9）；支持PNG、JPG、JPEG、WEBP，文件不超过5MB。">
+            <div className="platform-cover-editor">
+              <div className="platform-cover-preview">{lessonCoverDataUrl ? <img src={lessonCoverDataUrl} alt="课时封面图片预览" /> : <span>暂无课时封面</span>}</div>
+              <Space wrap>
+                <Upload accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" showUploadList={false} beforeUpload={beforeLessonCoverUpload}><Button icon={<UploadOutlined />}>选择图片</Button></Upload>
+                {lessonCoverDataUrl && <Button onClick={() => { setLessonCoverDataUrl(null); setLessonCoverChanged(true); }}>恢复默认封面</Button>}
               </Space>
             </div>
           </Form.Item>

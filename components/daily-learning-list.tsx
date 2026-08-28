@@ -9,6 +9,7 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 
 const dayFields = ["mondayContent", "tuesdayContent", "wednesdayContent", "thursdayContent", "fridayContent", "saturdayContent", "sundayContent"] as const;
 const dayLabels = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -55,6 +56,7 @@ export function DailyLearningList({ permissions }: { permissions: string[] }) {
   const [formMode, setFormMode] = useState<"create" | "edit">();
   const [editing, setEditing] = useState<Plan>();
   const [saving, setSaving] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [detailId, setDetailId] = useState<string>();
   const [detail, setDetail] = useState<Plan>();
   const [detailLoading, setDetailLoading] = useState(false);
@@ -104,7 +106,7 @@ export function DailyLearningList({ permissions }: { permissions: string[] }) {
   const closeForm = () => {
     if (saving) return;
     if (!planForm.isFieldsTouched()) { setFormMode(undefined); return; }
-    Modal.confirm({ title: "当前学习计划尚未保存", content: "关闭后填写内容将丢失，是否继续？", okText: "确认关闭", cancelText: "继续编辑", onOk: () => setFormMode(undefined) });
+    setDiscardOpen(true);
   };
   const save = async () => {
     try {
@@ -264,6 +266,7 @@ export function DailyLearningList({ permissions }: { permissions: string[] }) {
         <div className="daily-learning-basic-grid"><Form.Item label="创建人"><Input disabled value={editing?.createdByName || options?.currentUserName} /></Form.Item><Form.Item label="创建时间"><Input disabled value={editing?.createdAtText} placeholder="保存成功后自动生成" /></Form.Item></div>
       </Form>
     </Modal>
+    <UnsavedChangesModal open={discardOpen} title="当前学习计划尚未保存" onKeep={() => setDiscardOpen(false)} onDiscard={() => { setDiscardOpen(false); setFormMode(undefined); }} />
 
     <Modal className="daily-learning-detail-modal" width={1200} title="查看学习计划" open={Boolean(detailId)} onCancel={() => setDetailId(undefined)} footer={<Button onClick={() => setDetailId(undefined)}>关闭</Button>} destroyOnHidden>
       {detailLoading ? <Skeleton active paragraph={{ rows: 9 }} /> : detailError || !detail ? <Alert type="error" showIcon message="学习计划详情加载失败，请稍后重试" action={<Button onClick={() => detailId && void openDetail(detailId)}>重试</Button>} /> : <Tabs defaultActiveKey="content" onChange={key => { if (key !== "content" && effectiveDays[0]) { const kind = key as "completed-users" | "incomplete-users"; const cacheKey = `${kind}:${effectiveDays[0].weekDay}`; if (!people[cacheKey]) void loadPeople(kind, effectiveDays[0].weekDay); } }} items={[
