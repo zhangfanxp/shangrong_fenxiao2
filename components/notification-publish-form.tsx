@@ -8,7 +8,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Recipient = { userId: string; username: string; realName: string; roleId: string; roleName: string; phoneMasked: string };
 type RoleOption = { id: string; name: string };
-type FormValues = { title: string; content: string; releaseDate: Dayjs; publisherName: string; showAfterLogin: boolean };
+type NotificationTypeValue = "" | "GENERAL" | "MID_MONTH_OFFLINE_MEETING" | "MONTHLY_ONLINE_MEETING";
+type FormValues = { title: string; content: string; releaseDate: Dayjs; publisherName: string; notificationType: NotificationTypeValue; showAfterLogin: boolean; publishImmediately: boolean };
+type SaveSuccessInfo = { releaseDate: string; immediate: boolean; showAfterLogin: boolean };
+
+const meetingNotificationTypes: NotificationTypeValue[] = ["MID_MONTH_OFFLINE_MEETING", "MONTHLY_ONLINE_MEETING"];
+const notificationTypeOptions = [
+  { value: "", label: "请选择" },
+  { value: "GENERAL", label: "普通通知" },
+  { value: "MID_MONTH_OFFLINE_MEETING", label: "月中线下会通知" },
+  { value: "MONTHLY_ONLINE_MEETING", label: "每月线上会通知" },
+];
 
 function newRequestId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -46,8 +56,9 @@ export function NotificationPublishForm({
   const [filters, setFilters] = useState({ realName: "", roleIds: [] as string[] });
   const [appliedFilters, setAppliedFilters] = useState({ realName: "", roleIds: [] as string[] });
   const [saving, setSaving] = useState(false);
-  const [successReleaseDate, setSuccessReleaseDate] = useState<string | null>(null);
+  const [successInfo, setSuccessInfo] = useState<SaveSuccessInfo | null>(null);
   const requestId = useRef(newRequestId());
+  const publishImmediately = Form.useWatch("publishImmediately", form) ?? false;
 
   const resetForm = useCallback(() => {
     form.resetFields();
@@ -149,13 +160,15 @@ export function NotificationPublishForm({
           content: values.content,
           releaseDate: values.releaseDate.format("YYYY-MM-DD"),
           publisherName: values.publisherName.trim(),
+          notificationType: values.notificationType,
           showAfterLogin: Boolean(values.showAfterLogin),
+          publishImmediately: Boolean(values.publishImmediately),
         }),
       });
       const data = await response.json();
       if (!response.ok) { message.error(data.message || "通知保存失败，请稍后重试"); return; }
       const releaseDate = values.releaseDate.format("YYYY-MM-DD");
-      setSuccessReleaseDate(releaseDate);
+      setSuccessInfo({ releaseDate, immediate: Boolean(values.publishImmediately), showAfterLogin: Boolean(values.showAfterLogin) });
     } catch (reason) {
       if (reason instanceof TypeError) message.error("通知保存失败，请稍后重试");
     } finally { setSaving(false); }
@@ -169,7 +182,7 @@ export function NotificationPublishForm({
 
   return <>
     <Card className="notification-form-card">
-      <Form form={form} layout="vertical" requiredMark initialValues={{ publisherName: realName, releaseDate: dayjs(defaultReleaseDate), showAfterLogin: false }}>
+      <Form form={form} layout="vertical" requiredMark initialValues={{ publisherName: realName, releaseDate: dayjs(defaultReleaseDate), notificationType: "", showAfterLogin: false, publishImmediately: false }}>
         <section className="notification-form-section">
           <div className="notification-section-heading"><InfoCircleOutlined /><span><strong>基本信息</strong><small>填写通知内容并指定明确的接收用户</small></span></div>
           <div className="notification-form-grid">
@@ -185,9 +198,14 @@ export function NotificationPublishForm({
                 <Tooltip title={canSelectUsers ? undefined : "暂无接收用户选择权限"}><Button type="primary" ghost onClick={openSelector} disabled={!canSelectUsers}>选择用户</Button></Tooltip>
               </div>
             </Form.Item>
-            <Form.Item className="notification-form-span notification-login-display-option" name="showAfterLogin" valuePropName="checked">
-              <Checkbox><span><strong>登录后展示通知正文</strong><small>勾选后，接收用户登录相应终端时必须逐条点击“我已知晓”，通知弹窗才会消失</small></span></Checkbox>
-            </Form.Item>
+            <div className="notification-form-span notification-type-row">
+              <Form.Item label="通知类型" name="notificationType" rules={[{ required: true, message: "请选择通知类型" }]}>
+                <Select size="large" options={notificationTypeOptions} onChange={(value: NotificationTypeValue) => { if (meetingNotificationTypes.includes(value)) form.setFieldValue("showAfterLogin", true); }} />
+              </Form.Item>
+              <Form.Item className="notification-login-display-option" name="showAfterLogin" valuePropName="checked">
+                <Checkbox><span><strong>登录后展示通知正文</strong><small>勾选后，接收用户登录相应终端时必须逐条点击“我已知晓”，通知弹窗才会消失</small></span></Checkbox>
+              </Form.Item>
+            </div>
             <Form.Item className="notification-form-span" label="通知正文" name="content" rules={[{ required: true, message: "请输入通知正文" }, { max: 500, message: "通知正文不能超过500个字符" }]}>
               <Input.TextArea rows={7} maxLength={500} showCount placeholder="请输入通知正文，支持换行和常规符号" />
             </Form.Item>
@@ -195,10 +213,13 @@ export function NotificationPublishForm({
         </section>
 
         <section className="notification-form-section">
-          <div className="notification-section-heading"><CalendarOutlined /><span><strong>发布设置</strong><small>通知将在所选日期的 06:00 由服务端自动发布</small></span></div>
+          <div className="notification-section-heading"><CalendarOutlined /><span><strong>发布设置</strong><small>{publishImmediately ? "保存成功后由服务端立即正式发布" : "通知将在所选日期的 06:00 由服务端自动发布"}</small></span></div>
           <div className="notification-form-grid">
-            <Form.Item label="发布日期" name="releaseDate" extra="仅可选择未来日期，正式发布时间固定为 06:00" rules={[{ required: true, message: "请选择发布日期" }]}>
-              <DatePicker size="large" style={{ width: "100%" }} format="YYYY-MM-DD" allowClear={false} disabledDate={current => current.format("YYYY-MM-DD") <= today} />
+            <Form.Item className="notification-form-span notification-immediate-option" name="publishImmediately" valuePropName="checked">
+              <Checkbox><span><strong>立即发布</strong><small>勾选后，保存成功即正式发布；是否在用户登录时强制弹窗仍由“登录后展示通知正文”控制</small></span></Checkbox>
+            </Form.Item>
+            <Form.Item label="发布日期" name="releaseDate" required={!publishImmediately} extra={publishImmediately ? "立即发布时由服务端按上海时区记录当前日期和时间" : "仅可选择未来日期，正式发布时间固定为 06:00"} rules={[{ validator: (_, value) => publishImmediately || value ? Promise.resolve() : Promise.reject(new Error("请选择发布日期")) }]}>
+              <DatePicker size="large" style={{ width: "100%" }} format="YYYY-MM-DD" allowClear={false} disabled={publishImmediately} disabledDate={current => current.format("YYYY-MM-DD") <= today} />
             </Form.Item>
             <Form.Item label="发布人" name="publisherName" extra="用于各终端展示，可填写姓名或部门名称" rules={[{ required: true, message: "请输入发布人" }, { max: 10, message: "发布人不能超过10个字符" }]}>
               <Input size="large" maxLength={10} showCount placeholder="请输入发布人" />
@@ -250,16 +271,16 @@ export function NotificationPublishForm({
     <Modal
       rootClassName="notification-save-success-modal"
       title="温馨提示"
-      open={Boolean(successReleaseDate)}
+      open={Boolean(successInfo)}
       closable={false}
       maskClosable={false}
       keyboard={false}
       centered
       width={460}
       onCancel={() => undefined}
-      footer={<Button className="notification-save-success-button" type="primary" onClick={() => { setSuccessReleaseDate(null); resetForm(); }}>我知道了</Button>}
+      footer={<Button className="notification-save-success-button" type="primary" onClick={() => { setSuccessInfo(null); resetForm(); }}>我知道了</Button>}
     >
-      <div className="notification-save-success-content"><CheckCircleOutlined /><div><strong>通知已保存</strong><p>该通知将于 <b>{successReleaseDate} 06:00</b> 正式发布。</p></div></div>
+      <div className="notification-save-success-content"><CheckCircleOutlined /><div><strong>{successInfo?.immediate ? "通知已立即发布" : "通知已保存"}</strong>{successInfo?.immediate ? <><p>接收人现在可以在通知列表中查看该通知。</p>{successInfo.showAfterLogin && <p>接收人下次登录相应终端时，将自动弹窗展示通知正文。</p>}</> : <p>该通知将于 <b>{successInfo?.releaseDate} 06:00</b> 正式发布。</p>}</div></div>
     </Modal>
   </>;
 }

@@ -1,4 +1,4 @@
-import { NotificationStatus, Prisma, RecordStatus } from "@prisma/client";
+import { MeetingType, NotificationPublishMode, NotificationStatus, NotificationType, Prisma, RecordStatus } from "@prisma/client";
 import { z } from "zod";
 import type { Session } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -59,10 +59,33 @@ export const createNotificationSchema = z.object({
   recipientUserIds: z.array(z.string().trim().min(1)).min(1, "请至少选择1位接收人").max(10000, "单次通知接收人数不能超过10000人"),
   content: z.string().min(1, "请输入通知正文").max(500, "通知正文不能超过500个字符")
     .refine(value => Boolean(value.trim()), "请输入通知正文"),
-  releaseDate: z.string().refine(isCalendarDate, "请选择正确的发布日期"),
+  releaseDate: z.string().optional().refine(value => value === undefined || isCalendarDate(value), "请选择正确的发布日期"),
   publisherName: z.string().trim().min(1, "请输入发布人").max(10, "发布人不能超过10个字符"),
+  notificationType: z.any()
+    .refine(value => Object.values(NotificationType).includes(value as NotificationType), "请选择通知类型")
+    .transform(value => value as NotificationType),
   showAfterLogin: z.boolean().default(false),
+  publishImmediately: z.boolean().default(false),
 });
+
+function meetingTypeForNotification(type: NotificationType) {
+  if (type === NotificationType.MID_MONTH_OFFLINE_MEETING) return MeetingType.MID_MONTH_OFFLINE;
+  if (type === NotificationType.MONTHLY_ONLINE_MEETING) return MeetingType.MONTHLY_ONLINE;
+  return null;
+}
+
+export function resolveNotificationRelease(publishImmediately: boolean, requestedReleaseDate: string | undefined, now = new Date()) {
+  const releaseDateKey = publishImmediately ? shanghaiDateKey(now) : requestedReleaseDate;
+  if (!releaseDateKey) throw new Error("请选择发布日期");
+  return {
+    releaseDateKey,
+    releaseDate: new Date(`${releaseDateKey}T00:00:00.000Z`),
+    releaseAt: publishImmediately ? now : new Date(`${releaseDateKey}T06:00:00+08:00`),
+    publishMode: publishImmediately ? NotificationPublishMode.IMMEDIATE : NotificationPublishMode.SCHEDULED,
+    status: publishImmediately ? NotificationStatus.PUBLISHED : NotificationStatus.PENDING,
+    publishedAt: publishImmediately ? now : null,
+  };
+}
 
 type Scope = { brandIds: string[] | null; storeIds: string[] | null };
 
@@ -127,7 +150,10 @@ export async function createNotification(session: Session, raw: unknown, request
   const parsed = createNotificationSchema.safeParse(raw);
   if (!parsed.success) return { ok: false as const, status: 400, message: parsed.error.issues[0]?.message || "通知参数不正确" };
   const data = parsed.data;
-  if (data.releaseDate <= shanghaiDateKey()) return { ok: false as const, status: 400, message: "发布日期必须选择未来日期" };
+  const now = new Date();
+  const effectiveReleaseDateKey = data.publishImmediately ? shanghaiDateKey(now) : data.releaseDate;
+  if (!effectiveReleaseDateKey) return { ok: false as const, status: 400, message: "请选择发布日期" };
+  if (!data.publishImmediately && effectiveReleaseDateKey <= shanghaiDateKey(now)) return { ok: false as const, status: 400, message: "发布日期必须选择未来日期" };
   const recipientUserIds = [...new Set(data.recipientUserIds)];
   if (!recipientUserIds.length) return { ok: false as const, status: 400, message: "请至少选择1位接收人" };
 
@@ -143,9 +169,8 @@ export async function createNotification(session: Session, raw: unknown, request
     select: { id: true, username: true, realName: true, role: { select: { name: true } } },
   });
   if (recipients.length !== recipientUserIds.length) return { ok: false as const, status: 400, message: "部分接收用户已被禁用、删除或超出您的数据权限，请重新选择" };
-  const releaseAt = new Date(`${data.releaseDate}T06:00:00+08:00`);
-  const releaseDate = new Date(`${data.releaseDate}T00:00:00.000Z`);
-  const dateKey = shanghaiDateKey();
+  const release = resolveNotificationRelease(data.publishImmediately, effectiveReleaseDateKey, now);
+  const dateKey = shanghaiDateKey(now);
 
   try {
     const notification = await db.$transaction(async tx => {
@@ -161,11 +186,14 @@ export async function createNotification(session: Session, raw: unknown, request
         clientRequestId: data.clientRequestId,
         title: data.title.trim(),
         content: data.content.trim(),
-        releaseDate,
-        releaseAt,
+        type: data.notificationType,
+        publishMode: release.publishMode,
+        releaseDate: release.releaseDate,
+        releaseAt: release.releaseAt,
         publisherName: data.publisherName.trim(),
         showAfterLogin: data.showAfterLogin,
-        status: NotificationStatus.PENDING,
+        status: release.status,
+        publishedAt: release.publishedAt,
         createdByUserId: session.userId,
         createdByName: session.realName,
         recipients: { create: recipients.map(recipient => ({
@@ -175,13 +203,33 @@ export async function createNotification(session: Session, raw: unknown, request
           roleSnapshot: recipient.role.name,
         })) },
       } });
+      const meetingType = meetingTypeForNotification(data.notificationType);
+      if (meetingType) {
+        await tx.meeting.create({ data: {
+          recordNo: created.recordNo,
+          type: meetingType,
+          meetingMonth: new Date(`${effectiveReleaseDateKey.slice(0, 7)}-01T00:00:00.000Z`),
+          notificationId: created.id,
+          notificationContentSnapshot: created.content,
+          notificationReleaseDate: created.releaseDate,
+          publisherNameSnapshot: created.publisherName,
+          createdByUserId: session.userId,
+          createdByName: session.realName,
+          participants: { create: recipients.map(recipient => ({
+            userId: recipient.id,
+            usernameSnapshot: recipient.username,
+            realNameSnapshot: recipient.realName,
+            roleSnapshot: recipient.role.name,
+          })) },
+        } });
+      }
       await writeOperationLogWithTransaction(tx, {
         userId: session.userId,
         username: session.username,
         page: "发布通知",
         action: "保存",
         result: "成功",
-        detail: `通知记录编号：${created.recordNo}；接收人数：${recipients.length}；发布日期：${data.releaseDate}`,
+        detail: `通知记录编号：${created.recordNo}；接收人数：${recipients.length}；发布方式：${data.publishImmediately ? "立即发布" : "定时发布"}；发布日期：${effectiveReleaseDateKey}${meetingType ? "；已同步生成会议记录" : ""}`,
         request,
       });
       return created;

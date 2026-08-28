@@ -8,8 +8,9 @@ import { useEffect, useState } from "react";
 import type { PlatformConfig } from "@/lib/platform-config";
 
 type BrandOption = { label: string; value: string };
+type R2StorageOption = { label: string; value: string };
 type BrandDayHour = { brand: string; workdayHours: number };
-type PlatformValues = { platformName: string; leadPcLoginTags: string; leadH5LoginTags: string; storeH5LoginTags: string; automaticTaskExecutionTime: string; defaultTaskDeadlineDayOffset: 0 | 1; defaultTaskDeadlineTime: string };
+type PlatformValues = { platformName: string; leadPcLoginTags: string; leadH5LoginTags: string; storeH5LoginTags: string; automaticTaskExecutionTime: string; defaultTaskDeadlineDayOffset: 0 | 1; defaultTaskDeadlineTime: string; dailyLearningR2StorageId: string | null; trainingVideoR2StorageId: string | null; trainingAudioR2StorageId: string | null; trainingDocumentR2StorageId: string | null };
 type BrandHourValues = { brand: string; workdayHours: number };
 type SchedulerStatus = {
   scheduledTime: string;
@@ -32,7 +33,7 @@ const loginAddresses: Array<{ title: string; path: string; field: "leadPcLoginTa
   { title: "门店H5移动端", path: "/store_h5/login", field: "storeH5LoginTags" },
 ];
 
-export function SystemParameters({ initialPlatform }: { initialPlatform: PlatformConfig }) {
+export function SystemParameters({ initialPlatform, r2StorageOptions }: { initialPlatform: PlatformConfig; r2StorageOptions: R2StorageOption[] }) {
   const router = useRouter();
   const [platformForm] = Form.useForm<PlatformValues>();
   const [brandHourForm] = Form.useForm<BrandHourValues>();
@@ -169,7 +170,7 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
 
   return <>
     <Card title="平台信息" className="system-parameter-card" style={{ marginBottom: 16 }} extra={<Button type="primary" loading={platformSaving} onClick={() => void savePlatform()}>保存</Button>}>
-      <Form form={platformForm} layout="vertical" initialValues={{ platformName: initialPlatform.platformName, leadPcLoginTags: initialPlatform.leadPcLoginTags, leadH5LoginTags: initialPlatform.leadH5LoginTags, storeH5LoginTags: initialPlatform.storeH5LoginTags, automaticTaskExecutionTime: initialPlatform.automaticTaskExecutionTime, defaultTaskDeadlineDayOffset: initialPlatform.defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime: initialPlatform.defaultTaskDeadlineTime }}>
+      <Form form={platformForm} layout="vertical" initialValues={{ platformName: initialPlatform.platformName, leadPcLoginTags: initialPlatform.leadPcLoginTags, leadH5LoginTags: initialPlatform.leadH5LoginTags, storeH5LoginTags: initialPlatform.storeH5LoginTags, automaticTaskExecutionTime: initialPlatform.automaticTaskExecutionTime, defaultTaskDeadlineDayOffset: initialPlatform.defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime: initialPlatform.defaultTaskDeadlineTime, dailyLearningR2StorageId: initialPlatform.dailyLearningR2StorageId, trainingVideoR2StorageId: initialPlatform.trainingVideoR2StorageId, trainingAudioR2StorageId: initialPlatform.trainingAudioR2StorageId, trainingDocumentR2StorageId: initialPlatform.trainingDocumentR2StorageId }}>
         <div className="platform-parameter-grid">
           <Form.Item label="平台名称" name="platformName" rules={[{ required: true, whitespace: true, message: "请输入平台名称" }, { max: 30, message: "平台名称不能超过30个字符" }]} extra="将显示在运营端登录页“欢迎登录”下方及登录后的页面左上角">
             <Input maxLength={30} showCount placeholder="请输入平台名称" />
@@ -192,6 +193,23 @@ export function SystemParameters({ initialPlatform }: { initialPlatform: Platfor
               </Space>
             </div>
           </Form.Item>
+          <Form.Item label="《每日学习》R2存储空间" name="dailyLearningR2StorageId" extra="选项读取自《R2存储空间》中处于“已启用”状态的记录；暂不配置时可保持为空。">
+            <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
+          </Form.Item>
+          <section className="platform-training-storage-settings">
+            <div className="platform-login-addresses-heading"><strong>培训资料R2存储空间</strong><span>不同类型的培训课件可分别选择存储空间</span></div>
+            <div className="platform-r2-storage-grid">
+              <Form.Item label="课件视频" name="trainingVideoR2StorageId">
+                <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
+              </Form.Item>
+              <Form.Item label="课件音频" name="trainingAudioR2StorageId">
+                <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
+              </Form.Item>
+              <Form.Item label="课件文档（含Word、PPT等）" name="trainingDocumentR2StorageId">
+                <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
+              </Form.Item>
+            </div>
+          </section>
           <section className="platform-login-addresses">
             <div className="platform-login-addresses-heading"><strong>登录地址</strong><span>地址随当前访问域名自动生成，仅展示，不支持编辑</span></div>
             <div className="platform-login-address-list">

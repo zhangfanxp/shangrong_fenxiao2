@@ -85,6 +85,27 @@ enum NotificationStatus {
   FAILED
 }
 
+enum NotificationType {
+  GENERAL
+  MID_MONTH_OFFLINE_MEETING
+  MONTHLY_ONLINE_MEETING
+}
+
+enum NotificationPublishMode {
+  SCHEDULED
+  IMMEDIATE
+}
+
+enum MeetingType {
+  MID_MONTH_OFFLINE
+  MONTHLY_ONLINE
+}
+
+enum MeetingAttendanceStatus {
+  UNSIGNED
+  SIGNED
+}
+
 model Role {
   id            String       @id @default(cuid())
   code          String       @unique
@@ -99,41 +120,46 @@ model Role {
 }
 
 model User {
-  id                       String                   @id @default(cuid())
-  username                 String                   @unique
-  passwordHash             String
-  realName                 String
-  phone                    String?
-  tags                     String?                  @db.VarChar(200)
-  leadH5BrandIds           Json?
-  leadH5StoreIds           Json?
-  type                     UserType                 @default(CUSTOM)
-  status                   RecordStatus             @default(ENABLED)
-  roleId                   String
-  role                     Role                     @relation(fields: [roleId], references: [id])
-  createdByUserId          String?
-  createdBy                User?                    @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdUsers             User[]                   @relation("UserCreator")
-  lastLoginAt              DateTime?
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime                 @updatedAt
-  logs                     OperationLog[]
-  createdTasks             Task[]                   @relation("TaskCreator")
-  createdAssessments       Assessment[]             @relation("AssessmentCreator")
-  createdResearchTemplates ResearchTemplate[]       @relation("ResearchTemplateCreator")
-  createdR2StorageConfigs  R2StorageConfig[]        @relation("R2StorageCreator")
-  r2StorageTests           R2StorageTest[]          @relation("R2StorageTestCreator")
-  personnelProfile         Personnel?               @relation("PersonnelPlatformUser")
-  createdPersonnel         Personnel[]              @relation("PersonnelCreator")
-  salaryAdjustments        SalaryHistory[]          @relation("SalaryOperator")
-  positionTransfers        PositionHistory[]        @relation("PositionOperator")
-  leadH5Reviews            LeadH5Review[]           @relation("LeadH5Reviewer")
-  leadH5ResearchRecords    ResearchTemplateRecord[] @relation("LeadH5ResearchSubmitter")
-  assignedTaskRecords      TaskRecord[]             @relation("TaskRecordAssignee")
-  taskSubmissions          TaskSubmission[]         @relation("TaskSubmissionUser")
-  taskAttachments          TaskAttachment[]         @relation("TaskAttachmentUploader")
-  createdNotifications     Notification[]           @relation("NotificationCreator")
-  notificationRecipients   NotificationRecipient[]  @relation("NotificationRecipientUser")
+  id                        String                   @id @default(cuid())
+  username                  String                   @unique
+  passwordHash              String
+  realName                  String
+  phone                     String?
+  tags                      String?                  @db.VarChar(200)
+  leadH5BrandIds            Json?
+  leadH5StoreIds            Json?
+  type                      UserType                 @default(CUSTOM)
+  status                    RecordStatus             @default(ENABLED)
+  roleId                    String
+  role                      Role                     @relation(fields: [roleId], references: [id])
+  createdByUserId           String?
+  createdBy                 User?                    @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdUsers              User[]                   @relation("UserCreator")
+  lastLoginAt               DateTime?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  logs                      OperationLog[]
+  createdTasks              Task[]                   @relation("TaskCreator")
+  createdAssessments        Assessment[]             @relation("AssessmentCreator")
+  createdResearchTemplates  ResearchTemplate[]       @relation("ResearchTemplateCreator")
+  createdR2StorageConfigs   R2StorageConfig[]        @relation("R2StorageCreator")
+  r2StorageTests            R2StorageTest[]          @relation("R2StorageTestCreator")
+  personnelProfile          Personnel?               @relation("PersonnelPlatformUser")
+  createdPersonnel          Personnel[]              @relation("PersonnelCreator")
+  salaryAdjustments         SalaryHistory[]          @relation("SalaryOperator")
+  positionTransfers         PositionHistory[]        @relation("PositionOperator")
+  leadH5Reviews             LeadH5Review[]           @relation("LeadH5Reviewer")
+  leadH5ResearchRecords     ResearchTemplateRecord[] @relation("LeadH5ResearchSubmitter")
+  assignedTaskRecords       TaskRecord[]             @relation("TaskRecordAssignee")
+  taskSubmissions           TaskSubmission[]         @relation("TaskSubmissionUser")
+  taskAttachments           TaskAttachment[]         @relation("TaskAttachmentUploader")
+  createdNotifications      Notification[]           @relation("NotificationCreator")
+  notificationRecipients    NotificationRecipient[]  @relation("NotificationRecipientUser")
+  createdMeetings           Meeting[]                @relation("MeetingCreator")
+  meetingParticipants       MeetingParticipant[]     @relation("MeetingParticipantUser")
+  createdDailyLearningPlans DailyLearningPlan[]      @relation("DailyLearningPlanCreator")
+  dailyLearningAssignments  DailyLearningAssignee[]  @relation("DailyLearningAssigneeUser")
+  dailyLearningProgress     DailyLearningProgress[]  @relation("DailyLearningProgressUser")
 
   @@index([createdByUserId])
 }
@@ -733,12 +759,92 @@ model OperationLogSequence {
   updatedAt DateTime @updatedAt
 }
 
+model DailyLearningPlan {
+  id               String                  @id @default(cuid())
+  recordNo         String                  @unique @db.VarChar(12)
+  isoYear          Int
+  isoWeek          Int
+  studentTag       String                  @db.VarChar(100)
+  activeKey        String?                 @unique @db.VarChar(220)
+  weekStartAt      DateTime
+  mondayContent    String?                 @db.Text
+  tuesdayContent   String?                 @db.Text
+  wednesdayContent String?                 @db.Text
+  thursdayContent  String?                 @db.Text
+  fridayContent    String?                 @db.Text
+  saturdayContent  String?                 @db.Text
+  sundayContent    String?                 @db.Text
+  learningDays     Int
+  remark           String?                 @db.VarChar(100)
+  version          Int                     @default(1)
+  createdByUserId  String?
+  createdBy        User?                   @relation("DailyLearningPlanCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByName    String                  @db.VarChar(50)
+  deletedAt        DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  assignees        DailyLearningAssignee[]
+  progress         DailyLearningProgress[]
+
+  @@index([isoYear, isoWeek, deletedAt])
+  @@index([studentTag, deletedAt])
+  @@index([createdAt])
+}
+
+model DailyLearningAssignee {
+  id               String            @id @default(cuid())
+  planId           String
+  plan             DailyLearningPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User              @relation("DailyLearningAssigneeUser", fields: [userId], references: [id], onDelete: Restrict)
+  usernameSnapshot String            @db.VarChar(50)
+  realNameSnapshot String            @db.VarChar(50)
+  labelSnapshot    String            @db.VarChar(200)
+  createdAt        DateTime          @default(now())
+
+  @@unique([planId, userId])
+  @@index([userId, planId])
+}
+
+model DailyLearningProgress {
+  id                       String            @id @default(cuid())
+  planId                   String
+  plan                     DailyLearningPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  userId                   String
+  user                     User              @relation("DailyLearningProgressUser", fields: [userId], references: [id], onDelete: Restrict)
+  learningDate             DateTime          @db.Date
+  weekDay                  Int
+  status                   String            @default("COMPLETED") @db.VarChar(20)
+  contentSnapshot          String            @db.Text
+  recordingR2StorageId     String?           @db.VarChar(191)
+  recordingObjectKey       String?           @db.VarChar(1024)
+  recordingOriginalName    String?           @db.VarChar(255)
+  recordingMimeType        String?           @db.VarChar(100)
+  recordingSize            Int?
+  recordingDurationSeconds Int?
+  completedAt              DateTime          @default(now())
+  createdAt                DateTime          @default(now())
+
+  @@unique([planId, userId, weekDay])
+  @@index([planId, userId])
+  @@index([userId, learningDate])
+  @@index([recordingR2StorageId])
+}
+
+model DailyLearningSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
 model Notification {
   id              String                  @id @default(cuid())
   recordNo        String                  @unique @db.VarChar(12)
   clientRequestId String                  @unique @db.VarChar(64)
   title           String                  @db.VarChar(30)
   content         String                  @db.VarChar(500)
+  type            NotificationType        @default(GENERAL)
+  publishMode     NotificationPublishMode @default(SCHEDULED)
   releaseDate     DateTime                @db.Date
   releaseAt       DateTime
   publisherName   String                  @db.VarChar(10)
@@ -754,6 +860,7 @@ model Notification {
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
   recipients      NotificationRecipient[]
+  meeting         Meeting?
 
   @@index([status, releaseAt])
   @@index([createdByUserId, createdAt])
@@ -782,6 +889,50 @@ model NotificationSequence {
   dateKey   String   @id @db.VarChar(8)
   nextValue Int      @default(1)
   updatedAt DateTime @updatedAt
+}
+
+model Meeting {
+  id                          String                  @id @default(cuid())
+  recordNo                    String                  @unique @db.VarChar(12)
+  type                        MeetingType
+  meetingMonth                DateTime                @db.Date
+  notificationId              String                  @unique
+  notification                Notification            @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+  notificationContentSnapshot String?                 @db.VarChar(500)
+  notificationReleaseDate     DateTime?               @db.Date
+  publisherNameSnapshot       String?                 @db.VarChar(10)
+  attendanceStatus            MeetingAttendanceStatus @default(UNSIGNED)
+  attendanceVersion           Int                     @default(0)
+  checkedInByUserId           String?
+  checkedInByName             String?                 @db.VarChar(30)
+  checkedInAt                 DateTime?
+  createdByUserId             String?
+  createdBy                   User?                   @relation("MeetingCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByName               String                  @db.VarChar(30)
+  createdAt                   DateTime                @default(now())
+  updatedAt                   DateTime                @updatedAt
+  participants                MeetingParticipant[]
+
+  @@index([type, meetingMonth])
+  @@index([type, attendanceStatus])
+  @@index([createdByUserId, createdAt])
+}
+
+model MeetingParticipant {
+  id               String    @id @default(cuid())
+  meetingId        String
+  meeting          Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId           String?
+  user             User?     @relation("MeetingParticipantUser", fields: [userId], references: [id], onDelete: SetNull)
+  usernameSnapshot String    @db.VarChar(30)
+  realNameSnapshot String    @db.VarChar(30)
+  roleSnapshot     String    @db.VarChar(50)
+  attendedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@unique([meetingId, userId])
+  @@index([userId, meetingId])
+  @@index([meetingId, attendedAt])
 }
 
 model R2StorageConfig {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import bcrypt from "bcryptjs";
 import { db } from "../lib/db";
+import { currentIsoWeek, DAILY_LEARNING_DAY_FIELDS, isoWeekStartAt, nextDailyLearningRecordNo, shanghaiNowParts } from "../lib/daily-learning";
 import { getPlatformConfig } from "../lib/platform-config";
 import { STORE_RESEARCH_TYPE } from "../lib/lead-h5-research";
 import { BACK_KITCHEN_REVIEW_TYPE, FRONT_HALL_REVIEW_TYPE, scoreReview } from "../lib/lead-h5-reviews";
@@ -9,6 +10,7 @@ const baseUrl = process.env.LEAD_H5_VERIFY_URL || "http://127.0.0.1:3001";
 const username = `h5_verify_${Date.now()}`;
 const password = "TemporaryVerify2026";
 let userId: string | undefined;
+let learningPlanId: string | undefined;
 const reviewIds: string[] = [];
 const researchRecordIds: string[] = [];
 
@@ -28,17 +30,98 @@ async function main() {
   assert(role, "需要至少一个已启用角色才能进行H5验证");
   const platform = await getPlatformConfig();
   const loginTag = platform.leadH5LoginTags.split("｜").find(Boolean) || "H5验证";
-  const user = await db.user.create({ data: { username, passwordHash: await bcrypt.hash(password, 10), realName: "H5自动验证", tags: loginTag, roleId: role.id, status: "ENABLED" } });
+  const storeLoginTag = platform.storeH5LoginTags.split("｜").find(Boolean) || "门店H5验证";
+  const learningTag = `每日学习验证_${Date.now()}`;
+  const user = await db.user.create({ data: { username, passwordHash: await bcrypt.hash(password, 10), realName: "H5自动验证", tags: [...new Set([loginTag, storeLoginTag, learningTag])].join("｜"), roleId: role.id, status: "ENABLED" } });
   userId = user.id;
 
   const login = await request("/api/lead-h5/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
   assert.equal(login.status, 200, `登录接口返回 ${login.status}`);
   const cookie = login.headers.get("set-cookie")?.split(";")[0];
   assert(cookie, "登录成功后应设置H5会话Cookie");
+  const storeLogin = await request("/api/store-h5/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+  assert.equal(storeLogin.status, 200, `门店H5登录接口返回 ${storeLogin.status}`);
+  const storeCookie = storeLogin.headers.get("set-cookie")?.split(";")[0];
+  assert(storeCookie, "门店H5登录成功后应设置会话Cookie");
 
   const me = await request("/api/lead-h5/me", undefined, cookie);
   assert.equal(me.status, 200, `当前用户接口返回 ${me.status}`);
   assert.equal((await me.json() as { username: string }).username, username);
+
+  const noLearning = await request("/api/lead-h5/daily-learning/today", undefined, cookie);
+  assert.equal(noLearning.status, 200, `今日学习查询接口返回 ${noLearning.status}`);
+  assert.equal((await noLearning.json() as { task: unknown }).task, null, "未匹配学习计划时应返回空任务");
+  for (const [endpoint, sessionCookie] of [["/api/lead-h5/daily-learning/pending", cookie], ["/api/store-h5/daily-learning/pending", storeCookie]] as const) {
+    const pending = await request(endpoint, undefined, sessionCookie);
+    assert.equal(pending.status, 200, `${endpoint} 返回 ${pending.status}`);
+    assert.equal((await pending.json() as { pending: boolean }).pending, false, "无当天学习任务时不应展示提醒红点");
+  }
+  const now = new Date();
+  const currentWeek = currentIsoWeek(now);
+  const todayParts = shanghaiNowParts(now);
+  const todayContent = "运营H5每日学习录音自动验证内容";
+  const contentField = DAILY_LEARNING_DAY_FIELDS[currentWeek.weekDay - 1];
+  const learningPlan = await db.$transaction(async tx => {
+    const recordNo = await nextDailyLearningRecordNo(tx, now);
+    return tx.dailyLearningPlan.create({ data: {
+      recordNo,
+      isoYear: currentWeek.isoYear,
+      isoWeek: currentWeek.isoWeek,
+      studentTag: learningTag,
+      activeKey: `${currentWeek.isoYear}:${currentWeek.isoWeek}:${learningTag}`,
+      weekStartAt: isoWeekStartAt(currentWeek.isoYear, currentWeek.isoWeek),
+      mondayContent: null,
+      tuesdayContent: null,
+      wednesdayContent: null,
+      thursdayContent: null,
+      fridayContent: null,
+      saturdayContent: null,
+      sundayContent: null,
+      [contentField]: todayContent,
+      learningDays: 1,
+      createdByUserId: user.id,
+      createdByName: user.realName,
+      assignees: { create: { userId: user.id, usernameSnapshot: user.username, realNameSnapshot: user.realName, labelSnapshot: user.tags || "" } },
+    } });
+  });
+  learningPlanId = learningPlan.id;
+  const todayLearning = await request("/api/lead-h5/daily-learning/today", undefined, cookie);
+  assert.equal(todayLearning.status, 200, `匹配后的今日学习查询接口返回 ${todayLearning.status}`);
+  const todayTask = (await todayLearning.json() as { task: { id: string; title: string; completed: boolean } | null }).task;
+  assert(todayTask, "匹配用户标签且当天有内容时应返回今日学习任务");
+  assert.equal(todayTask.id, learningPlan.id, "应返回当前用户标签对应的学习计划");
+  assert.equal(todayTask.title, `【每日学习】${todayParts.year}-${String(todayParts.month).padStart(2, "0")}-${String(todayParts.day).padStart(2, "0")}`);
+  assert.equal(todayTask.completed, false, "新建的今日学习任务应为未完成");
+  for (const [endpoint, sessionCookie] of [["/api/lead-h5/daily-learning/pending", cookie], ["/api/store-h5/daily-learning/pending", storeCookie]] as const) {
+    const pending = await request(endpoint, undefined, sessionCookie);
+    assert.equal(pending.status, 200, `${endpoint} 返回 ${pending.status}`);
+    assert.equal((await pending.json() as { pending: boolean }).pending, true, "当天学习任务未完成时应展示提醒红点");
+  }
+  const todayDetail = await request(`/api/lead-h5/daily-learning/${learningPlan.id}`, undefined, cookie);
+  assert.equal(todayDetail.status, 200, `今日学习录音详情接口返回 ${todayDetail.status}`);
+  const detail = (await todayDetail.json() as { detail: { content: string; title: string } }).detail;
+  assert.equal(detail.content, todayContent, "录音页应只展示当天学习正文");
+  assert.equal(detail.title, todayTask.title, "录音页标题应为每日学习加今日日期");
+  const invalidAudio = await request(`/api/lead-h5/daily-learning/${learningPlan.id}/recording/sign`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "recording.webm", type: "audio/webm", size: 1024, durationSeconds: 3 }) }, cookie);
+  assert.equal(invalidAudio.status, 400, "运营H5录音上传仅接受MP3格式");
+  const mp3Sign = await request(`/api/lead-h5/daily-learning/${learningPlan.id}/recording/sign`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "recording.mp3", type: "audio/mpeg", size: 1024, durationSeconds: 3 }) }, cookie);
+  assert.equal(mp3Sign.status, 200, `MP3录音上传签名接口返回 ${mp3Sign.status}`);
+  assert.equal((await mp3Sign.json() as { headers: Record<string, string> }).headers["Content-Type"], "audio/mpeg", "R2直传内容类型应为MP3");
+
+  await db.dailyLearningProgress.create({ data: {
+    planId: learningPlan.id,
+    userId: user.id,
+    learningDate: new Date(`${todayParts.year}-${String(todayParts.month).padStart(2, "0")}-${String(todayParts.day).padStart(2, "0")}T00:00:00+08:00`),
+    weekDay: currentWeek.weekDay,
+    contentSnapshot: todayContent,
+    status: "COMPLETED",
+  } });
+  for (const [endpoint, sessionCookie] of [["/api/lead-h5/daily-learning/pending", cookie], ["/api/store-h5/daily-learning/pending", storeCookie]] as const) {
+    const pending = await request(endpoint, undefined, sessionCookie);
+    assert.equal(pending.status, 200, `${endpoint} 返回 ${pending.status}`);
+    assert.equal((await pending.json() as { pending: boolean }).pending, false, "当天学习任务完成后应隐藏提醒红点");
+  }
+  await db.dailyLearningProgress.deleteMany({ where: { planId: learningPlan.id, userId: user.id } });
 
   const month = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit" }).format(new Date());
   const verifiedTypes: string[] = [];
@@ -125,7 +208,7 @@ async function main() {
     const duplicateResearch = await request("/api/lead-h5/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(researchSubmissionBody) }, cookie);
     assert.equal(duplicateResearch.status, 409, "同店同月督导巡店调研重复提交应被拒绝");
   }
-  console.log(`运营H5验证通过：前厅、后厨评分及门店调研的登录、权限门店、模版匹配、必填校验${reviewIds.length || researchRecordIds.length ? "、正式提交、状态过滤及数据库防重" : ""}均正常。`);
+  console.log(`运营H5验证通过：两个移动端的每日学习红点、标签匹配、当日正文、MP3录音签名，以及前厅、后厨评分和门店调研链路均正常。`);
 }
 
 main().finally(async () => {
@@ -136,6 +219,10 @@ main().finally(async () => {
     if (!remainingForDate) await db.leadH5ResearchSequence.deleteMany({ where: { dateKey } });
   }
   if (reviewIds.length) await db.leadH5Review.deleteMany({ where: { id: { in: reviewIds } } });
+  if (learningPlanId) {
+    await db.dailyLearningProgress.deleteMany({ where: { planId: learningPlanId } });
+    await db.dailyLearningPlan.deleteMany({ where: { id: learningPlanId } });
+  }
   if (userId) {
     await db.operationLog.deleteMany({ where: { userId } });
     await db.user.deleteMany({ where: { id: userId } });

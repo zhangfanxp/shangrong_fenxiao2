@@ -28,6 +28,10 @@ const inputSchema = z.object({
   automaticTaskExecutionTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的自动执行时间"),
   defaultTaskDeadlineDayOffset: z.union([z.literal(0), z.literal(1)]),
   defaultTaskDeadlineTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的默认截止时间"),
+  dailyLearningR2StorageId: z.string().trim().min(1, "请选择正确的R2存储空间").nullable().optional(),
+  trainingVideoR2StorageId: z.string().trim().min(1, "请选择正确的课件视频R2存储空间").nullable().optional(),
+  trainingAudioR2StorageId: z.string().trim().min(1, "请选择正确的课件音频R2存储空间").nullable().optional(),
+  trainingDocumentR2StorageId: z.string().trim().min(1, "请选择正确的课件文档R2存储空间").nullable().optional(),
 });
 
 export async function GET() {
@@ -42,6 +46,21 @@ export async function PUT(request: Request) {
     const parsed = inputSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0].message }, { status: 400 });
     const current = await getPlatformConfig();
+    const dailyLearningR2StorageId = parsed.data.dailyLearningR2StorageId === undefined ? current.dailyLearningR2StorageId : parsed.data.dailyLearningR2StorageId;
+    const trainingVideoR2StorageId = parsed.data.trainingVideoR2StorageId === undefined ? current.trainingVideoR2StorageId : parsed.data.trainingVideoR2StorageId;
+    const trainingAudioR2StorageId = parsed.data.trainingAudioR2StorageId === undefined ? current.trainingAudioR2StorageId : parsed.data.trainingAudioR2StorageId;
+    const trainingDocumentR2StorageId = parsed.data.trainingDocumentR2StorageId === undefined ? current.trainingDocumentR2StorageId : parsed.data.trainingDocumentR2StorageId;
+    const storageSelections = [
+      { id: dailyLearningR2StorageId, label: "《每日学习》R2存储空间", businessType: "DAILY_LEARNING" },
+      { id: trainingVideoR2StorageId, label: "课件视频R2存储空间", businessType: "TRAINING_MATERIAL_VIDEO" },
+      { id: trainingAudioR2StorageId, label: "课件音频R2存储空间", businessType: "TRAINING_MATERIAL_AUDIO" },
+      { id: trainingDocumentR2StorageId, label: "课件文档R2存储空间", businessType: "TRAINING_MATERIAL_DOCUMENT" },
+    ];
+    const selectedIds = [...new Set(storageSelections.flatMap(item => item.id ? [item.id] : []))];
+    const enabledStorages = selectedIds.length ? await db.r2StorageConfig.findMany({ where: { id: { in: selectedIds }, status: "ENABLED", deletedAt: null }, select: { id: true } }) : [];
+    const enabledIds = new Set(enabledStorages.map(storage => storage.id));
+    const invalidStorage = storageSelections.find(item => item.id && !enabledIds.has(item.id));
+    if (invalidStorage) return NextResponse.json({ message: `${invalidStorage.label}不存在或已停用，请重新选择` }, { status: 400 });
     const saved = await savePlatformConfig({
       platformName: parsed.data.platformName,
       logoDataUrl: parsed.data.removeLogo ? null : parsed.data.logoDataUrl ?? current.logoDataUrl,
@@ -52,7 +71,29 @@ export async function PUT(request: Request) {
       automaticTaskExecutionTime: parsed.data.automaticTaskExecutionTime,
       defaultTaskDeadlineDayOffset: parsed.data.defaultTaskDeadlineDayOffset,
       defaultTaskDeadlineTime: parsed.data.defaultTaskDeadlineTime,
+      dailyLearningR2StorageId,
+      trainingVideoR2StorageId,
+      trainingAudioR2StorageId,
+      trainingDocumentR2StorageId,
     });
+    try {
+      await db.$transaction(async tx => {
+        for (const selection of storageSelections) {
+          if (selection.id) {
+            await tx.r2StorageReference.upsert({
+              where: { businessType_businessId: { businessType: selection.businessType, businessId: "PLATFORM" } },
+              create: { r2ConfigId: selection.id, businessType: selection.businessType, businessId: "PLATFORM" },
+              update: { r2ConfigId: selection.id },
+            });
+          } else {
+            await tx.r2StorageReference.deleteMany({ where: { businessType: selection.businessType, businessId: "PLATFORM" } });
+          }
+        }
+      });
+    } catch (error) {
+      await savePlatformConfig(current).catch(() => undefined);
+      throw error;
+    }
     await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "修改参数", result: "成功", detail: `保存平台信息；平台名称：${saved.platformName}`, request }).catch(() => undefined);
     return NextResponse.json(saved);
   } catch {
