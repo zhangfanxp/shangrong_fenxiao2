@@ -1,8 +1,9 @@
 import { CooperationType, StoreOperationStatus } from "@prisma/client";
 import { z } from "zod";
 
-const optionalText = (max: number) => z.string().trim().max(max, `内容不能超过 ${max} 个字符`).optional().transform((value) => value || null);
-const optionalDate = z.string().trim().optional().transform((value, context) => {
+// 合同接口和已有门店档案会以 null 表示未填写的可选字段。
+const optionalText = (max: number) => z.string().trim().max(max, `内容不能超过 ${max} 个字符`).nullish().transform((value) => value || null);
+const optionalDate = z.string().trim().nullish().transform((value, context) => {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -13,7 +14,7 @@ const optionalDate = z.string().trim().optional().transform((value, context) => 
 });
 
 export const storeInputSchema = z.object({
-  contractId: z.string().trim().optional().transform((value) => value || null),
+  contractId: z.string().trim().nullish().transform((value) => value || null),
   brandId: z.string().trim().min(1, "请选择品牌"),
   name: z.string().trim().min(1, "请输入门店名称").max(60, "门店名称不能超过 60 个字符"),
   cooperationType: z.nativeEnum(CooperationType),
@@ -33,7 +34,7 @@ export const storeInputSchema = z.object({
   managerName: optionalText(30),
   chefName: optionalText(30),
   ownerName: optionalText(30),
-  ownerPhone: z.string().trim().regex(/^$|^1\d{10}$/, "请输入正确的 11 位手机号码").optional().transform((value) => value || null),
+  ownerPhone: z.string().trim().regex(/^$|^1\d{10}$/, "请输入正确的 11 位手机号码").nullish().transform((value) => value || null),
   ownerIdNumber: optionalText(30),
 }).superRefine((data, context) => {
   if (data.startDate && data.endDate && data.startDate > data.endDate) {

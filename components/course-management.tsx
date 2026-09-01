@@ -5,13 +5,14 @@ import {
   FileOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, UploadOutlined, UsergroupAddOutlined,
 } from "@ant-design/icons";
 import {
-  Alert, Button, Card, Checkbox, Descriptions, Empty, Form, Image, Input, message, Modal, Select, Skeleton,
+  Alert, Button, Card, Checkbox, Descriptions, Empty, Form, Image, Input, message as antdMessage, Modal, Select, Skeleton,
   Space, Table, Tabs, Tag, Tooltip, Upload,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { useBusinessDictionaries } from "@/hooks/use-business-dictionaries";
+import { createClientRequestId } from "@/lib/client-request-id";
 
 type Asset = { kind: "R2"; r2StorageId: string; objectKey: string; originalName: string; mimeType: string; size: number; uploadProof: string };
 type Cover = Asset | { kind: "DEFAULT" } | { kind: "EXISTING" };
@@ -90,6 +91,8 @@ async function uploadAsset(file: File, businessType: "COURSE_COVER" | "LESSON_CO
 }
 
 export function CourseManagement({ permissions, defaultCourseCover, defaultLessonCover }: { permissions: string[]; defaultCourseCover: string | null; defaultLessonCover: string | null }) {
+  const [message, messageContextHolder] = antdMessage.useMessage();
+  const [modal, modalContextHolder] = Modal.useModal();
   const { options, loading: brandsLoading, error: brandsError, reload: reloadBrands } = useBusinessDictionaries(["BRAND"]);
   const brandOptions = options.BRAND || [];
   const [filterForm] = Form.useForm<Filters>(); const [courseForm] = Form.useForm<CourseForm>(); const [lessonForm] = Form.useForm<LessonForm>(); const [assignmentForm] = Form.useForm<AssignmentFilters>();
@@ -100,10 +103,13 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
   const [assignmentTotal, setAssignmentTotal] = useState(0); const [assignmentPage, setAssignmentPage] = useState(1); const [assignmentPageSize, setAssignmentPageSize] = useState(10);
   const [assignmentFilters, setAssignmentFilters] = useState<AssignmentFilters>(defaultAssignmentFilters); const [assignmentOptions, setAssignmentOptions] = useState<AssignmentOptions>({ brands: [], roles: [], tags: [] });
   const [assignmentLoading, setAssignmentLoading] = useState(false); const [assignmentError, setAssignmentError] = useState(false); const [selectedAssignmentUserIds, setSelectedAssignmentUserIds] = useState<string[]>([]); const [assigningCourses, setAssigningCourses] = useState(false);
+  const [assignmentSubmitError, setAssignmentSubmitError] = useState<string | null>(null);
   const [mode, setMode] = useState<ModalMode>(); const [courseDetail, setCourseDetail] = useState<Course>(); const [detailLoading, setDetailLoading] = useState(false);
   const [courseDraftId, setCourseDraftId] = useState<string>(); const [courseCover, setCourseCover] = useState<Cover>({ kind: "DEFAULT" });
   const [courseCoverPreview, setCourseCoverPreview] = useState<string | null>(defaultCourseCover); const [courseCoverUploading, setCourseCoverUploading] = useState(false); const [courseCoverProgress, setCourseCoverProgress] = useState(0);
   const [savingCourse, setSavingCourse] = useState(false); const [activeTab, setActiveTab] = useState("info");
+  const [courseSaveError, setCourseSaveError] = useState<string | null>(null);
+  const courseSaveFlow = useRef(false);
   const [lessonOpen, setLessonOpen] = useState(false); const [lessonView, setLessonView] = useState(false); const [editingLesson, setEditingLesson] = useState<Lesson>();
   const [lessonDiscardOpen, setLessonDiscardOpen] = useState(false);
   const [lessonCover, setLessonCover] = useState<Cover>({ kind: "DEFAULT" }); const [lessonCoverPreview, setLessonCoverPreview] = useState<string | null>(defaultLessonCover);
@@ -111,6 +117,9 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
   const [savingLesson, setSavingLesson] = useState(false); const [ordering, setOrdering] = useState(false); const [deletingId, setDeletingId] = useState<string>();
   const [lessonRefreshing, setLessonRefreshing] = useState(false);
   const lessonFileUploadAttemptRef = useRef(0);
+  const assignmentRequest = useRef<{ id: string; payloadKey: string } | null>(null);
+  const assignmentInFlight = useRef(false);
+  const assignmentUsersRequest = useRef<AbortController | null>(null);
 
   const load = useCallback(async (nextPage = page, nextPageSize = pageSize, nextFilters = filters) => {
     setLoading(true); setLoadError(false);
@@ -123,58 +132,97 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
   }, [filters, page, pageSize]);
   useEffect(() => { void load(1, 20, {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const visibleIds = new Set(rows.map(row => row.id));
-    setSelectedCourseIds(current => current.filter(id => visibleIds.has(id)));
+    const selectableIds = new Set(rows.filter(row => row.status === "ENABLED").map(row => row.id));
+    setSelectedCourseIds(current => current.filter(id => selectableIds.has(id)));
   }, [rows]);
 
   const lessons = courseDetail?.lessons || [];
   const applyFilters = (values: Filters) => { const normalized = { ...values, courseName: values.courseName?.trim(), positionKeyword: values.positionKeyword?.trim() }; setSelectedCourseIds([]); setFilters(normalized); setPage(1); void load(1, pageSize, normalized); };
   const resetFilters = () => { filterForm.resetFields(); setSelectedCourseIds([]); setFilters({}); setPage(1); void load(1, pageSize, {}); };
 
-  const loadAssignmentUsers = async (nextPage = assignmentPage, nextPageSize = assignmentPageSize, nextFilters = assignmentFilters) => {
+  const loadAssignmentUsers = useCallback(async (nextPage: number, nextPageSize: number, nextFilters: AssignmentFilters) => {
+    assignmentUsersRequest.current?.abort();
+    const controller = new AbortController();
+    assignmentUsersRequest.current = controller;
     setAssignmentLoading(true); setAssignmentError(false);
     try {
       const query = new URLSearchParams({ page: String(nextPage), pageSize: String(nextPageSize) });
       Object.entries(nextFilters).forEach(([key, value]) => value && query.set(key, value));
-      const result = await requestJson<{ rows: AssignmentUser[]; total: number; options: AssignmentOptions }>(`/api/course-assignments/users?${query}`);
+      const result = await requestJson<{ rows: AssignmentUser[]; total: number; options: AssignmentOptions }>(`/api/course-assignments/users?${query}`, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       setAssignmentRows(result.rows); setAssignmentTotal(result.total); setAssignmentOptions(result.options);
     } catch (reason) {
+      if (controller.signal.aborted) return;
       setAssignmentError(true); message.error(reason instanceof Error ? reason.message : "待分配用户加载失败，请稍后重试");
-    } finally { setAssignmentLoading(false); }
-  };
+    } finally { if (!controller.signal.aborted) setAssignmentLoading(false); }
+  }, [message]);
+
+  useEffect(() => {
+    if (!assignmentOpen) return;
+    // Initialize only after the dialog mounts; a force-rendered Portal does not match SSR markup.
+    assignmentForm.resetFields();
+    void loadAssignmentUsers(1, 10, defaultAssignmentFilters);
+    return () => { assignmentUsersRequest.current?.abort(); };
+  }, [assignmentOpen, assignmentForm, loadAssignmentUsers]);
 
   const openCourseAssignment = () => {
     if (!selectedCourseIds.length) return;
-    assignmentForm.setFieldsValue(defaultAssignmentFilters); setAssignmentFilters(defaultAssignmentFilters);
-    setSelectedAssignmentUserIds([]); setAssignmentPage(1); setAssignmentPageSize(10); setAssignmentOpen(true);
-    void loadAssignmentUsers(1, 10, defaultAssignmentFilters);
+    assignmentRequest.current = null;
+    setAssignmentSubmitError(null);
+    setAssignmentFilters(defaultAssignmentFilters);
+    setSelectedAssignmentUserIds([]); setAssignmentPage(1); setAssignmentPageSize(10);
+    setAssignmentRows([]); setAssignmentTotal(0); setAssignmentError(false); setAssignmentLoading(true);
+    setAssignmentOpen(true);
   };
   const closeCourseAssignment = () => {
-    if (assigningCourses) return;
-    setAssignmentOpen(false); setSelectedAssignmentUserIds([]); assignmentForm.resetFields();
+    if (assignmentInFlight.current) return;
+    assignmentUsersRequest.current?.abort();
+    setAssignmentOpen(false); setSelectedAssignmentUserIds([]);
   };
   const filterAssignmentUsers = (values: AssignmentFilters) => {
+    if (assignmentInFlight.current) return;
     const normalized = { ...values, username: values.username?.trim() || undefined };
     setAssignmentFilters(normalized); setSelectedAssignmentUserIds([]); setAssignmentPage(1); void loadAssignmentUsers(1, assignmentPageSize, normalized);
   };
   const resetAssignmentFilters = () => {
+    if (assignmentInFlight.current) return;
     assignmentForm.resetFields(); assignmentForm.setFieldsValue(defaultAssignmentFilters); setAssignmentFilters(defaultAssignmentFilters);
     setSelectedAssignmentUserIds([]); setAssignmentPage(1); void loadAssignmentUsers(1, assignmentPageSize, defaultAssignmentFilters);
   };
   const assignCourses = async () => {
-    if (!selectedCourseIds.length || !selectedAssignmentUserIds.length) return;
+    if (assignmentInFlight.current) return;
+    if (!selectedCourseIds.length || !selectedAssignmentUserIds.length) {
+      setAssignmentSubmitError("请至少选择一门课程和一名用户");
+      return;
+    }
+    assignmentInFlight.current = true;
     setAssigningCourses(true);
+    setAssignmentSubmitError(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000);
     try {
-      const result = await requestJson<{ created: number; skipped: number; courseCount: number; userCount: number }>("/api/course-assignments", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseIds: selectedCourseIds, userIds: selectedAssignmentUserIds }),
+      const payload = { courseIds: [...new Set(selectedCourseIds)].sort(), userIds: [...new Set(selectedAssignmentUserIds)].sort() };
+      const payloadKey = JSON.stringify(payload);
+      // Retrying the same selection reuses its key; changing recipients is a new operation.
+      if (assignmentRequest.current?.payloadKey !== payloadKey) assignmentRequest.current = { id: createClientRequestId(), payloadKey };
+      const result = await requestJson<{ success: boolean; recordNo: string; courseCount: number; userCount: number }>("/api/course-assignments", {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+        body: JSON.stringify({ ...payload, clientRequestId: assignmentRequest.current.id }),
       });
-      message.success(result.skipped
-        ? `分配完成：新增 ${result.created} 条，${result.skipped} 条已存在并自动跳过`
-        : `分配完成：已将 ${result.courseCount} 门课程分配给 ${result.userCount} 名用户`);
-      setAssignmentOpen(false); setSelectedAssignmentUserIds([]); setSelectedCourseIds([]); assignmentForm.resetFields();
-    } catch (reason) { message.error(reason instanceof Error ? reason.message : "课程分配失败，请稍后重试"); }
-    finally { setAssigningCourses(false); }
+      if (result.success !== true || !result.recordNo || result.courseCount !== payload.courseIds.length || result.userCount !== payload.userIds.length) {
+        throw new Error("分配结果尚未确认，请重试。同一次分配不会重复生成记录");
+      }
+      setAssignmentOpen(false); setSelectedAssignmentUserIds([]); setSelectedCourseIds([]);
+      message.success(`分配完成：批次 ${result.recordNo}，已将 ${result.courseCount} 门课程分配给 ${result.userCount} 名用户`);
+    } catch (reason) {
+      const error = controller.signal.aborted ? "请求超时，分配结果尚未确认，请重试。同一次分配不会重复生成记录" : reason instanceof Error ? reason.message : "课程分配失败，请稍后重试";
+      setAssignmentSubmitError(error);
+      message.error(error);
+    } finally {
+      clearTimeout(timeout);
+      assignmentInFlight.current = false;
+      setAssigningCourses(false);
+    }
   };
 
   const loadDetail = async (id: string) => {
@@ -201,6 +249,7 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
   };
 
   const openCreate = async () => {
+    setCourseSaveError(null);
     try {
       const draft = await requestJson<{ courseDraftId: string }>("/api/courses/drafts", { method: "POST" });
       setCourseDraftId(draft.courseDraftId); setCourseDetail({ id: "", recordNo: "", courseName: "", applicablePosition: "", status: "ENABLED", createdByName: "", createdAtText: "", version: 1, brandCodes: [], brands: [], hasLearningProgress: false, lessons: [] });
@@ -210,6 +259,7 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
   };
 
   const openCourse = async (row: Course, nextMode: "edit" | "view") => {
+    setCourseSaveError(null);
     setMode(nextMode); setActiveTab("info"); const detail = await loadDetail(row.id);
     if (!detail) { setMode(undefined); return; }
     courseForm.setFieldsValue({ courseName: detail.courseName, courseDescription: detail.courseDescription || "", applicablePosition: detail.applicablePosition, brandCodes: detail.brandCodes, status: detail.status });
@@ -217,14 +267,16 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
   };
 
   const closeCourseNow = async (deleteDraft = true) => {
+    setCourseSaveError(null);
     const draft = courseDraftId; setMode(undefined); setCourseDetail(undefined); setCourseDraftId(undefined); setActiveTab("info"); courseForm.resetFields();
     if (deleteDraft && draft) await fetch(`/api/courses/drafts/${draft}`, { method: "DELETE" }).catch(() => undefined);
   };
   const closeCourse = () => {
+    if (courseSaveFlow.current) return;
     if (mode !== "create") { void closeCourseNow(); return; }
     const hasDraftContent = courseForm.isFieldsTouched() || lessons.length > 0 || courseCover.kind === "R2";
     if (!hasDraftContent) { void closeCourseNow(); return; }
-    Modal.confirm({
+    modal.confirm({
       zIndex: 2100, title: "当前课程尚未保存", content: "关闭后课程信息和草稿课时将不会形成正式业务数据，是否继续？",
       okText: "继续关闭", cancelText: "返回编辑", onOk: () => closeCourseNow(),
     });
@@ -239,22 +291,26 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
   };
 
   const persistCourse = async (values: CourseForm, savedAsDisabled = false) => {
-    setSavingCourse(true);
+    setSavingCourse(true); setCourseSaveError(null);
     try {
       const body = { ...values, courseDescription: values.courseDescription?.trim() || null, cover: courseCover, courseDraftId, ...(mode === "edit" ? { version: courseDetail?.version } : {}) };
       await requestJson(mode === "create" ? "/api/courses" : `/api/courses/${courseDetail?.id}`, { method: mode === "create" ? "POST" : "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       message.success(savedAsDisabled ? "课程已保存为禁用状态" : mode === "create" ? "课程新增成功" : "课程编辑成功");
       await closeCourseNow(false); await load();
-    } catch (reason) { message.error(courseFormError(reason)); }
+    } catch (reason) { const error = courseFormError(reason); setCourseSaveError(error); message.error(error); }
     finally { setSavingCourse(false); }
   };
 
   const saveCourse = async () => {
-    if (!mode || mode === "view" || courseCoverUploading) return;
+    if (!mode || mode === "view" || courseCoverUploading || courseSaveFlow.current) return;
+    courseSaveFlow.current = true;
+    setCourseSaveError(null);
     try {
       const values = await courseForm.validateFields();
+      if (!courseCoverPreview) throw new Error("请上传课程封面");
       if (values.status === "ENABLED" && lessons.length === 0) {
-        Modal.confirm({
+        // Render in this React tree; static Modal.confirm cannot mount on React 19.
+        await modal.confirm({
           zIndex: 2100,
           title: "启用课程至少需要添加一个课时",
           content: "当前课程暂无课时。你可以先将课程保存为禁用状态，后续添加课时后再启用；也可以返回继续添加课时。",
@@ -266,7 +322,8 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
         return;
       }
       await persistCourse(values);
-    } catch (reason) { setActiveTab("info"); message.error(courseFormError(reason)); }
+    } catch (reason) { const error = courseFormError(reason); setActiveTab("info"); setCourseSaveError(error); message.error(error); }
+    finally { courseSaveFlow.current = false; }
   };
 
   const uploadCover = async (file: File, kind: "COURSE_COVER" | "LESSON_COVER") => {
@@ -327,7 +384,7 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
     finally { setSavingLesson(false); }
   };
 
-  const deleteLesson = (lesson: Lesson) => Modal.confirm({ zIndex: 2100, title: "删除课时", content: "删除课时后，该课时将从当前课程中移除，是否继续？", okText: "确认删除", okButtonProps: { danger: true }, cancelText: "取消", onOk: async () => {
+  const deleteLesson = (lesson: Lesson) => modal.confirm({ zIndex: 2100, title: "删除课时", content: "删除课时后，该课时将从当前课程中移除，是否继续？", okText: "确认删除", okButtonProps: { danger: true }, cancelText: "取消", onOk: async () => {
     try { setDeletingId(lesson.id); await requestJson(`/api/course-lessons/${lesson.id}`, { method: "DELETE" }); setCourseDetail(current => current ? { ...current, lessons: current.lessons?.filter(item => item.id !== lesson.id) } : current); await refreshLessons(); message.success("课时删除成功，列表已刷新"); }
     catch (reason) { message.error(reason instanceof Error ? reason.message : "课时删除失败，请稍后重试"); } finally { setDeletingId(undefined); }
   }});
@@ -346,13 +403,13 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
 
   const changeStatus = (course: Course) => {
     const enabling = course.status === "DISABLED";
-    Modal.confirm({ title: enabling ? "确认启用该课程？" : "确认禁用该课程？", content: enabling ? "启用后，符合品牌范围的移动端学员可以看到该课程。" : "禁用后，该课程不再向新学员开放，历史学习记录仍会保留。", okText: enabling ? "确认启用" : "确认禁用", cancelText: "取消", onOk: async () => {
+    modal.confirm({ title: enabling ? "确认启用该课程？" : "确认禁用该课程？", content: enabling ? "启用后，符合品牌范围的移动端学员可以看到该课程。" : "禁用后，该课程不再向新学员开放，历史学习记录仍会保留。", okText: enabling ? "确认启用" : "确认禁用", cancelText: "取消", onOk: async () => {
       try { await requestJson(`/api/courses/${course.id}/${enabling ? "enable" : "disable"}`, { method: "POST" }); message.success(enabling ? "课程已启用" : "课程已禁用"); void load(); }
       catch (reason) { message.error(reason instanceof Error ? reason.message : "课程状态更新失败，请稍后重试"); }
     } });
   };
 
-  const deleteCourse = (course: Course) => Modal.confirm({ title: "温馨提示", content: "删除操作不可逆，一旦删除成功，当前课程及其相关课时配置将无法恢复，请谨慎操作。", okText: "我知道了，继续删除", okButtonProps: { danger: true }, cancelText: "我再想想", onOk: async () => {
+  const deleteCourse = (course: Course) => modal.confirm({ title: "温馨提示", content: "删除操作不可逆，一旦删除成功，当前课程及其相关课时配置将无法恢复，请谨慎操作。", okText: "我知道了，继续删除", okButtonProps: { danger: true }, cancelText: "我再想想", onOk: async () => {
     try { setDeletingId(course.id); await requestJson(`/api/courses/${course.id}`, { method: "DELETE" }); message.success("课程删除成功"); void load(); }
     catch (reason) { message.error(reason instanceof Error ? reason.message : "课程删除失败，请稍后重试"); } finally { setDeletingId(undefined); }
   }});
@@ -400,7 +457,7 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
     <Descriptions.Item label="课程简介" span={2}>{courseDetail?.courseDescription || "-"}</Descriptions.Item><Descriptions.Item label="课程封面" span={2}>{courseDetail?.coverUrl && <Image width={180} src={courseDetail.coverUrl} />}</Descriptions.Item>
     <Descriptions.Item label="适用岗位">{courseDetail?.applicablePosition}</Descriptions.Item><Descriptions.Item label="适用品牌">{courseDetail?.brands.map(item => item.brandLabel).join("、")}</Descriptions.Item>
     <Descriptions.Item label="课程状态">{courseDetail?.status === "ENABLED" ? "已启用" : "已禁用"}</Descriptions.Item><Descriptions.Item label="创建人">{courseDetail?.createdByName}</Descriptions.Item><Descriptions.Item label="创建时间" span={2}>{courseDetail?.createdAtText}</Descriptions.Item>
-  </Descriptions> : <Form form={courseForm} layout="vertical" preserve={false}><div className="course-form-grid">
+  </Descriptions> : <Form name="course-info" form={courseForm} layout="vertical" preserve={false} initialValues={mode === "create" ? { courseName: "", courseDescription: "", applicablePosition: "", brandCodes: brandOptions.map(item => item.value), status: "ENABLED" } : undefined}><div className="course-form-grid">
     <Form.Item label="记录编号"><Input disabled placeholder="保存成功后自动生成" value={courseDetail?.recordNo} /></Form.Item>
     <Form.Item name="courseName" label="课程名称" rules={[{ required: true, message: "请输入课程名称" }, { max: 30, message: "课程名称不能超过30个字符" }]}><Input maxLength={30} placeholder="请输入课程名称" /></Form.Item>
     <Form.Item className="course-form-span" name="courseDescription" label="课程简介" rules={[{ max: 200, message: "课程简介不能超过200个字符" }]}><Input.TextArea rows={3} maxLength={200} showCount placeholder="请输入课程简介（选填）" /></Form.Item>
@@ -412,6 +469,8 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
   </div></Form>;
 
   return <>
+    {messageContextHolder}
+    {modalContextHolder}
     {brandsError && <Alert className="course-alert" type="error" showIcon message="品牌数据加载失败，请稍后重试" action={<Button size="small" icon={<ReloadOutlined />} onClick={() => void reloadBrands()}>重试</Button>} />}
     <Card className="course-filter-card"><Form form={filterForm} layout="vertical" onFinish={applyFilters}><div className="course-filter-grid">
       <Form.Item name="courseName" label="课程名称"><Input allowClear maxLength={30} placeholder="请输入课程名称" onPressEnter={() => filterForm.submit()} /></Form.Item>
@@ -420,14 +479,15 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
       <Form.Item name="status" label="课程状态"><Select allowClear placeholder="全部" options={[{ value: "ENABLED", label: "已启用" }, { value: "DISABLED", label: "已禁用" }]} /></Form.Item>
       <div className="course-filter-actions"><Space><Button onClick={resetFilters}>重置</Button><Button type="primary" htmlType="submit" icon={<SearchOutlined />}>筛选</Button></Space></div>
     </div></Form></Card>
-    <Card className="course-list-card"><div className="course-toolbar"><span>共 {total} 条课程记录{selectedCourseIds.length ? `，已选择 ${selectedCourseIds.length} 条` : ""}</span><Space><Button icon={<UsergroupAddOutlined />} disabled={loading || selectedCourseIds.length === 0} onClick={openCourseAssignment}>课程分配</Button>{can(permissions, "courses", "create") && <Button type="primary" icon={<PlusOutlined />} disabled={brandsLoading || !brandOptions.length} onClick={() => void openCreate()}>新增</Button>}</Space></div>
-      {loadError ? <Alert type="error" showIcon message="课程数据加载失败，请稍后重试" action={<Button onClick={() => void load()}>重试</Button>} /> : <Table rowKey="id" loading={loading} rowSelection={{ selectedRowKeys: selectedCourseIds, columnWidth: 48, fixed: true, onChange: (_, selectedRows) => setSelectedCourseIds(selectedRows.map(row => row.id)) }} columns={courseColumns} dataSource={rows} scroll={{ x: 1448 }} locale={{ emptyText: <Empty description={<span>{Object.values(filters).some(Boolean) ? "没有找到符合当前条件的课程" : "暂无课程"}<br/><small>{Object.values(filters).some(Boolean) ? "请调整筛选条件后重试" : "当前还没有创建培训课程"}</small></span>}>{Object.values(filters).some(Boolean) ? <Button onClick={resetFilters}>重置筛选</Button> : can(permissions, "courses", "create") && <Button type="primary" icon={<PlusOutlined />} onClick={() => void openCreate()}>新增</Button>}</Empty> }} pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [20, 50, 100], showTotal: value => `共 ${value} 条`, onChange: (p, s) => { setSelectedCourseIds([]); setPage(p); setPageSize(s); void load(p, s, filters); } }} />}
+    <Card className="course-list-card"><div className="course-toolbar"><span>共 {total} 条课程记录{selectedCourseIds.length ? `，已选择 ${selectedCourseIds.length} 条` : ""}</span><Space>{can(permissions, "courses", "edit") && <Button icon={<UsergroupAddOutlined />} disabled={loading || selectedCourseIds.length === 0} onClick={openCourseAssignment}>课程分配</Button>}{can(permissions, "courses", "create") && <Button type="primary" icon={<PlusOutlined />} disabled={brandsLoading || !brandOptions.length} onClick={() => void openCreate()}>新增</Button>}</Space></div>
+      {loadError ? <Alert type="error" showIcon message="课程数据加载失败，请稍后重试" action={<Button onClick={() => void load()}>重试</Button>} /> : <Table rowKey="id" loading={loading} rowSelection={{ selectedRowKeys: selectedCourseIds, columnWidth: 48, fixed: true, getCheckboxProps: row => ({ disabled: row.status !== "ENABLED", title: row.status !== "ENABLED" ? "禁用课程不可分配" : undefined }), onChange: (_, selectedRows) => setSelectedCourseIds(selectedRows.filter(row => row.status === "ENABLED").map(row => row.id)) }} columns={courseColumns} dataSource={rows} scroll={{ x: 1448 }} locale={{ emptyText: <Empty description={<span>{Object.values(filters).some(Boolean) ? "没有找到符合当前条件的课程" : "暂无课程"}<br/><small>{Object.values(filters).some(Boolean) ? "请调整筛选条件后重试" : "当前还没有创建培训课程"}</small></span>}>{Object.values(filters).some(Boolean) ? <Button onClick={resetFilters}>重置筛选</Button> : can(permissions, "courses", "create") && <Button type="primary" icon={<PlusOutlined />} onClick={() => void openCreate()}>新增</Button>}</Empty> }} pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [20, 50, 100], showTotal: value => `共 ${value} 条`, onChange: (p, s) => { setSelectedCourseIds([]); setPage(p); setPageSize(s); void load(p, s, filters); } }} />}
     </Card>
 
-    <Modal className="course-assignment-modal" width={1180} title="请选择用户" open={assignmentOpen} onCancel={closeCourseAssignment} maskClosable={false} forceRender footer={<Space><Button disabled={assigningCourses} onClick={closeCourseAssignment}>取消分配</Button><Button type="primary" loading={assigningCourses} disabled={!selectedAssignmentUserIds.length} onClick={() => void assignCourses()}>立即分配</Button></Space>}>
+    {assignmentOpen && <Modal className="course-assignment-modal" width={1180} title="请选择用户" open onCancel={closeCourseAssignment} closable={!assigningCourses} maskClosable={false} footer={<Space><Button disabled={assigningCourses} onClick={closeCourseAssignment}>取消分配</Button><Button type="primary" loading={assigningCourses} disabled={assignmentLoading || assignmentError || !selectedAssignmentUserIds.length} onClick={() => void assignCourses()}>{assigningCourses ? "分配中..." : "立即分配"}</Button></Space>}>
       <Alert className="course-assignment-summary" type="info" showIcon message={`已选择 ${selectedCourseIds.length} 门课程，请选择需要分配的用户`} />
+      {assignmentSubmitError && <Alert className="course-assignment-summary" type="error" showIcon message={assignmentSubmitError} />}
       <Card size="small" title="筛选条件" className="course-assignment-filter-card">
-        <Form form={assignmentForm} layout="vertical" initialValues={defaultAssignmentFilters} onFinish={filterAssignmentUsers}>
+        <Form name="course-assignment-users" form={assignmentForm} disabled={assigningCourses} layout="vertical" preserve={false} initialValues={defaultAssignmentFilters} onFinish={filterAssignmentUsers}>
           <div className="course-assignment-filter-grid">
             <Form.Item name="brand" label="品牌"><Select allowClear placeholder="全部" options={assignmentOptions.brands} /></Form.Item>
             <Form.Item name="roleId" label="角色"><Select allowClear placeholder="全部" options={assignmentOptions.roles.map(role => ({ value: role.id, label: role.status === "ENABLED" ? role.name : `${role.name}（已禁用）` }))} /></Form.Item>
@@ -438,12 +498,13 @@ export function CourseManagement({ permissions, defaultCourseCover, defaultLesso
           <div className="course-assignment-filter-actions"><Space><Button onClick={resetAssignmentFilters}>重置</Button><Button type="primary" htmlType="submit" icon={<SearchOutlined />}>筛选</Button></Space></div>
         </Form>
       </Card>
-      <Card size="small" title="用户列表" extra={<span>共 {assignmentTotal} 名用户{selectedAssignmentUserIds.length ? `，已选择 ${selectedAssignmentUserIds.length} 名` : ""}</span>}>
-        {assignmentError ? <Alert type="error" showIcon message="待分配用户加载失败，请稍后重试" action={<Button size="small" onClick={() => void loadAssignmentUsers()}>重试</Button>} /> : <Table rowKey="id" size="small" loading={assignmentLoading} rowSelection={{ selectedRowKeys: selectedAssignmentUserIds, preserveSelectedRowKeys: true, columnWidth: 48, fixed: true, onChange: keys => setSelectedAssignmentUserIds(keys.map(String)) }} columns={assignmentColumns} dataSource={assignmentRows} scroll={{ x: 930, y: 360 }} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无符合条件的用户" /> }} pagination={{ current: assignmentPage, pageSize: assignmentPageSize, total: assignmentTotal, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: value => `共 ${value} 条`, onChange: (nextPage, nextPageSize) => { setAssignmentPage(nextPage); setAssignmentPageSize(nextPageSize); void loadAssignmentUsers(nextPage, nextPageSize, assignmentFilters); } }} />}
-      </Card>
-    </Modal>
+      <div inert={assigningCourses} aria-busy={assigningCourses}><Card size="small" title="用户列表" extra={<span>共 {assignmentTotal} 名用户{selectedAssignmentUserIds.length ? `，已选择 ${selectedAssignmentUserIds.length} 名` : ""}</span>}>
+        {assignmentError ? <Alert type="error" showIcon message="待分配用户加载失败，请稍后重试" action={<Button size="small" onClick={() => void loadAssignmentUsers(assignmentPage, assignmentPageSize, assignmentFilters)}>重试</Button>} /> : <Table rowKey="id" size="small" loading={assignmentLoading} rowSelection={{ selectedRowKeys: selectedAssignmentUserIds, preserveSelectedRowKeys: true, columnWidth: 48, fixed: true, onChange: keys => setSelectedAssignmentUserIds(keys.map(String)) }} columns={assignmentColumns} dataSource={assignmentRows} scroll={{ x: 930, y: 360 }} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无符合条件的用户" /> }} pagination={{ current: assignmentPage, pageSize: assignmentPageSize, total: assignmentTotal, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: value => `共 ${value} 条`, onChange: (nextPage, nextPageSize) => { setAssignmentPage(nextPage); setAssignmentPageSize(nextPageSize); void loadAssignmentUsers(nextPage, nextPageSize, assignmentFilters); } }} />}
+      </Card></div>
+    </Modal>}
 
     <Modal className="course-detail-modal" width={1220} title={mode === "create" ? "新增课程" : mode === "edit" ? "编辑课程详情" : "查看课程详情"} open={Boolean(mode)} onCancel={closeCourse} maskClosable={false} destroyOnHidden footer={mode === "view" ? <Button onClick={closeCourse}>关闭</Button> : <Space><Button onClick={closeCourse}>取消</Button><Button type="primary" loading={savingCourse} disabled={courseCoverUploading} onClick={() => void saveCourse()}>{savingCourse ? "保存中..." : "保存"}</Button></Space>}>
+      {courseSaveError && <Alert className="course-alert" type="error" showIcon message={courseSaveError} />}
       {detailLoading ? <Skeleton active paragraph={{ rows: 10 }} /> : <Tabs activeKey={activeTab} onChange={key => { setActiveTab(key); if (key === "lessons") void refreshLessons(); }} items={[
         { key: "info", label: "课程信息", children: courseInfo },
         { key: "lessons", label: `课程课时${lessons.length ? `（${lessons.length}）` : ""}`, children: <div className="course-lessons-panel">{mode !== "view" && can(permissions, "course-lessons", "create") && <div className="course-lessons-toolbar"><Button type="primary" icon={<PlusOutlined />} onClick={openAddLesson}>添加课时</Button>{(ordering || lessonRefreshing) && <span>更新中...</span>}</div>}<Table rowKey="id" size="small" loading={lessonRefreshing} columns={lessonColumns} dataSource={lessons} scroll={{ x: mode === "view" ? 1000 : 1300 }} pagination={false} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<span>暂无课时<br/><small>{mode === "view" ? "该课程尚未配置课时" : "点击“添加课时”创建第一个课时"}</small></span>} /> }} /></div> },

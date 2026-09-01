@@ -890,6 +890,8 @@ model Course {
 
 model CourseAssignment {
   id               String   @id @default(cuid())
+  batchId          String?
+  batch            CourseAssignmentBatch? @relation(fields: [batchId], references: [id], onDelete: Restrict)
   courseId         String
   course           Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   userId           String   @db.VarChar(191)
@@ -899,9 +901,87 @@ model CourseAssignment {
   assignedByName   String   @db.VarChar(50)
   createdAt        DateTime @default(now())
 
-  @@unique([courseId, userId])
+  @@unique([batchId, courseId, userId])
+  @@index([courseId, userId])
   @@index([userId, createdAt])
   @@index([assignedByUserId, createdAt])
+}
+
+model CourseAssignmentBatch {
+  id                 String @id @default(cuid())
+  recordNo           String @unique @db.VarChar(12)
+  clientRequestId    String? @unique @db.VarChar(36)
+  courseCount        Int
+  userCount          Int
+  status             RecordStatus @default(ENABLED)
+  assignedByUserId   String? @db.VarChar(191)
+  assignedByUsername String @db.VarChar(100)
+  assignedByName     String @db.VarChar(100)
+  assignedAt         DateTime @default(now())
+  legacyImported     Boolean @default(false)
+  version            Int @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  courses            CourseAssignmentCourse[]
+  users              CourseAssignmentUser[]
+  assignments        CourseAssignment[]
+
+  @@index([assignedAt, id])
+}
+
+// Snapshot IDs deliberately have no foreign key to live courses/users.
+model CourseAssignmentCourse {
+  id                         String @id @default(cuid())
+  batchId                    String
+  batch                      CourseAssignmentBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  courseId                   String @db.VarChar(191)
+  courseRecordNoSnapshot     String @db.VarChar(12)
+  courseNameSnapshot         String @db.VarChar(100)
+  applicablePositionSnapshot String @db.VarChar(100)
+  coverR2StorageId            String? @db.VarChar(191)
+  coverObjectKey              String? @db.VarChar(1024)
+  coverOriginalName           String? @db.VarChar(255)
+  coverMimeType               String? @db.VarChar(100)
+  coverSizeBytes              Int?
+  coverDataUrl                String? @db.LongText
+  createdAt                  DateTime @default(now())
+
+  @@unique([batchId, courseId])
+  @@index([courseId])
+}
+
+model CourseAssignmentUser {
+  id               String @id @default(cuid())
+  batchId          String
+  batch            CourseAssignmentBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  userId           String @db.VarChar(191)
+  usernameSnapshot String @db.VarChar(100)
+  realNameSnapshot String @db.VarChar(100)
+  roleSnapshot     String @db.VarChar(100)
+  createdAt        DateTime @default(now())
+  scopes           CourseAssignmentUserScope[]
+
+  @@unique([batchId, userId])
+  @@index([userId])
+}
+
+model CourseAssignmentUserScope {
+  id               String @id @default(cuid())
+  assignmentUserId String
+  assignmentUser   CourseAssignmentUser @relation(fields: [assignmentUserId], references: [id], onDelete: Cascade)
+  brandId          String @db.VarChar(191)
+  storeId          String @db.VarChar(191)
+  brandName        String @db.VarChar(100)
+  storeName        String @db.VarChar(100)
+
+  @@index([assignmentUserId])
+  @@index([brandId, storeId])
+}
+
+model CourseAssignmentSequence {
+  dateKey   String @id @db.VarChar(8)
+  nextValue Int @default(1)
+  updatedAt DateTime @updatedAt
 }
 
 model CourseBrand {
@@ -958,6 +1038,9 @@ model CourseLearningProgress {
   course      Course    @relation(fields: [courseId], references: [id], onDelete: Restrict)
   userId      String    @db.VarChar(191)
   progress    Int       @default(0)
+  firstLearnedAt DateTime?
+  lastLearnedAt DateTime?
+  learnerRealNameSnapshot String? @db.VarChar(100)
   completedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -984,6 +1067,33 @@ model CourseSequence {
   dateKey   String   @id @db.VarChar(8)
   nextValue Int      @default(1)
   updatedAt DateTime @updatedAt
+}
+
+// One actual lesson-page entry, not one user/lesson aggregate. Snapshot IDs have
+// no live-course/user foreign key so historical visits survive later deletion.
+model CourseLessonVisit {
+  id                      String @id @db.VarChar(36)
+  userId                  String @db.VarChar(191)
+  courseId                String @db.VarChar(191)
+  lessonId                String? @db.VarChar(191)
+  channel                 String @db.VarChar(20)
+  courseRecordNoSnapshot  String @db.VarChar(12)
+  courseNameSnapshot      String @db.VarChar(100)
+  chapterNameSnapshot     String @db.VarChar(100)
+  learnerRealNameSnapshot String @db.VarChar(100)
+  status                  String @default("ACTIVE") @db.VarChar(20)
+  startedAt               DateTime?
+  lastActiveAt            DateTime?
+  endedAt                 DateTime?
+  endReason               String? @db.VarChar(30)
+  legacySourceKey         String? @unique @db.VarChar(191)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([courseId, userId, createdAt, id])
+  @@index([courseId, createdAt, id])
+  @@index([lessonId, userId])
+  @@index([status, lastActiveAt])
 }
 
 model CourseLessonSequence {

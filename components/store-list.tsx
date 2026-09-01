@@ -1,10 +1,10 @@
 "use client";
 
 import { PlusOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Divider, Drawer, Form, Input, message, Modal, Row, Select, Space, Tag } from "antd";
+import { Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Divider, Drawer, Form, Input, message, Modal, Row, Select, Space, Tag, type FormProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import districtData from "@/District/pca-code.json";
 import { DataTable } from "@/components/data-table";
 import { StatusTag } from "@/components/status-tag";
@@ -14,8 +14,8 @@ import { useBusinessDictionaries } from "@/hooks/use-business-dictionaries";
 type Brand = { id: string; name: string };
 type Contract = {
   id: string; recordNo: string; status: string; brandId: string; storeName: string; cooperationType: string;
-  province?: string; city?: string; district?: string; address?: string; trialOpenDate?: string;
-  ownerName: string; ownerPhone?: string; ownerIdNumber?: string;
+  province?: string | null; city?: string | null; district?: string | null; address?: string | null; trialOpenDate?: string | null;
+  ownerName: string; ownerPhone?: string | null; ownerIdNumber?: string | null;
 };
 type Store = {
   id: string; recordNo: string; contractId?: string; brandId: string; name: string; operationStatus: string; cooperationType: string;
@@ -45,6 +45,7 @@ function locationLabel(store: Pick<Store, "province" | "city" | "district">) { r
 function cooperationLabel(value: string) { return value === "DIRECT" ? "直营店" : "加盟店"; }
 
 export function StoreList() {
+  const [messageApi, messageContextHolder] = message.useMessage();
   const { options: dictionaries, loading: dictionariesLoading, error: dictionariesError, reload: reloadDictionaries } = useBusinessDictionaries(storeDictionaryCodes);
   const statusOptions = [{ value: "", label: "全部运营状态" }, ...(dictionaries.STORE_OPERATION_STATUS || [])];
   const cooperationOptions = [{ value: "", label: "全部合作类型" }, ...(dictionaries.COOPERATION_TYPE || [])];
@@ -59,6 +60,8 @@ export function StoreList() {
   const [editing, setEditing] = useState<Store | null>(null);
   const [selected, setSelected] = useState<Store | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [contractModalOpen, setContractModalOpen] = useState(false);
   const [contractRows, setContractRows] = useState<Contract[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
@@ -117,66 +120,82 @@ export function StoreList() {
   };
   const chooseContract = (contract: Contract) => {
     setSelectedContract(contract);
+    setSaveError(null);
     form.setFieldsValue({
       contractId: contract.id,
       brandId: contract.brandId,
       name: contract.storeName,
       cooperationType: contract.cooperationType,
       location: contract.province && contract.city && contract.district ? [contract.province, contract.city, contract.district] : undefined,
-      address: contract.address,
+      address: contract.address ?? "",
       trialOpenDate: contract.trialOpenDate ? dayjs(contract.trialOpenDate) : undefined,
       ownerName: contract.ownerName,
-      ownerPhone: contract.ownerPhone,
-      ownerIdNumber: contract.ownerIdNumber,
+      ownerPhone: contract.ownerPhone ?? "",
+      ownerIdNumber: contract.ownerIdNumber ?? "",
     });
     setContractModalOpen(false);
   };
-  const closeForm = () => { if (!saving) { setFormOpen(false); setEditing(null); setSelectedContract(null); setStaffPicker(null); form.resetFields(); } };
+  const closeForm = () => { if (!saving) { setFormOpen(false); setEditing(null); setSelectedContract(null); setStaffPicker(null); setSaveError(null); form.resetFields(); } };
   const openCreate = () => {
-    setEditing(null); setSelectedContract(null); form.resetFields();
+    setEditing(null); setSelectedContract(null); setSaveError(null); form.resetFields();
     form.setFieldsValue({ cooperationType: "FRANCHISE", operationStatus: "PREPARING" });
     setFormOpen(true);
   };
   const openEdit = (store: Store) => {
-    setEditing(store); setSelectedContract(store.contract || null);
+    setEditing(store); setSelectedContract(store.contract || null); setSaveError(null);
+    const trialOpenDate = store.contract ? store.contract.trialOpenDate : store.trialOpenDate;
     form.resetFields();
     form.setFieldsValue({
       ...store,
-      contractId: store.contractId,
+      contractId: store.contractId ?? "",
       brandId: store.contract?.brandId || store.brandId,
       name: store.contract?.storeName || store.name,
       cooperationType: store.contract?.cooperationType || store.cooperationType,
       location: store.contract
         ? (store.contract.province && store.contract.city && store.contract.district ? [store.contract.province, store.contract.city, store.contract.district] : undefined)
         : (store.province && store.city && store.district ? [store.province, store.city, store.district] : undefined),
-      address: store.contract?.address ?? store.address,
+      address: (store.contract ? store.contract.address : store.address) ?? "",
       startDate: store.startDate ? dayjs(store.startDate) : undefined,
       endDate: store.endDate ? dayjs(store.endDate) : undefined,
-      trialOpenDate: store.contract?.trialOpenDate ? dayjs(store.contract.trialOpenDate) : (store.trialOpenDate ? dayjs(store.trialOpenDate) : undefined),
+      trialOpenDate: trialOpenDate ? dayjs(trialOpenDate) : undefined,
       formalOpenDate: store.formalOpenDate ? dayjs(store.formalOpenDate) : undefined,
       ownerName: store.contract?.ownerName || store.ownerName,
-      ownerPhone: store.contract?.ownerPhone ?? store.ownerPhone,
-      ownerIdNumber: store.contract?.ownerIdNumber ?? store.ownerIdNumber,
+      ownerPhone: (store.contract ? store.contract.ownerPhone : store.ownerPhone) ?? "",
+      ownerIdNumber: (store.contract ? store.contract.ownerIdNumber : store.ownerIdNumber) ?? "",
     });
     setFormOpen(true);
   };
   const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    setSaveError(null);
     try {
       const values = await form.validateFields();
       const { location, startDate, endDate, trialOpenDate, formalOpenDate, ...rest } = values;
       const [province, city, district] = location?.length ? location : selectedContract ? [selectedContract.province, selectedContract.city, selectedContract.district] : [editing?.province, editing?.city, editing?.district];
-      setSaving(true);
       const response = await fetch(editing ? `/api/stores/${editing.id}` : "/api/stores", {
         method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...rest, province, city, district, startDate: startDate?.format("YYYY-MM-DD"), endDate: endDate?.format("YYYY-MM-DD"), trialOpenDate: trialOpenDate?.format("YYYY-MM-DD"), formalOpenDate: formalOpenDate?.format("YYYY-MM-DD") }),
       });
-      const data = await response.json();
-      if (!response.ok) { message.error(data.message || "保存失败，请稍后重试"); return; }
-      message.success(editing ? "门店档案已更新" : "门店档案已新增");
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || (response.status === 401 ? "登录状态已失效，请重新登录" : "保存失败，服务器暂时无法处理请求，请稍后重试"));
+      if (!data?.id) throw new Error("未收到保存结果，请刷新门店列表确认后再试");
+      messageApi.success(editing ? "门店档案已更新" : "门店档案已新增");
       setFormOpen(false); setEditing(null); setSelectedContract(null); form.resetFields(); await load();
     } catch (error) {
-      if (error instanceof Error) message.error("保存失败，请稍后重试");
-    } finally { setSaving(false); }
+      const validationError = error as Parameters<NonNullable<FormProps<StoreForm>["onFinishFailed"]>>[0] | null;
+      const firstInvalidField = validationError?.errorFields?.[0];
+      const errorMessage = firstInvalidField
+        ? firstInvalidField.errors[0] || "请检查并补全表单中的必填信息"
+        : error instanceof Error ? error.message : "保存失败，请稍后重试";
+      setSaveError(errorMessage);
+      messageApi.error(errorMessage);
+      if (firstInvalidField) form.scrollToField(firstInvalidField.name, { behavior: "smooth", block: "center" });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const columns: ColumnsType<Store> = [
@@ -194,6 +213,7 @@ export function StoreList() {
   ];
 
   return <>
+    {messageContextHolder}
     {dictionariesError && <Alert style={{ marginBottom: 16 }} type="error" showIcon message="门店数据字典加载失败" description={dictionariesError} action={<Button size="small" onClick={() => void reloadDictionaries()}>重新加载</Button>} />}
     <Card style={{ marginBottom: 16 }}>
       <Space wrap>
@@ -209,7 +229,7 @@ export function StoreList() {
     <Card extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增门店</Button>}>
       <DataTable rowKey="id" columns={columns} dataSource={rows} loading={loading} pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (total) => `共 ${total} 条` }} error={error} onRetry={() => void load()} />
     </Card>
-    <Drawer title={editing ? "编辑门店" : "新增门店"} width={920} open={formOpen} onClose={closeForm} destroyOnHidden maskClosable={!saving} extra={<Space><Button onClick={closeForm} disabled={saving}>取消</Button><Button type="primary" loading={saving} onClick={() => void save()}>保存</Button></Space>}>
+    <Drawer title={editing ? "编辑门店" : "新增门店"} width={920} open={formOpen} onClose={closeForm} destroyOnHidden maskClosable={!saving} footer={saveError ? <Alert type="error" showIcon message={saveError} /> : null} extra={<Space><Button onClick={closeForm} disabled={saving}>取消</Button><Button type="primary" loading={saving} onClick={() => void save()}>保存</Button></Space>}>
       <Form form={form} layout="vertical">
         <Form.Item name="contractId" hidden><Input /></Form.Item>
         <FormHeading title="基础信息" />

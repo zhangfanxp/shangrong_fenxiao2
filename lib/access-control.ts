@@ -24,7 +24,7 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (pathname.startsWith("/lead_pc/staff/")) return hasPermission(permissions, "staff:view");
   if (pathname === "/lead_pc/training/0") return hasPermission(permissions, "training:view") || anyPrefix(permissions, "daily-learning:");
   if (pathname === "/lead_pc/training/1") return hasPermission(permissions, "training:view") || anyPrefix(permissions, "courses:") || anyPrefix(permissions, "course-lessons:");
-  if (pathname === "/lead_pc/training/3") return hasPermission(permissions, "training:view") || anyPrefix(permissions, "courses:") || anyPrefix(permissions, "course-lessons:");
+  if (pathname === "/lead_pc/training/3") return hasPermission(permissions, ["training:view", "course-assignments:query"]);
   if (pathname.startsWith("/lead_pc/training/")) return hasPermission(permissions, "training:view");
   if (pathname === "/lead_pc/meetings/0") return hasPermission(permissions, "meetings:view") || anyPrefix(permissions, "monthly-online-meetings:");
   if (pathname === "/lead_pc/meetings/1") return hasPermission(permissions, "meetings:view") || anyPrefix(permissions, "mid-month-offline-meetings:");

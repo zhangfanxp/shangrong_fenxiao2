@@ -1,7 +1,10 @@
-import { CoursewareType, RecordStatus } from "@prisma/client";
+import { CoursewareType, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { CourseAssetMetadata } from "@/lib/course-r2";
 import { formatFileSize } from "@/lib/course-management";
+import { effectiveCourseAssignment } from "@/lib/course-assignment-rules";
+import { assignmentTransaction } from "@/lib/course-assignments";
+import { assertActiveLessonVisit, ownedLessonVisit } from "@/lib/lesson-learning-visits";
 
 export type MobileCourseChannel = "lead-h5" | "store-h5";
 
@@ -14,27 +17,34 @@ function assetPath(channel: MobileCourseChannel, values: Record<string, string>)
 function courseWhere(courseId: string, userId: string) {
   return {
     id: courseId,
-    status: RecordStatus.ENABLED,
+    status: "ENABLED",
     deletedAt: null,
-    assignments: { some: { userId } },
+    assignments: { some: effectiveCourseAssignment(userId) },
   } as const;
+}
+
+async function unavailableCourse(courseId: string, userId: string): Promise<never> {
+  const course = await db.course.findFirst({ where: { id: courseId, deletedAt: null, assignments: { some: { userId } } }, select: { status: true } });
+  if (course?.status === "ENABLED") throw new MobileCourseError("当前课程分配已停用，暂时无法继续学习。");
+  throw new MobileCourseError("课程不存在、已禁用、已删除或当前用户无权访问");
 }
 
 export async function mobileAssignedCourses(userId: string, channel: MobileCourseChannel) {
   const courses = await db.course.findMany({
-    where: { status: RecordStatus.ENABLED, deletedAt: null, assignments: { some: { userId } } },
+    where: { status: "ENABLED", deletedAt: null, assignments: { some: effectiveCourseAssignment(userId) } },
     select: {
       id: true,
       recordNo: true,
       courseName: true,
       courseDescription: true,
       applicablePosition: true,
+      status: true,
       lessons: {
         where: { deletedAt: null },
         select: { id: true, learningProgress: { where: { userId }, select: { completedAt: true } } },
       },
       learningProgress: { where: { userId }, select: { progress: true, completedAt: true } },
-      assignments: { where: { userId }, select: { createdAt: true }, take: 1 },
+      assignments: { where: effectiveCourseAssignment(userId), select: { createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
@@ -49,6 +59,7 @@ export async function mobileAssignedCourses(userId: string, channel: MobileCours
       courseName: course.courseName,
       courseDescription: course.courseDescription,
       applicablePosition: course.applicablePosition,
+      status: course.status,
       lessonCount,
       completedLessons,
       progress: Math.max(calculatedProgress, storedProgress),
@@ -68,6 +79,7 @@ export async function mobileAssignedCourseDetail(courseId: string, userId: strin
       courseName: true,
       courseDescription: true,
       applicablePosition: true,
+      status: true,
       brands: { select: { brandLabel: true }, orderBy: { brandLabel: "asc" } },
       lessons: {
         where: { deletedAt: null },
@@ -85,7 +97,7 @@ export async function mobileAssignedCourseDetail(courseId: string, userId: strin
       },
     },
   });
-  if (!course) throw new MobileCourseError("课程不存在、已停用或未分配给当前用户");
+  if (!course) return unavailableCourse(courseId, userId);
   const completedLessons = course.lessons.filter(lesson => Boolean(lesson.learningProgress[0]?.completedAt)).length;
   return {
     id: course.id,
@@ -93,6 +105,7 @@ export async function mobileAssignedCourseDetail(courseId: string, userId: strin
     courseName: course.courseName,
     courseDescription: course.courseDescription,
     applicablePosition: course.applicablePosition,
+    status: course.status,
     brands: course.brands.map(brand => brand.brandLabel),
     coverUrl: assetPath(channel, { courseId: course.id, kind: "cover" }),
     lessonCount: course.lessons.length,
@@ -132,7 +145,11 @@ export async function mobileAssignedLessonDetail(courseId: string, lessonId: str
       learningProgress: { where: { userId }, select: { progressSeconds: true, completedAt: true } },
     },
   });
-  if (!lesson?.course) throw new MobileCourseError("课时不存在或当前用户无权访问");
+  if (!lesson?.course) {
+    const accessible = await db.course.count({ where: courseWhere(courseId, userId) });
+    if (!accessible) return unavailableCourse(courseId, userId);
+    throw new MobileCourseError("课时不存在或当前用户无权访问");
+  }
   return {
     id: lesson.id,
     recordNo: lesson.recordNo,
@@ -175,7 +192,7 @@ export async function mobileCourseAsset(input: {
       coverDataUrl: true,
     },
   });
-  if (!course) throw new MobileCourseError("课程资源不存在或当前用户无权访问");
+  if (!course) return unavailableCourse(input.courseId, input.userId);
   if (!input.lessonId) {
     if (input.kind !== "cover") throw new MobileCourseError("课程资源参数不正确");
     if (course.coverR2StorageId && course.coverObjectKey && course.coverOriginalName && course.coverMimeType && course.coverSizeBytes) {
@@ -203,19 +220,27 @@ export function dataUrlResponse(dataUrl: string) {
 }
 
 export async function saveMobileLessonProgress(input: {
+  visitId: string;
+  channel: MobileCourseChannel;
   courseId: string;
   lessonId: string;
   userId: string;
   progressSeconds: number;
   completed: boolean;
 }) {
-  return db.$transaction(async tx => {
+  return assignmentTransaction(async tx => {
     const lesson = await tx.courseLesson.findFirst({
       where: { id: input.lessonId, courseId: input.courseId, deletedAt: null, course: courseWhere(input.courseId, input.userId) },
       select: { id: true, courseId: true },
     });
-    if (!lesson?.courseId) throw new MobileCourseError("课时不存在或当前用户无权访问");
+    if (!lesson?.courseId) throw new MobileCourseError("当前课程分配已停用或课时不可用，暂时无法继续学习。");
+    const visit = await ownedLessonVisit(tx, input);
+    assertActiveLessonVisit(visit);
     const previous = await tx.courseLessonProgress.findUnique({ where: { lessonId_userId: { lessonId: lesson.id, userId: input.userId } } });
+    const earliestLegacyLearning = await tx.courseLessonProgress.findFirst({
+      where: { userId: input.userId, lesson: { courseId: input.courseId }, OR: [{ progressSeconds: { gt: 0 } }, { completedAt: { not: null } }] },
+      orderBy: { createdAt: "asc" }, select: { createdAt: true },
+    });
     const completedAt = previous?.completedAt || (input.completed ? new Date() : null);
     const progressSeconds = Math.max(previous?.progressSeconds || 0, input.progressSeconds);
     const lessonProgress = await tx.courseLessonProgress.upsert({
@@ -231,16 +256,25 @@ export async function saveMobileLessonProgress(input: {
     const calculated = lessonCount ? Math.min(100, Math.round(completedLessons / lessonCount * 100)) : 0;
     const courseProgress = Math.max(previousCourseProgress?.progress || 0, calculated);
     const courseCompletedAt = previousCourseProgress?.completedAt || (lessonCount > 0 && completedLessons === lessonCount ? new Date() : null);
+    const validLearning = progressSeconds > 0 || Boolean(completedAt);
+    const now = new Date();
+    const learner = validLearning && !previousCourseProgress?.firstLearnedAt
+      ? await tx.user.findUnique({ where: { id: input.userId }, select: { realName: true } }) : null;
+    const learningMetadata = validLearning ? {
+      firstLearnedAt: previousCourseProgress?.firstLearnedAt || earliestLegacyLearning?.createdAt || (previousCourseProgress && (previousCourseProgress.progress > 0 || previousCourseProgress.completedAt) ? previousCourseProgress.createdAt : now),
+      lastLearnedAt: now,
+      learnerRealNameSnapshot: previousCourseProgress?.learnerRealNameSnapshot || learner?.realName,
+    } : {};
     await tx.courseLearningProgress.upsert({
       where: { courseId_userId: { courseId: input.courseId, userId: input.userId } },
-      create: { courseId: input.courseId, userId: input.userId, progress: courseProgress, completedAt: courseCompletedAt },
-      update: { progress: courseProgress, ...(courseCompletedAt ? { completedAt: courseCompletedAt } : {}) },
+      create: { courseId: input.courseId, userId: input.userId, progress: courseProgress, completedAt: courseCompletedAt, ...learningMetadata },
+      update: { progress: courseProgress, ...(courseCompletedAt ? { completedAt: courseCompletedAt } : {}), ...learningMetadata },
     });
+    await tx.courseLessonVisit.update({ where: { id: visit.id }, data: { lastActiveAt: now } });
     return { progressSeconds: lessonProgress.progressSeconds, completed: Boolean(lessonProgress.completedAt), newlyCompleted: !previous?.completedAt && Boolean(lessonProgress.completedAt), courseProgress };
-  });
+  }, Prisma.TransactionIsolationLevel.Serializable);
 }
 
 export function coursewareTypeText(type: CoursewareType) {
   return ({ VIDEO: "视频", AUDIO: "音频", PDF: "PDF文档", PPT: "PPT文档" } as const)[type];
 }
-

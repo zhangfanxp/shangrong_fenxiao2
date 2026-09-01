@@ -14,6 +14,7 @@ import { StoreResearchRecordList } from "@/components/store-research-record-list
 import { UserManagement } from "@/components/user-management";
 import { DailyLearningList } from "@/components/daily-learning-list";
 import { CourseManagement } from "@/components/course-management";
+import { CourseAssignmentList } from "@/components/course-assignment-list";
 import { getPlatformConfig } from "@/lib/platform-config";
 import { requirePageAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -26,7 +27,7 @@ const titles: Record<string, { title: string; description: string }> = {
   "notifications/publish": { title: "发布通知", description: "创建定时通知，指定接收用户并在发布日期 06:00 自动发布" },
   "training/0": { title: "每日学习", description: "按 ISO 周制定移动端每日学习计划，并跟踪学员完成情况" },
   "training/1": { title: "课程管理", description: "管理线上培训课程、课程课时及课件" },
-  "training/3": { title: "课程分配记录", description: "查询和管理培训课程的学员分配记录" },
+  "training/3": { title: "课程分配记录", description: "查询课程分配批次及学员学习情况" },
   "meetings/0": { title: "每月线上会", description: "查询和管理每月线上会议及实际参会情况" },
   "meetings/1": { title: "月中线下会", description: "查询和管理月中线下会议及实际参会情况" },
   "tasks/settings": { title: "任务设置", description: "管理每日、每周、每月及临时任务模板" }, "tasks/records": { title: "任务记录", description: "查看门店任务执行与完成情况" },
@@ -54,6 +55,7 @@ export default async function GenericPage({ params }: { params: Promise<{ sectio
   }
   if (key === "meetings/0") return <main className="page-wrap"><PageHeader {...meta} /><MonthlyOnlineMeetingList permissions={session.permissions} /></main>;
   if (key === "training/0") return <main className="page-wrap"><PageHeader {...meta} /><DailyLearningList permissions={session.permissions} /></main>;
+  if (key === "training/3") return <main className="page-wrap"><PageHeader {...meta} /><CourseAssignmentList permissions={session.permissions} /></main>;
   if (key === "training/1") {
     const platform = await getPlatformConfig();
     return <main className="page-wrap"><PageHeader {...meta} /><CourseManagement permissions={session.permissions} defaultCourseCover={platform.courseCoverDataUrl} defaultLessonCover={platform.lessonCoverDataUrl} /></main>;

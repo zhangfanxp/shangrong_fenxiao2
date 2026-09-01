@@ -1,12 +1,12 @@
 "use client";
 
 import { DeleteOutlined, DownloadOutlined, ExclamationCircleOutlined, MoreOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Checkbox, Col, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empty, Form, Input, InputNumber, message, Modal, Row, Select, Space, Table, Tag, Upload } from "antd";
-import type { FormInstance } from "antd";
+import { Alert, Button, Card, Checkbox, Col, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empty, Form, Input, InputNumber, message as antdMessage, Modal, Row, Select, Space, Table, Tag, Upload } from "antd";
+import type { FormInstance, FormProps } from "antd";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { UploadFile } from "antd/es/upload/interface";
 import dayjs, { type Dayjs } from "dayjs";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DataTable } from "@/components/data-table";
 import { StatusTag } from "@/components/status-tag";
 
@@ -25,6 +25,10 @@ const valueText = (value?: ReactNode) => value === undefined || value === null |
 const apiDate = (value?: Dayjs | null) => value ? value.format("YYYY-MM-DD") : undefined;
 
 export function PersonnelList({ permissions }: { permissions: string[] }) {
+  // Render notifications within the React tree (static message rendering does not support React 19).
+  const [message, messageContextHolder] = antdMessage.useMessage();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const saveInFlight = useRef(false);
   const all = permissions.includes("*"); const can = (action: string) => all || permissions.includes(`personnel:${action}`); const sensitive = can("sensitive");
   const [rows, setRows] = useState<Personnel[]>([]); const [total, setTotal] = useState(0); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10);
   const [filters, setFilters] = useState<Filters>(emptyFilters); const [applied, setApplied] = useState<Filters>(emptyFilters); const [loading, setLoading] = useState(true); const [error, setError] = useState(false);
@@ -34,8 +38,8 @@ export function PersonnelList({ permissions }: { permissions: string[] }) {
   const [importOpen, setImportOpen] = useState(false); const [importFiles, setImportFiles] = useState<UploadFile[]>([]); const [importing, setImporting] = useState(false); const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null); const [exporting, setExporting] = useState(false);
 
   const paramsFor = useCallback((source: Filters, nextPage: number, nextSize: number) => { const p = new URLSearchParams({ page: String(nextPage), pageSize: String(nextSize) }); (["name", "phone", "idNumber", "organization", "status"] as const).forEach(key => source[key] && p.set(key, source[key].trim())); if (source.startDate) p.set("startDate", source.startDate.format("YYYY-MM-DD")); if (source.endDate) p.set("endDate", source.endDate.format("YYYY-MM-DD")); return p; }, []);
-  const load = useCallback(async (source = applied, nextPage = page, nextSize = pageSize) => { setLoading(true); setError(false); try { const response = await fetch(`/api/personnel?${paramsFor(source, nextPage, nextSize)}`); const result = await response.json(); if (!response.ok) throw new Error(result.message); setRows(result.rows); setTotal(result.total); setPage(result.page); setPageSize(result.pageSize); } catch (e) { setError(true); message.error(e instanceof Error ? e.message : "人员档案加载失败，请稍后重试"); } finally { setLoading(false); } }, [applied, page, pageSize, paramsFor]);
-  const loadOptions = useCallback(async () => { setOptionsError(false); try { const response = await fetch("/api/personnel/options"); const result = await response.json(); if (!response.ok) throw new Error(result.message); setOptions(result); } catch { setOptionsError(true); message.error("人员数据字典、门店或平台用户数据加载失败，请稍后重试"); } }, []);
+  const load = useCallback(async (source = applied, nextPage = page, nextSize = pageSize) => { setLoading(true); setError(false); try { const response = await fetch(`/api/personnel?${paramsFor(source, nextPage, nextSize)}`); const result = await response.json(); if (!response.ok) throw new Error(result.message); setRows(result.rows); setTotal(result.total); setPage(result.page); setPageSize(result.pageSize); } catch (e) { setError(true); message.error(e instanceof Error ? e.message : "人员档案加载失败，请稍后重试"); } finally { setLoading(false); } }, [applied, page, pageSize, paramsFor, message]);
+  const loadOptions = useCallback(async () => { setOptionsError(false); try { const response = await fetch("/api/personnel/options"); const result = await response.json(); if (!response.ok) throw new Error(result.message); setOptions(result); } catch { setOptionsError(true); message.error("人员数据字典、门店或平台用户数据加载失败，请稍后重试"); } }, [message]);
   useEffect(() => { void load(emptyFilters, 1, 10); void loadOptions(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyFilter = () => { if (filters.startDate && filters.endDate && filters.startDate.isAfter(filters.endDate, "day")) { message.error("入职开始日期不能晚于入职截止日期"); return; } const next = { ...filters, name: filters.name.trim(), phone: filters.phone.trim(), idNumber: filters.idNumber.trim() }; setApplied(next); setSelectedKeys([]); void load(next, 1, pageSize); };
@@ -46,12 +50,43 @@ export function PersonnelList({ permissions }: { permissions: string[] }) {
   const selectedStoreBrand = options.stores.find(item => item.id === watchedStoreId)?.brand.name;
   const configuredWorkdayHours = selectedStoreBrand && Object.prototype.hasOwnProperty.call(options.brandDayHours, selectedStoreBrand) ? options.brandDayHours[selectedStoreBrand] : undefined;
 
-  const openCreate = () => { setEditing(null); setManualExpiry(false); setFormDirty(false); setDiscardOpen(false); form.resetFields(); form.setFieldsValue({ status: "ACTIVE", contractYears: 5 }); setDrawerOpen(true); };
+  const openCreate = () => { setSaveError(null); setEditing(null); setManualExpiry(false); setFormDirty(false); setDiscardOpen(false); form.resetFields(); form.setFieldsValue({ status: "ACTIVE", contractYears: 5 }); setDrawerOpen(true); };
   const openEdit = async (summary: Personnel) => { try { const response = await fetch(`/api/personnel/${summary.id}?mode=edit`); const result = await response.json(); if (!response.ok) throw new Error(result.message); const row = result as Personnel; const configuredHours = options.brandDayHours[row.store.brand.name]; setEditing(row); setManualExpiry(!row.contractYears); setFormDirty(false); setDiscardOpen(false); form.setFieldsValue({ ...row, birthday: row.birthday ? dayjs(`2000-${row.birthday}`) : undefined, hireDate: dayjs(row.hireDate), contractSignDate: dayjs(row.contractSignDate), contractExpiryDate: dayjs(row.contractExpiryDate), resignationDate: row.resignationDate ? dayjs(row.resignationDate) : undefined, baseSalary: Number(row.baseSalary), laborCost: Number(row.laborCost), workdayHours: configuredHours ?? (row.workdayHours === null || row.workdayHours === undefined ? undefined : Number(row.workdayHours)), status: "ACTIVE" }); setDrawerOpen(true); } catch (e) { message.error(e instanceof Error ? e.message : "人员档案加载失败"); } };
   const openDetail = async (summary: Personnel) => { try { const response = await fetch(`/api/personnel/${summary.id}`); const result = await response.json(); if (!response.ok) throw new Error(result.message); setDetail(result); } catch (e) { message.error(e instanceof Error ? e.message : "人员档案加载失败"); } };
-  const discardAndClose = () => { setDiscardOpen(false); setDrawerOpen(false); setFormDirty(false); form.resetFields(); };
-  const closeDrawer = () => { if (saving) return; if (formDirty) setDiscardOpen(true); else discardAndClose(); };
-  const save = async () => { try { const values = await form.validateFields(); setSaving(true); const payload = { ...values, birthday: values.birthday?.format("MM-DD") || null, hireDate: apiDate(values.hireDate), contractSignDate: apiDate(values.contractSignDate), contractExpiryDate: apiDate(values.contractExpiryDate), contractYears: values.contractYears ?? null, version: editing?.version }; const response = await fetch(editing ? `/api/personnel/${editing.id}` : "/api/personnel", { method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); const result = await response.json(); if (!response.ok) throw new Error(result.message); message.success(editing ? "人员档案保存成功" : "人员档案新增成功"); setDrawerOpen(false); setFormDirty(false); form.resetFields(); await load(); await loadOptions(); } catch (e) { if (e instanceof Error) message.error(e.message); } finally { setSaving(false); } };
+  const discardAndClose = () => { setSaveError(null); setDiscardOpen(false); setDrawerOpen(false); setFormDirty(false); form.resetFields(); };
+  const closeDrawer = () => { if (saveInFlight.current) return; if (formDirty) setDiscardOpen(true); else discardAndClose(); };
+  const onSaveFailed: FormProps<PersonnelForm>["onFinishFailed"] = ({ errorFields }) => {
+    if (saveInFlight.current) return;
+    const reason = errorFields[0]?.errors[0] || "请检查表单内容后重新保存";
+    setSaveError(reason);
+    message.error({ key: "personnel-save", content: reason });
+  };
+  const save = async (values: PersonnelForm) => {
+    if (saveInFlight.current) return;
+    saveInFlight.current = true;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const payload = { ...values, birthday: values.birthday?.format("MM-DD") || null, hireDate: apiDate(values.hireDate), contractSignDate: apiDate(values.contractSignDate), contractExpiryDate: apiDate(values.contractExpiryDate), contractYears: values.contractYears ?? null, version: editing?.version };
+      const response = await fetch(editing ? `/api/personnel/${editing.id}` : "/api/personnel", { method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(typeof result?.message === "string" && result.message ? result.message : "保存失败，请稍后重试");
+      if (!result?.id) throw new Error("保存结果异常，请刷新列表确认是否已保存");
+      message.success({ key: "personnel-save", content: editing ? "人员档案保存成功" : "人员档案新增成功" });
+      setDrawerOpen(false);
+      setFormDirty(false);
+      form.resetFields();
+      await load();
+      await loadOptions();
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : "保存失败，请检查网络后重试";
+      setSaveError(reason);
+      message.error({ key: "personnel-save", content: reason });
+    } finally {
+      saveInFlight.current = false;
+      setSaving(false);
+    }
+  };
   const onFormChange = (changed: Partial<PersonnelForm>, values: PersonnelForm) => { setFormDirty(true); if (changed.contractYears && values.contractSignDate) { setManualExpiry(false); form.setFieldValue("contractExpiryDate", values.contractSignDate.add(changed.contractYears, "year")); } if (changed.contractSignDate && values.contractYears && !manualExpiry) form.setFieldValue("contractExpiryDate", changed.contractSignDate.add(values.contractYears, "year")); if (changed.platformAccess === "NO") form.setFieldValue("platformUserId", undefined); if (changed.organization) { form.setFieldValue("storeId", undefined); form.setFieldValue("workdayHours", undefined); } if (changed.storeId) { const brand = options.stores.find(item => item.id === changed.storeId)?.brand.name; const configuredHours = brand && Object.prototype.hasOwnProperty.call(options.brandDayHours, brand) ? options.brandDayHours[brand] : undefined; form.setFieldValue("workdayHours", configuredHours); } };
 
   const openAction = (kind: "salary" | "position" | "resign" | "issues", row: Personnel) => { setAction({ kind, row }); actionForm.resetFields(); if (kind === "salary") actionForm.setFieldsValue({ effectiveDate: dayjs() }); if (kind === "position") actionForm.setFieldsValue({ organization: row.organization, storeId: row.storeId, positionLevel: row.positionLevel, effectiveDate: dayjs() }); if (kind === "resign") actionForm.setFieldsValue({ resignationDate: dayjs(), disablePlatformUser: true }); if (kind === "issues") void fetch(`/api/personnel/${row.id}/issue-records`); };
@@ -67,14 +102,15 @@ export function PersonnelList({ permissions }: { permissions: string[] }) {
   const pagination: TablePaginationConfig = { current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: count => `共 ${count} 条`, onChange: (nextPage, nextSize) => void load(applied, nextPage, nextSize) };
 
   return <>
+    {messageContextHolder}
     {optionsError && <Alert style={{ marginBottom: 16 }} type="warning" showIcon message="部分选项加载失败" description="人员状态、岗位星级、社保情况、门店或平台用户暂不可用，请重新加载后再新增或编辑。" action={<Button size="small" onClick={() => void loadOptions()}>重新加载</Button>} />}
     <Card className="personnel-filter-card" style={{ marginBottom: 16 }}><div className="personnel-filter-grid"><Input placeholder="请输入姓名" value={filters.name} onChange={e => setFilters({ ...filters, name: e.target.value })} onPressEnter={applyFilter} /><Input placeholder="请输入手机号" value={filters.phone} maxLength={11} onChange={e => setFilters({ ...filters, phone: e.target.value.replace(/\D/g, "") })} onPressEnter={applyFilter} /><Input placeholder="请输入身份证号码" value={filters.idNumber} maxLength={18} onChange={e => setFilters({ ...filters, idNumber: e.target.value.toUpperCase() })} onPressEnter={applyFilter} /><DatePicker placeholder="入职开始日期" value={filters.startDate} onChange={value => setFilters({ ...filters, startDate: value })} /><DatePicker placeholder="入职截止日期" value={filters.endDate} onChange={value => setFilters({ ...filters, endDate: value })} /><Select value={filters.organization} options={[{ value: "", label: "全部人员归属" }, ...options.organizations.map(value => ({ value, label: value }))]} onChange={organization => setFilters({ ...filters, organization })} /><Select value={filters.status} options={[{ value: "", label: "全部人员状态" }, ...options.personnelStatuses]} onChange={status => setFilters({ ...filters, status })} /><Space><Button onClick={reset}>重置</Button><Button type="primary" onClick={applyFilter}>筛选</Button></Space></div></Card>
     <Card title={selectedKeys.length ? <span>人员记录 <Tag color="blue">已选择 {selectedKeys.length} 条</Tag></span> : "人员记录"} extra={<Space><Button icon={<UploadOutlined />} disabled={!can("import")} onClick={() => { setImportOpen(true); setImportResult(null); }}>批量导入</Button><Button icon={<DownloadOutlined />} loading={exporting} disabled={!can("export")} onClick={() => void exportRows()}>批量导出</Button><Button type="primary" icon={<PlusOutlined />} disabled={!can("create") || optionsError} onClick={openCreate}>新增人员</Button></Space>}>
       <DataTable<Personnel> rowKey="id" columns={columns} dataSource={rows} loading={loading} error={error} onRetry={() => void load()} pagination={pagination} rowSelection={{ selectedRowKeys: selectedKeys, preserveSelectedRowKeys: true, onChange: setSelectedKeys }} scroll={{ x: 1050 }} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={Object.values(applied).some(Boolean) ? "没有找到符合当前条件的人员档案" : "当前还没有人员档案记录"}>{Object.values(applied).some(Boolean) ? <Button onClick={reset}>重置筛选</Button> : can("create") ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增人员</Button> : null}</Empty> }} />
     </Card>
 
-    <Drawer title={editing ? "编辑人员档案" : "新增人员档案"} width={1120} open={drawerOpen} onClose={closeDrawer} destroyOnHidden maskClosable={!saving} extra={<Space><Button onClick={closeDrawer} disabled={saving}>取消</Button><Button type="primary" loading={saving} onClick={() => void save()}>保存</Button></Space>}>
-      <Form form={form} layout="vertical" onValuesChange={onFormChange} requiredMark>
+    <Drawer title={editing ? "编辑人员档案" : "新增人员档案"} width={1120} open={drawerOpen} onClose={closeDrawer} destroyOnHidden maskClosable={!saving} extra={<Space><Button onClick={closeDrawer} disabled={saving}>取消</Button><Button type="primary" loading={saving} onClick={() => form.submit()}>保存</Button></Space>} footer={saveError ? <Alert type="error" showIcon role="alert" message="人员档案未保存" description={saveError} /> : null}>
+      <Form name="personnel-editor" form={form} layout="vertical" disabled={saving} onValuesChange={(changed, values) => { setSaveError(null); onFormChange(changed, values); }} onFinish={save} onFinishFailed={onSaveFailed} scrollToFirstError={{ behavior: "smooth", block: "center", focus: true }} requiredMark>
         <FormHeading title="基础信息" /><Row gutter={16}>{editing && <FormField span={6} label="记录编号" name="recordNo"><Input disabled value={editing.recordNo} /></FormField>}<FormField span={6} label="姓名" name="name" required rules={[{ required: true, message: "请输入姓名" }, { max: 8, message: "姓名不能超过8个汉字" }]}><Input maxLength={8} placeholder="请输入姓名" /></FormField><FormField span={6} label="手机号" name="phone" required rules={[{ required: true, message: "请输入手机号" }, { pattern: /^1\d{10}$/, message: "请输入正确的11位手机号" }]}><Input maxLength={11} placeholder="请输入11位手机号" /></FormField><FormField span={6} label="身份证" name="idNumber" required rules={[{ required: true, message: "请输入身份证号码" }, { pattern: /^\d{17}[\dXx]$/, message: "请输入正确的身份证号码" }]}><Input maxLength={18} placeholder="请输入身份证号码" /></FormField><FormField span={6} label="员工生日" name="birthday"><DatePicker picker="date" format="MM-DD" placeholder="选择月、日" style={{ width: "100%" }} /></FormField><FormField span={6} label="人员状态" name="status" required><Select disabled options={options.personnelStatuses} /></FormField></Row>
         <FormHeading title="任职信息" /><Row gutter={16}><FormField span={6} label="入职时间" name="hireDate" required><DatePicker style={{ width: "100%" }} /></FormField><FormField span={6} label="所属岗位星级" name="positionLevel" required><Select placeholder="请选择" options={options.positions.map(item => ({ value: item.label, label: item.label }))} /></FormField><FormField span={6} label="人员归属" name="organization" required><Select placeholder="请选择" options={options.organizations.map(value => ({ value, label: value }))} /></FormField><FormField span={6} label="部门/店面" name="storeId" required><Select showSearch optionFilterProp="label" placeholder="请选择有效门店" options={filteredStores.map(item => ({ value: item.id, label: `${item.name}（${item.brand.name}）` }))} /></FormField><FormField span={6} label="离职日期" name="resignationDate"><DatePicker disabled placeholder="由离职流程产生" style={{ width: "100%" }} /></FormField></Row>
         <FormHeading title="合同信息" /><Row gutter={16}><FormField span={8} label="合同签署日期" name="contractSignDate" required><DatePicker style={{ width: "100%" }} /></FormField><FormField span={8} label="合同年限" name="contractYears" required={!manualExpiry}><InputNumber min={1} max={50} suffix="年" style={{ width: "100%" }} placeholder={manualExpiry ? "手工到期日模式下可为空" : "请输入合同年限"} /></FormField><FormField span={8} label="合同到期日" name="contractExpiryDate" required rules={[{ required: true, message: "请选择合同到期日" }, ({ getFieldValue }: { getFieldValue: (name: string) => Dayjs | undefined }) => ({ validator(_: unknown, value?: Dayjs) { const start = getFieldValue("contractSignDate"); return !value || !start || !value.isBefore(start, "day") ? Promise.resolve() : Promise.reject(new Error("合同到期日不能早于合同签署日期")); } })]}><DatePicker style={{ width: "100%" }} onChange={() => { setManualExpiry(true); form.setFieldValue("contractYears", null); }} /></FormField></Row>

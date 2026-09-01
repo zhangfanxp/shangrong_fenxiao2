@@ -4,6 +4,7 @@ import { requireApiSession } from "@/lib/auth";
 import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
 import { courseCan } from "@/lib/course-management";
 import { db } from "@/lib/db";
+import { assignmentAccess, assignmentSelectableUserScope } from "@/lib/course-assignment-scope";
 
 const userSelect = {
   id: true, realName: true, username: true, phone: true, tags: true, status: true,
@@ -20,7 +21,7 @@ function exactTagFilter(tag: string): Prisma.UserWhereInput {
 export async function GET(request: Request) {
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!courseCan(session, "query")) return NextResponse.json({ message: "暂无课程分配权限" }, { status: 403 });
+  if (!courseCan(session, "edit")) return NextResponse.json({ message: "暂无课程分配权限" }, { status: 403 });
 
   const url = new URL(request.url);
   const brand = (url.searchParams.get("brand") || "").trim();
@@ -33,15 +34,16 @@ export async function GET(request: Request) {
   const pageSize = Math.min(100, Math.max(10, Number(url.searchParams.get("pageSize")) || 10));
 
   try {
+    const userScope = await assignmentSelectableUserScope(await assignmentAccess(session));
     const [brandOptions, roles, tagRows] = await Promise.all([
       getBusinessDictionaryOptions("BRAND"),
       db.role.findMany({ orderBy: [{ type: "asc" }, { name: "asc" }], select: { id: true, name: true, status: true } }),
-      db.user.findMany({ where: { tags: { not: null } }, select: { tags: true } }),
+      db.user.findMany({ where: { AND: [userScope, { tags: { not: null } }] }, select: { tags: true } }),
     ]);
     const tags = [...new Set(tagRows.flatMap(row => row.tags?.split("|").map(item => item.trim()).filter(Boolean) || []))]
       .sort((left, right) => left.localeCompare(right, "zh-CN"));
 
-    const filters: Prisma.UserWhereInput[] = [];
+    const filters: Prisma.UserWhereInput[] = [userScope];
     if (roleId) filters.push({ roleId });
     if (tag) filters.push(exactTagFilter(tag));
     if (username) filters.push({ OR: [{ realName: { contains: username } }, { username: { contains: username } }] });
