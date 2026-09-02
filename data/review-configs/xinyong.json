@@ -1,0 +1,172 @@
+{
+  "recordNo": "202609020001",
+  "reviewName": "门店信用评分",
+  "assessmentType": "门店信用评分",
+  "scoreMode": "CUSTOM_SCORE",
+  "scoreModeLabel": "允许自定义得分",
+  "applicableBrands": [
+    "奋小二",
+    "蚝家伙",
+    "禾穆婆"
+  ],
+  "photoStorage": {
+    "id": "cmt0xbey80005tncek1xtase8",
+    "name": "R2-test"
+  },
+  "photoAttachmentLimit": 3,
+  "detailFormat": "CREDIT",
+  "configVersion": 1,
+  "totalScore": 22,
+  "statistics": {
+    "sectionCount": 4,
+    "subsectionCount": 4,
+    "itemCount": 15
+  },
+  "sections": [
+    {
+      "name": "食品安全",
+      "children": [
+        {
+          "name": "违约项目",
+          "items": [
+            {
+              "id": "item_1",
+              "description": "售卖不符合售卖条件的产品（变质菜品等）",
+              "breachAmount": "500",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_2",
+              "description": "原材料过期变质，私自勾兑酱包、粉包，使用非公司指定物资物料的",
+              "breachAmount": "500",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_3",
+              "description": "后厨操作区域不得存放药品（医药箱专人管理，库房存放）；餐厅内任何地方禁止存放使用火碱、硫酸等化学物品",
+              "breachAmount": "500",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_4",
+              "description": "餐厅内有老鼠粪便、蟑螂等四害等（包括活体、尸体及排泄物）影响食品安全的",
+              "breachAmount": "500",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "财务管理",
+      "children": [
+        {
+          "name": "违约项目",
+          "items": [
+            {
+              "id": "item_5",
+              "description": "未经公司允许自私串货、倒货的",
+              "breachAmount": "500",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_6",
+              "description": "未按公司财务规定其他事宜的",
+              "breachAmount": "300",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_7",
+              "description": "财务数据造假，未按真实数据提报汇总的",
+              "breachAmount": "300",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "执行标准",
+      "children": [
+        {
+          "name": "违约项目",
+          "items": [
+            {
+              "id": "item_8",
+              "description": "100%执行工艺流程和操作标准（如：标准化操作流程，预制产品品质。餐中出品）",
+              "breachAmount": "500",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_9",
+              "description": "未经公司允许不得私自下架公司产品以及售卖不属于公司产品的行为",
+              "breachAmount": "500",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_10",
+              "description": "门店未采购使用公司必采物资食品原材料内容的",
+              "breachAmount": "500",
+              "maxScore": 2,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "VI统一",
+      "children": [
+        {
+          "name": "违约项目",
+          "items": [
+            {
+              "id": "item_11",
+              "description": "公司下发的整改通知书或整改项目拒不履行的",
+              "breachAmount": "500",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_12",
+              "description": "不按公司要求执行活动或参加活动的",
+              "breachAmount": "200",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_13",
+              "description": "未按要求使用公司物资、物料、宣传品、包装品的",
+              "breachAmount": "200",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_14",
+              "description": "未经甲方许可私自印制公司商标、商号",
+              "breachAmount": "200",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_15",
+              "description": "未按公司统一要求工装",
+              "breachAmount": "200",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

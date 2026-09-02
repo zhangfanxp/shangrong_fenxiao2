@@ -21,19 +21,19 @@ type Store = {
   id: string; recordNo: string; contractId?: string; brandId: string; name: string; operationStatus: string; cooperationType: string;
   region?: string; supervisorName?: string; province?: string; city?: string; district?: string; address?: string;
   startDate?: string; endDate?: string; businessDistrict?: string; locationType?: string; trialOpenDate?: string;
-  formalOpenDate?: string; managerName?: string; chefName?: string; ownerName?: string; ownerPhone?: string;
+  formalOpenDate?: string; managerUserId?: string; managerName?: string; chefName?: string; ownerName?: string; ownerPhone?: string;
   ownerIdNumber?: string; createdAt: string; brand: Brand; contract?: Contract;
 };
 type Filters = { keyword: string; status: string; brandId: string; cooperationType: string; city: string; dates: [Dayjs | null, Dayjs | null] | null };
 type StoreForm = {
   contractId?: string; brandId: string; name: string; cooperationType: string; operationStatus: string; region?: string; supervisorName?: string;
   location?: string[]; address?: string; startDate?: Dayjs; endDate?: Dayjs; businessDistrict?: string; locationType?: string;
-  trialOpenDate?: Dayjs; formalOpenDate?: Dayjs; managerName?: string; chefName?: string; ownerName?: string;
+  trialOpenDate?: Dayjs; formalOpenDate?: Dayjs; managerUserId?: string; managerName?: string; chefName?: string; ownerName?: string;
   ownerPhone?: string; ownerIdNumber?: string;
 };
 type StaffRole = "supervisor" | "manager" | "chef";
 type StaffMember = { id: string; realName: string; phone?: string | null; tags?: string | null };
-type StaffPicker = { role: StaffRole; title: string; field: "supervisorName" | "managerName" | "chefName" };
+type StaffPicker = { role: StaffRole; title: string; field: "supervisorName" | "managerName" | "chefName"; idField?: "managerUserId" };
 type DistrictNode = { code: string; name: string; children?: DistrictNode[] };
 
 const storeDictionaryCodes = ["BRAND", "COOPERATION_TYPE", "STORE_OPERATION_STATUS", "STORE_AREA", "LOCATION_TYPE"];
@@ -116,6 +116,7 @@ export function StoreList() {
   const chooseStaff = (staff: StaffMember) => {
     if (!staffPicker) return;
     form.setFieldValue(staffPicker.field, staff.realName);
+    if (staffPicker.idField) form.setFieldValue(staffPicker.idField, staff.id);
     setStaffPicker(null);
   };
   const chooseContract = (contract: Contract) => {
@@ -232,6 +233,7 @@ export function StoreList() {
     <Drawer title={editing ? "编辑门店" : "新增门店"} width={920} open={formOpen} onClose={closeForm} destroyOnHidden maskClosable={!saving} footer={saveError ? <Alert type="error" showIcon message={saveError} /> : null} extra={<Space><Button onClick={closeForm} disabled={saving}>取消</Button><Button type="primary" loading={saving} onClick={() => void save()}>保存</Button></Space>}>
       <Form form={form} layout="vertical">
         <Form.Item name="contractId" hidden><Input /></Form.Item>
+        <Form.Item name="managerUserId" hidden><Input /></Form.Item>
         <FormHeading title="基础信息" />
         <Row gutter={16}><Col span={24}><Form.Item label="关联合同"><Space wrap><Button onClick={openContractModal}>选择合同</Button>{selectedContract ? <span>当前关联合同：{selectedContract.recordNo}</span> : <span className="store-form-hint">未关联合同，可直接维护门店档案。</span>}</Space></Form.Item></Col></Row>
         <Row gutter={16}><FormItem span={8} label="品牌" name="brandId" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} placeholder="请选择品牌" options={brands.map((brand) => ({ value: brand.id, label: brand.name }))} /></FormItem><FormItem span={8} label="门店名称" name="name" required><Input disabled={!!selectedContract} maxLength={60} placeholder="请输入门店名称" /></FormItem><FormItem span={8} label="合作类型" name="cooperationType" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} options={cooperationOptions.filter((option) => option.value)} /></FormItem></Row>
@@ -243,7 +245,7 @@ export function StoreList() {
         <FormHeading title="经营周期" />
         <Row gutter={16}><FormItem span={6} label="筹备开始日期" name="startDate"><DatePicker style={{ width: "100%" }} /></FormItem><FormItem span={6} label="筹备结束日期" name="endDate"><DatePicker style={{ width: "100%" }} /></FormItem><FormItem span={6} label="试营业日期" name="trialOpenDate"><DatePicker disabled={!!selectedContract} style={{ width: "100%" }} /></FormItem><FormItem span={6} label="正式营业日期" name="formalOpenDate"><DatePicker style={{ width: "100%" }} /></FormItem></Row>
         <FormHeading title="人员与业主信息" />
-        <Row gutter={16}><FormItem span={8} label="店长" name="managerName"><Input readOnly placeholder="请选择店长" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "manager", title: "店长", field: "managerName" })}>选择</Button>} /></FormItem><FormItem span={8} label="厨师长" name="chefName"><Input readOnly placeholder="请选择厨师长" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "chef", title: "厨师长", field: "chefName" })}>选择</Button>} /></FormItem><FormItem span={8} label="业主姓名" name="ownerName"><Input disabled={!!selectedContract} maxLength={30} /></FormItem></Row>
+        <Row gutter={16}><FormItem span={8} label="店长" name="managerName"><Input readOnly placeholder="请选择店长" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "manager", title: "店长", field: "managerName", idField: "managerUserId" })}>选择</Button>} /></FormItem><FormItem span={8} label="厨师长" name="chefName"><Input readOnly placeholder="请选择厨师长" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "chef", title: "厨师长", field: "chefName" })}>选择</Button>} /></FormItem><FormItem span={8} label="业主姓名" name="ownerName"><Input disabled={!!selectedContract} maxLength={30} /></FormItem></Row>
         <Row gutter={16}><FormItem span={8} label="业主联系电话" name="ownerPhone" rules={[{ pattern: /^$|^1\d{10}$/, message: "请输入正确的 11 位手机号码" }]}><Input disabled={!!selectedContract} maxLength={11} /></FormItem><FormItem span={8} label="业主身份证号" name="ownerIdNumber"><Input disabled={!!selectedContract} maxLength={30} /></FormItem></Row>
       </Form>
     </Drawer>

@@ -47,6 +47,7 @@ export type StoreReviewFilters = {
   startDate?: string;
   endDate?: string;
   reviewerUserId?: string;
+  reviewerName?: string;
 };
 
 export function validDate(value: string | undefined) {
@@ -54,13 +55,14 @@ export function validDate(value: string | undefined) {
 }
 
 export function storeReviewFilterWhere(filters: StoreReviewFilters): Prisma.LeadH5ReviewWhereInput {
-  const where: Prisma.LeadH5ReviewWhereInput = {};
-  if (filters.brand) where.OR = [{ brandId: filters.brand }, { brandNameSnapshot: filters.brand }];
+  const where: Prisma.LeadH5ReviewWhereInput = { reviewType: { in: ["FRONT_HALL_AUDIT", "BACK_KITCHEN_AUDIT"] } };
+  if (filters.brand) where.OR = [{ brandId: filters.brand }, { brandCodeSnapshot: filters.brand }, { brandNameSnapshot: filters.brand }];
   if (filters.storeId) where.storeId = filters.storeId;
   if (filters.assessmentType) {
     where.AND = [{ OR: [{ reviewType: filters.assessmentType }, { assessmentName: filters.assessmentType }] }];
   }
   if (filters.reviewerUserId) where.reviewerUserId = filters.reviewerUserId;
+  if (filters.reviewerName) where.reviewerRealName = { contains: filters.reviewerName };
   if (filters.startDate || filters.endDate) {
     where.assessmentDate = {
       ...(filters.startDate ? { gte: new Date(`${filters.startDate}T00:00:00+08:00`) } : {}),
@@ -79,6 +81,7 @@ export function readStoreReviewFilters(search: URLSearchParams): StoreReviewFilt
     startDate: read("startDate"),
     endDate: read("endDate"),
     reviewerUserId: read("reviewerUserId"),
+    reviewerName: read("reviewerName"),
   };
 }
 

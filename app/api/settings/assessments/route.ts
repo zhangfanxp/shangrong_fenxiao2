@@ -17,6 +17,8 @@ const assessmentSchema = z.object({
   scoreMode: z.nativeEnum(AssessmentScoreMode, { message: "请选择评分模式" }),
   configFileBase: z.string().trim().min(1, "请输入考核明细配置文件名"),
   applicableBrands: z.array(z.string().trim().min(1)).default([]),
+  r2StorageId: z.string().trim().min(1, "请选择存储空间"),
+  photoAttachmentLimit: z.number().int().min(1, "拍照附件数量不能少于1").max(20, "拍照附件数量不能超过20"),
   detailText: z.string().min(1, "请输入考核明细项"),
   remark: z.string().trim().refine(value => Array.from(value).length <= 50, "备注不能超过50个汉字").optional().default(""),
 });
@@ -34,7 +36,7 @@ async function nextRecordNo() {
   const sequence = last ? Number(last.recordNo.slice(8)) + 1 : 1;
   return `${prefix}${String(sequence).padStart(4, "0")}`;
 }
-function buildConfig(input: z.infer<typeof assessmentSchema>, recordNo: string, version: number, parsed: ReturnType<typeof parseAssessmentDetails>) {
+function buildConfig(input: z.infer<typeof assessmentSchema>, recordNo: string, version: number, parsed: ReturnType<typeof parseAssessmentDetails>, storage: { id: string; name: string }) {
   return {
     recordNo,
     reviewName: input.name,
@@ -42,6 +44,9 @@ function buildConfig(input: z.infer<typeof assessmentSchema>, recordNo: string, 
     scoreMode: input.scoreMode,
     scoreModeLabel: scoreModeLabel(input.scoreMode),
     applicableBrands: input.applicableBrands,
+    photoStorage: storage,
+    photoAttachmentLimit: input.photoAttachmentLimit,
+    detailFormat: parsed.detailFormat,
     configVersion: version,
     totalScore: parsed.totalScore,
     statistics: { sectionCount: parsed.sectionCount, subsectionCount: parsed.subsectionCount, itemCount: parsed.itemCount },
@@ -62,7 +67,7 @@ export async function GET(request: Request) {
   try {
     const [total, rows] = await db.$transaction([
       db.assessment.count({ where }),
-      db.assessment.findMany({ where, include: { createdBy: { select: { realName: true } }, _count: { select: { records: true } } }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+      db.assessment.findMany({ where, include: { createdBy: { select: { realName: true } }, r2Storage: { select: { id: true, name: true, status: true } }, _count: { select: { records: true } } }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
     ]);
     await writeOperationLog({ userId: session.userId, username: session.username, page: "考核表格", action: "筛选", result: "成功", detail: keyword ? `考核表类型：${keyword}` : "加载全部考核表", request }).catch(() => undefined);
     return NextResponse.json({ rows: rows.map(rowJson), total, page, pageSize });
@@ -82,8 +87,12 @@ export async function POST(request: Request) {
   let fileCreated = false;
   try {
     fileName = normalizeAssessmentFileName(input.configFileBase);
-    const parsedDetails = parseAssessmentDetails(input.detailText);
-    const [brandOptions, assessmentTypeOptions] = await Promise.all([getBusinessDictionaryOptions("BRAND"), getBusinessDictionaryOptions("ASSESSMENT_TYPE")]);
+    const parsedDetails = parseAssessmentDetails(input.detailText, input.name);
+    const [brandOptions, assessmentTypeOptions, storage] = await Promise.all([
+      getBusinessDictionaryOptions("BRAND"), getBusinessDictionaryOptions("ASSESSMENT_TYPE"),
+      db.r2StorageConfig.findFirst({ where: { id: input.r2StorageId, status: "ENABLED", deletedAt: null }, select: { id: true, name: true } }),
+    ]);
+    if (!storage) throw new AssessmentConfigError("所选R2存储空间不存在或已停用，请重新选择");
     if (!assessmentTypeOptions.some(option => option.value === input.name)) throw new AssessmentConfigError("所选考核表类型不在已启用的Assessment_Type数据字典中");
     const validBrandValues = new Set(brandOptions.map(option => option.value));
     const applicableBrands = Array.from(new Set(input.applicableBrands));
@@ -95,18 +104,27 @@ export async function POST(request: Request) {
       throw new AssessmentConfigError("考核明细配置文件名称已存在，请重新输入");
     }
     let recordNo = await nextRecordNo();
-    await createAssessmentConfig(fileName, buildConfig(input, recordNo, 1, parsedDetails));
+    await createAssessmentConfig(fileName, buildConfig(input, recordNo, 1, parsedDetails, storage));
     fileCreated = true;
     for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
-        const assessment = await db.assessment.create({ data: {
-          recordNo, name: input.name, scoreMode: input.scoreMode, configFileName: fileName, applicableBrands,
-          detailText: parsedDetails.normalizedText, sectionCount: parsedDetails.sectionCount,
-          subsectionCount: parsedDetails.subsectionCount, itemCount: parsedDetails.itemCount,
-          totalScore: parsedDetails.totalScore, remark: input.remark || null, status: RecordStatus.ENABLED,
-          createdByUserId: session.userId,
-          brandScopes: { create: assessmentScopeRows(applicableBrands, input.name) },
-        }, include: { createdBy: { select: { realName: true } } } });
+        const assessment = await db.$transaction(async tx => {
+          const created = await tx.assessment.create({ data: {
+            recordNo, name: input.name, scoreMode: input.scoreMode, configFileName: fileName, applicableBrands,
+            r2StorageId: storage.id, photoAttachmentLimit: input.photoAttachmentLimit,
+            detailText: parsedDetails.normalizedText, sectionCount: parsedDetails.sectionCount,
+            subsectionCount: parsedDetails.subsectionCount, itemCount: parsedDetails.itemCount,
+            totalScore: parsedDetails.totalScore, remark: input.remark || null, status: RecordStatus.ENABLED,
+            createdByUserId: session.userId,
+            brandScopes: { create: assessmentScopeRows(applicableBrands, input.name) },
+          }, include: { createdBy: { select: { realName: true } }, r2Storage: { select: { id: true, name: true, status: true } } } });
+          await tx.r2StorageReference.upsert({
+            where: { businessType_businessId: { businessType: "ASSESSMENT_PHOTO_STORAGE", businessId: created.id } },
+            create: { r2ConfigId: storage.id, businessType: "ASSESSMENT_PHOTO_STORAGE", businessId: created.id },
+            update: { r2ConfigId: storage.id },
+          });
+          return created;
+        });
         await writeOperationLog({ userId: session.userId, username: session.username, page: "考核表格", action: "新增", result: "成功", detail: `新增考核表：${recordNo}`, request }).catch(() => undefined);
         return NextResponse.json(rowJson(assessment), { status: 201 });
       } catch (error) {
@@ -117,7 +135,7 @@ export async function POST(request: Request) {
           throw new AssessmentConfigError(assessmentScopeConflictMessage(concurrentScopeConflict?.brands));
         }
         recordNo = await nextRecordNo();
-        await writeAssessmentConfig(fileName, buildConfig(input, recordNo, 1, parsedDetails));
+        await writeAssessmentConfig(fileName, buildConfig(input, recordNo, 1, parsedDetails, storage));
       }
     }
     throw new AssessmentConfigError("记录编号生成失败，请稍后重试");

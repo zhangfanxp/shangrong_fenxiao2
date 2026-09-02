@@ -31,6 +31,7 @@ export const storeInputSchema = z.object({
   locationType: optionalText(60),
   trialOpenDate: optionalDate,
   formalOpenDate: optionalDate,
+  managerUserId: z.string().trim().max(191).nullish().transform((value) => value || null),
   managerName: optionalText(30),
   chefName: optionalText(30),
   ownerName: optionalText(30),

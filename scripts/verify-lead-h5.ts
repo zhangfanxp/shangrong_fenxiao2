@@ -4,7 +4,7 @@ import { db } from "../lib/db";
 import { currentIsoWeek, DAILY_LEARNING_DAY_FIELDS, isoWeekStartAt, nextDailyLearningRecordNo, shanghaiNowParts } from "../lib/daily-learning";
 import { getPlatformConfig } from "../lib/platform-config";
 import { STORE_RESEARCH_TYPE } from "../lib/lead-h5-research";
-import { BACK_KITCHEN_REVIEW_TYPE, FRONT_HALL_REVIEW_TYPE, scoreReview } from "../lib/lead-h5-reviews";
+import { BACK_KITCHEN_REVIEW_TYPE, FRONT_HALL_REVIEW_TYPE, scoreReview, STORE_CREDIT_REVIEW_TYPE } from "../lib/lead-h5-reviews";
 
 const baseUrl = process.env.LEAD_H5_VERIFY_URL || "http://127.0.0.1:3001";
 const username = `h5_verify_${Date.now()}`;
@@ -125,7 +125,7 @@ async function main() {
 
   const month = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit" }).format(new Date());
   const verifiedTypes: string[] = [];
-  for (const reviewType of [FRONT_HALL_REVIEW_TYPE, BACK_KITCHEN_REVIEW_TYPE]) {
+  for (const reviewType of [FRONT_HALL_REVIEW_TYPE, BACK_KITCHEN_REVIEW_TYPE, STORE_CREDIT_REVIEW_TYPE]) {
     const storesResponse = await request(`/api/lead-h5/reviews/available-stores?scoreMonth=${month}&scoreType=${reviewType}`, undefined, cookie);
     assert.equal(storesResponse.status, 200, `${reviewType}待评分门店接口返回 ${storesResponse.status}`);
     const stores = (await storesResponse.json() as { stores: Array<{ id: string }> }).stores;
@@ -136,8 +136,12 @@ async function main() {
     if (process.env.LEAD_H5_VERIFY_SUBMIT === "1") {
       const payload = await template.json() as {
         assessment: { id: string; configVersion: number };
-        config: { sections: Array<{ children: Array<{ items: Array<{ id: string }> }> }> };
+        config: { detailFormat?: string; sections: Array<{ children: Array<{ items: Array<{ id: string; breachAmount?: string }> }> }> };
       };
+      if (reviewType === STORE_CREDIT_REVIEW_TYPE) {
+        assert.equal(payload.config.detailFormat, "CREDIT", "门店信用评分应加载信用表格布局");
+        assert(payload.config.sections.some(section => section.children.some(subsection => subsection.items.some(item => Boolean(item.breachAmount)))), "门店信用评分应包含违约金额");
+      }
       const items = payload.config.sections.flatMap(section => section.children.flatMap(subsection => subsection.items.map(item => ({ itemId: item.id, result: "PASS" }))));
       const submissionBody = { scoreMonth: month, scoreType: reviewType, storeId: stores[0].id, reviewTemplateId: payload.assessment.id, reviewTemplateVersion: payload.assessment.configVersion, items };
       const submission = await request("/api/lead-h5/reviews", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(submissionBody) }, cookie);
@@ -148,15 +152,16 @@ async function main() {
       assert.match(submitted.assessmentDate, /^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$/, "接口应返回标准考核日期");
       const savedReview = await db.leadH5Review.findUnique({
         where: { recordNo: submitted.recordNo },
-        select: { id: true, assessmentSupervisor: true, assessmentDate: true, responsiblePersonNameSnapshot: true, responsiblePersonType: true },
+        select: { id: true, assessmentSupervisor: true, assessmentDate: true, responsiblePersonUserId: true, responsiblePersonNameSnapshot: true, responsiblePersonType: true },
       });
       assert(savedReview, "正式评分应写入数据库");
       assert.equal(savedReview.assessmentSupervisor, "H5自动验证", "数据库应保存当前操作人员真实姓名");
       assert.equal(savedReview.assessmentDate.getMilliseconds(), 0, "数据库考核日期应精确到秒");
-      const sourceStore = await db.store.findUnique({ where: { id: stores[0].id }, select: { managerName: true, chefName: true } });
-      const expectedResponsibleName = (reviewType === FRONT_HALL_REVIEW_TYPE ? sourceStore?.managerName : sourceStore?.chefName)?.trim() || "-";
+      const sourceStore = await db.store.findUnique({ where: { id: stores[0].id }, select: { managerUserId: true, managerName: true, chefName: true } });
+      const expectedResponsibleName = (reviewType === BACK_KITCHEN_REVIEW_TYPE ? sourceStore?.chefName : sourceStore?.managerName)?.trim() || "-";
       assert.equal(savedReview.responsiblePersonNameSnapshot, expectedResponsibleName, "数据库应保存评分发生时的负责人姓名快照");
-      assert.equal(savedReview.responsiblePersonType, reviewType === FRONT_HALL_REVIEW_TYPE ? "STORE_MANAGER" : "HEAD_CHEF", "数据库应保存负责人类型");
+      assert.equal(savedReview.responsiblePersonType, reviewType === BACK_KITCHEN_REVIEW_TYPE ? "HEAD_CHEF" : "STORE_MANAGER", "数据库应保存负责人类型");
+      assert.equal(savedReview.responsiblePersonUserId, reviewType === BACK_KITCHEN_REVIEW_TYPE ? null : sourceStore?.managerUserId || null, "数据库应保存评分发生时的店长用户ID快照");
       reviewIds.push(savedReview.id);
       const duplicate = await request("/api/lead-h5/reviews", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(submissionBody) }, cookie);
       assert.equal(duplicate.status, 409, "同店同月同类型重复提交应被拒绝");
@@ -164,6 +169,7 @@ async function main() {
   }
   assert(verifiedTypes.includes(FRONT_HALL_REVIEW_TYPE), "前厅稽核评分模板应可匹配");
   assert(verifiedTypes.includes(BACK_KITCHEN_REVIEW_TYPE), "后厨稽核评分模板应可匹配");
+  assert(verifiedTypes.includes(STORE_CREDIT_REVIEW_TYPE), "门店信用评分模板应可匹配");
 
   const researchStoresResponse = await request(`/api/lead-h5/research/available-stores?researchMonth=${month}`, undefined, cookie);
   assert.equal(researchStoresResponse.status, 200, `待调研门店接口返回 ${researchStoresResponse.status}`);
@@ -208,7 +214,7 @@ async function main() {
     const duplicateResearch = await request("/api/lead-h5/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(researchSubmissionBody) }, cookie);
     assert.equal(duplicateResearch.status, 409, "同店同月督导巡店调研重复提交应被拒绝");
   }
-  console.log(`运营H5验证通过：两个移动端的每日学习红点、标签匹配、当日正文、MP3录音签名，以及前厅、后厨评分和门店调研链路均正常。`);
+  console.log(`运营H5验证通过：每日学习、前厅、后厨、门店信用评分和门店调研链路均正常。`);
 }
 
 main().finally(async () => {

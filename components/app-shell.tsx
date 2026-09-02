@@ -25,23 +25,15 @@ export function AppShell({ children, realName, permissions, platform }: { childr
   const [activeGroupKey, setActiveGroupKey] = useState(current?.group.key ?? allowedNavigation[0]?.key ?? "");
   const [optimisticPath, setOptimisticPath] = useState(pathname);
   const activeGroup = allowedNavigation.find(group => group.key === activeGroupKey) ?? current?.group ?? null;
-  const menuItems: MenuProps["items"] = allowedNavigation.map(group => ({ key: group.key, label: group.label }));
+  const menuItems: MenuProps["items"] = allowedNavigation.map(group => {
+    const href = group.href ?? group.children?.[0]?.href;
+    return { key: group.key, label: <span onMouseEnter={() => href && router.prefetch(href)}>{group.label}</span> };
+  });
 
   useEffect(() => {
     if (current?.group.key) setActiveGroupKey(current.group.key);
     setOptimisticPath(pathname);
   }, [pathname, current?.group.key]);
-
-  useEffect(() => {
-    allowedNavigation.forEach(group => {
-      const href = group.href ?? group.children?.[0]?.href;
-      if (href) router.prefetch(href);
-    });
-  }, [allowedNavigation, router]);
-
-  useEffect(() => {
-    activeGroup?.children?.forEach(item => router.prefetch(item.href));
-  }, [activeGroup, router]);
 
   const handlePrimaryMenuClick: MenuProps["onClick"] = ({ key }) => {
     const group = allowedNavigation.find(item => item.key === key);
@@ -87,7 +79,7 @@ export function AppShell({ children, realName, permissions, platform }: { childr
         <Tooltip title="帮助"><Button type="text" icon={<QuestionCircleOutlined />} aria-label="帮助" /></Tooltip>
         <Dropdown menu={{ items: userItems, onClick: handleUserMenuClick }} placement="bottomRight" trigger={["hover", "click"]}><Button type="text" style={{ height: 40 }} icon={<Avatar size="small" icon={<UserOutlined />} />}>{realName}</Button></Dropdown>
       </Header>
-      {activeGroup?.children && <div className="subnav"><div className="subnav-inner">{activeGroup.children.map(item => <Link className={`subnav-link ${optimisticPath === item.href ? "active" : ""}`} href={item.href} onClick={() => setOptimisticPath(item.href)} key={item.key}>{item.label}</Link>)}</div></div>}
+      {activeGroup?.children && <div className="subnav"><div className="subnav-inner">{activeGroup.children.map(item => <Link className={`subnav-link ${optimisticPath === item.href ? "active" : ""}`} href={item.href} prefetch={false} onMouseEnter={() => router.prefetch(item.href)} onClick={() => setOptimisticPath(item.href)} key={item.key}>{item.label}</Link>)}</div></div>}
       <Content>{children}</Content>
       <Modal title="修改密码" open={passwordOpen} onCancel={() => { passwordForm.resetFields(); setPasswordOpen(false); }} onOk={changePassword} okText="确定修改" cancelText="取消" confirmLoading={passwordSaving} destroyOnHidden>
         <Form form={passwordForm} layout="vertical" requiredMark="optional" style={{ paddingTop: 8 }}>
@@ -105,6 +97,6 @@ export function AppShell({ children, realName, permissions, platform }: { childr
       <Modal title={currentNotification?.title} open={!!currentNotification} onCancel={() => !notificationAcknowledging && setCurrentNotification(null)} closable={!notificationAcknowledging} maskClosable={!notificationAcknowledging} footer={<Button type="primary" loading={notificationAcknowledging} onClick={() => void acknowledgeNotification()}>{notificationAcknowledging ? "确认中..." : "我已知晓"}</Button>}>
         {currentNotification && <div className="header-notification-detail"><div>发布人：{currentNotification.publisherName}</div><div>发布时间：{currentNotification.releaseAtText}</div><p>{currentNotification.content}</p><small>记录编号：{currentNotification.recordNo}</small></div>}
       </Modal>
-      <LoginNotificationModal apiPath="/api/notifications/pending-login" />
+      <LoginNotificationModal apiPath="/api/notifications/pending-login" deferUntilIdle />
   </Layout>;
 }

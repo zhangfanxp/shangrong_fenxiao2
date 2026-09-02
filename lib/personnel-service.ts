@@ -22,6 +22,10 @@ export async function personnelLog(userId: string, action: string, result: Opera
   await writeOperationLog({ userId, page: "人员档案", action, result, detail }).catch(() => undefined);
 }
 
+export function resolveWorkdayHours(input: number | null | undefined, configured: number | undefined) {
+  return input ?? configured ?? null;
+}
+
 export function toDate(value: string) { return new Date(`${value}T00:00:00.000`); }
 
 export async function validatePersonnelRelations(data: PersonnelInput, editingId?: string) {
@@ -39,7 +43,8 @@ export async function validatePersonnelRelations(data: PersonnelInput, editingId
   if (data.platformUserId && (!platformUser || platformUser.status !== RecordStatus.ENABLED)) throw new Error("所选平台用户不存在或已禁用");
   if (platformUser?.personnelProfile && platformUser.personnelProfile.id !== editingId) throw new Error("该平台用户已绑定其他人员档案");
   const configuredWorkdayHours = await getConfiguredWorkdayHours(store.brand.name);
-  return { positionLevel: position.label, workdayHours: configuredWorkdayHours ?? data.workdayHours ?? null };
+  // The brand parameter supplies the form default; an explicit user value takes precedence.
+  return { positionLevel: position.label, workdayHours: resolveWorkdayHours(data.workdayHours, configuredWorkdayHours) };
 }
 
 export async function nextPersonnelRecordNo(tx: Prisma.TransactionClient) {

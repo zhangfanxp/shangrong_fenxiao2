@@ -15,7 +15,12 @@
     "notifications:scheduler:check": "tsx scripts/run-notification-scheduler.ts",
     "tasks:backfill-record-nos": "tsx scripts/backfill-task-submission-record-nos.ts",
     "tasks:backfill-schedules": "tsx scripts/backfill-task-schedules.ts",
-    "verify:lead-h5": "tsx scripts/verify-lead-h5.ts"
+    "verify:lead-h5": "tsx scripts/verify-lead-h5.ts",
+    "verify:actual-revenue": "tsx scripts/verify-actual-revenue.ts",
+    "verify:actual-revenue:e2e": "tsx scripts/verify-actual-revenue-e2e.ts",
+    "verify:revenue-targets": "tsx scripts/verify-revenue-targets.ts",
+    "verify:revenue-targets:e2e": "tsx scripts/verify-revenue-targets-e2e.ts",
+    "verify:store-credit-scores": "tsx scripts/verify-store-credit-scores.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",
@@ -26,19 +31,24 @@
     "@prisma/client": "^6.7.0",
     "antd": "^5.25.4",
     "bcryptjs": "^3.0.2",
+    "busboy": "^1.6.0",
     "dayjs": "^1.11.13",
     "exceljs": "^4.4.0",
     "jose": "^6.0.10",
     "next": "^15.3.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "saxes": "^5.0.1",
+    "unzipper": "^0.10.14",
     "zod": "^3.24.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/busboy": "^1.5.4",
     "@types/node": "^22.15.3",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
+    "@types/unzipper": "^0.10.11",
     "prisma": "^6.7.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"

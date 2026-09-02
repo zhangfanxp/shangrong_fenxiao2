@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { canAccessPath, type PermissionRequirement, hasPermission } from "@/lib/access-control";
 import { db } from "@/lib/db";
 
@@ -13,7 +14,7 @@ export async function createSession(session: Session) {
   return new SignJWT(session).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("8h").sign(secret);
 }
 
-export async function getSession(): Promise<Session | null> {
+export const getSession = cache(async (): Promise<Session | null> => {
   const token = (await cookies()).get(cookieName)?.value;
   if (!token) return null;
   try {
@@ -24,7 +25,7 @@ export async function getSession(): Promise<Session | null> {
     const permissions = Array.isArray(user.role.permissions) ? user.role.permissions.filter((item): item is string => typeof item === "string") : [];
     return { userId: user.id, username: user.username, realName: user.realName, role: user.role.code, permissions };
   } catch { return null; }
-}
+});
 
 export async function requireSession() {
   const session = await getSession();

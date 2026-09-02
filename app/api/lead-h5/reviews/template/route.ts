@@ -3,6 +3,7 @@ import { getLeadH5Session } from "@/lib/lead-h5-auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { brandMatches, getReviewDefinition, loadReviewConfig, reviewDataScope, validReviewMonth } from "@/lib/lead-h5-reviews";
+import { createTaskAttachmentReadUrl } from "@/lib/task-r2-upload";
 
 export async function GET(request: Request) {
   const session = await getLeadH5Session();
@@ -30,12 +31,21 @@ export async function GET(request: Request) {
     }
     const assessment = matches[0];
     const config = await loadReviewConfig(assessment.configFileName);
+    const draftRows = await db.leadH5ReviewPhoto.findMany({
+      where: { uploaderUserId: session.userId, storeId, reviewMonth, reviewType, assessmentId: assessment.id, assessmentVersion: assessment.configVersion, consumedAt: null },
+      orderBy: { createdAt: "asc" },
+    });
+    const draftPhotos = await Promise.all(draftRows.map(async photo => ({
+      id: photo.id, itemId: photo.itemKey, name: photo.originalName, size: photo.size, mimeType: photo.mimeType,
+      url: await createTaskAttachmentReadUrl({ r2StorageId: photo.r2StorageId, objectKey: photo.objectKey }).catch(() => null),
+    })));
     await writeOperationLog({ userId: session.userId, username: session.username, client: "运营移动端", page: definition.title, action: "选择门店", result: "成功", detail: `评分月份：${reviewMonth}；门店：${store.name}`, request }).catch(() => undefined);
     return NextResponse.json({
       store: { id: store.id, name: store.name, brandId: store.brand.id, brandName: store.brand.name },
       reviewer: { realName: session.realName },
       assessment: { id: assessment.id, name: assessment.name, configVersion: assessment.configVersion },
       config,
+      draftPhotos,
     });
   } catch (error) {
     const message = error instanceof Error && error.message.includes("评分表") ? error.message : "评分表加载失败，请稍后重试";

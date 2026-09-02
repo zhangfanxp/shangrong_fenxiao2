@@ -9,7 +9,8 @@
     "蚝家伙",
     "禾穆婆"
   ],
-  "configVersion": 2,
+  "photoAttachmentLimit": 3,
+  "configVersion": 3,
   "totalScore": 62,
   "statistics": {
     "sectionCount": 2,
@@ -26,17 +27,20 @@
             {
               "id": "item_1",
               "description": "未按公司统一标准要求出餐，私自改变出餐标准的",
-              "maxScore": 5
+              "maxScore": 5,
+              "supportsPhoto": true
             },
             {
               "id": "item_2",
               "description": "所有产品按标准进行出餐、温度、品相、分量、新鲜度是否达标",
-              "maxScore": 3
+              "maxScore": 3,
+              "supportsPhoto": false
             },
             {
               "id": "item_3",
               "description": "未使用公司料包私自勾兑的",
-              "maxScore": 5
+              "maxScore": 5,
+              "supportsPhoto": true
             }
           ]
         },
@@ -46,7 +50,8 @@
             {
               "id": "item_4",
               "description": "食材原料分类存放摆放整齐、货架离墙隔地10CM以上",
-              "maxScore": 3
+              "maxScore": 3,
+              "supportsPhoto": false
             }
           ]
         },
@@ -56,7 +61,8 @@
             {
               "id": "item_5",
               "description": "门店出现未按公司要求售卖时间废弃，仍然继续售卖的情况",
-              "maxScore": 5
+              "maxScore": 5,
+              "supportsPhoto": true
             }
           ]
         },
@@ -66,7 +72,8 @@
             {
               "id": "item_6",
               "description": "后厨人员上岗无健康证的",
-              "maxScore": 5
+              "maxScore": 5,
+              "supportsPhoto": false
             }
           ]
         },
@@ -76,12 +83,14 @@
             {
               "id": "item_7",
               "description": "后厨出现蟑螂、老鼠、蚊子、苍蝇等活体或粪便的",
-              "maxScore": 5
+              "maxScore": 5,
+              "supportsPhoto": false
             },
             {
               "id": "item_8",
               "description": "所有药品不得出现在厨房任何角落",
-              "maxScore": 5
+              "maxScore": 5,
+              "supportsPhoto": false
             }
           ]
         }
@@ -96,12 +105,14 @@
             {
               "id": "item_9",
               "description": "服装：着工装、符合门店着装要求",
-              "maxScore": 5
+              "maxScore": 5,
+              "supportsPhoto": false
             },
             {
               "id": "item_10",
               "description": "仪表：保持良好个人卫生、着装整洁、不蓬头垢面",
-              "maxScore": 1
+              "maxScore": 1,
+              "supportsPhoto": false
             }
           ]
         },
@@ -111,12 +122,14 @@
             {
               "id": "item_11",
               "description": "出勤：按时打卡、上下班。不得无故迟到、早退、脱岗、矿工",
-              "maxScore": 10
+              "maxScore": 10,
+              "supportsPhoto": false
             },
             {
               "id": "item_12",
               "description": "服从岗位安排，工作时间不擅自离岗换岗、不顶撞上级",
-              "maxScore": 10
+              "maxScore": 10,
+              "supportsPhoto": false
             }
           ]
         }

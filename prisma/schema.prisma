@@ -156,6 +156,7 @@ model User {
   salaryAdjustments         SalaryHistory[]          @relation("SalaryOperator")
   positionTransfers         PositionHistory[]        @relation("PositionOperator")
   leadH5Reviews             LeadH5Review[]           @relation("LeadH5Reviewer")
+  leadH5ReviewPhotos        LeadH5ReviewPhoto[]      @relation("LeadH5ReviewPhotoUploader")
   leadH5ResearchRecords     ResearchTemplateRecord[] @relation("LeadH5ResearchSubmitter")
   assignedTaskRecords       TaskRecord[]             @relation("TaskRecordAssignee")
   taskSubmissions           TaskSubmission[]         @relation("TaskSubmissionUser")
@@ -169,36 +170,43 @@ model User {
   dailyLearningProgress     DailyLearningProgress[]  @relation("DailyLearningProgressUser")
   courseAssignments         CourseAssignment[]       @relation("CourseAssignmentUser")
   createdCourseAssignments  CourseAssignment[]       @relation("CourseAssignmentCreator")
+  createdActualRevenue      ActualRevenueMonthly[]   @relation("ActualRevenueCreator")
+  createdMonthlyTargets     StoreMonthlyTarget[]     @relation("MonthlyTargetCreator")
 
   @@index([createdByUserId])
+  @@index([lastLoginAt])
 }
 
 model Assessment {
-  id               String                 @id @default(cuid())
-  recordNo         String                 @unique
-  name             String
-  scoreMode        AssessmentScoreMode    @default(BINARY)
-  configFileName   String                 @unique
-  applicableBrands Json?
-  detailText       String                 @db.LongText
-  sectionCount     Int
-  subsectionCount  Int
-  itemCount        Int
-  totalScore       Decimal                @db.Decimal(10, 1)
-  remark           String?                @db.VarChar(50)
-  status           RecordStatus           @default(ENABLED)
-  configVersion    Int                    @default(1)
-  createdByUserId  String?
-  createdBy        User?                  @relation("AssessmentCreator", fields: [createdByUserId], references: [id])
-  deletedAt        DateTime?
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  records          AssessmentRecord[]
-  leadH5Reviews    LeadH5Review[]
-  brandScopes      AssessmentBrandScope[]
+  id                   String                 @id @default(cuid())
+  recordNo             String                 @unique
+  name                 String
+  scoreMode            AssessmentScoreMode    @default(BINARY)
+  configFileName       String                 @unique
+  applicableBrands     Json?
+  r2StorageId          String                 @db.VarChar(191)
+  r2Storage            R2StorageConfig        @relation("AssessmentR2Storage", fields: [r2StorageId], references: [id])
+  photoAttachmentLimit Int                    @default(3)
+  detailText           String                 @db.LongText
+  sectionCount         Int
+  subsectionCount      Int
+  itemCount            Int
+  totalScore           Decimal                @db.Decimal(10, 1)
+  remark               String?                @db.VarChar(50)
+  status               RecordStatus           @default(ENABLED)
+  configVersion        Int                    @default(1)
+  createdByUserId      String?
+  createdBy            User?                  @relation("AssessmentCreator", fields: [createdByUserId], references: [id])
+  deletedAt            DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  records              AssessmentRecord[]
+  leadH5Reviews        LeadH5Review[]
+  brandScopes          AssessmentBrandScope[]
 
   @@index([createdAt])
   @@index([status])
+  @@index([r2StorageId])
 }
 
 model AssessmentBrandScope {
@@ -344,6 +352,8 @@ model Contract {
   updatedAt         DateTime         @updatedAt
   store             Store?
   rebates           ContractRebate[]
+
+  @@index([status, endDate])
 }
 
 model ContractRebate {
@@ -381,6 +391,7 @@ model Store {
   locationType          String?
   trialOpenDate         DateTime?
   formalOpenDate        DateTime?
+  managerUserId         String?                  @db.VarChar(191)
   managerName           String?
   chefName              String?
   ownerName             String?
@@ -393,6 +404,124 @@ model Store {
   leadH5ResearchRecords ResearchTemplateRecord[]
   taskRecords           TaskRecord[]
   taskSubmissions       TaskSubmission[]
+  actualRevenueMonthly  ActualRevenueMonthly[]
+  actualRevenueDaily    ActualRevenueDaily[]
+  monthlyTargets        StoreMonthlyTarget[]
+  dailyTargets          StoreDailyTarget[]
+}
+
+model ActualRevenueMonthly {
+  id                       String               @id @default(cuid())
+  recordNo                 String               @unique @db.VarChar(12)
+  statMonth                String               @db.VarChar(7)
+  brandId                  String
+  brandNameSnapshot        String               @db.VarChar(100)
+  storeId                  String
+  store                    Store                @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  storeNameSnapshot        String               @db.VarChar(100)
+  regionNameSnapshot       String?              @db.VarChar(100)
+  storeManagerNameSnapshot String?              @db.VarChar(50)
+  supervisorNameSnapshot   String?              @db.VarChar(50)
+  cooperationTypeSnapshot  String?              @db.VarChar(30)
+  monthlyRevenue           Decimal              @default(0) @db.Decimal(18, 2)
+  dailyTargetStatus        String               @default("NOT_GENERATED") @db.VarChar(20)
+  createdByUserId          String?
+  createdBy                User?                @relation("ActualRevenueCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByName            String               @db.VarChar(50)
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  dailyDetails             ActualRevenueDaily[]
+  monthlyTarget            StoreMonthlyTarget?
+
+  @@unique([storeId, statMonth])
+  @@index([statMonth, storeNameSnapshot])
+  @@index([brandId, statMonth])
+}
+
+model ActualRevenueDaily {
+  id                       String               @id @default(cuid())
+  monthlyRecordId          String
+  monthlyRecord            ActualRevenueMonthly @relation(fields: [monthlyRecordId], references: [id], onDelete: Cascade)
+  storeId                  String
+  store                    Store                @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  businessDate             DateTime             @db.Date
+  revenueAmount            Decimal              @db.Decimal(18, 2)
+  discountAmount           Decimal?             @db.Decimal(18, 2)
+  operatingIncome          Decimal?             @db.Decimal(18, 2)
+  orderCount               Int?
+  dinerCount               Int?
+  tableCount               Int?
+  preDiscountPerCapita     Decimal?             @db.Decimal(18, 2)
+  postDiscountPerCapita    Decimal?             @db.Decimal(18, 2)
+  preDiscountAvgOrder      Decimal?             @db.Decimal(18, 2)
+  postDiscountAvgOrder     Decimal?             @db.Decimal(18, 2)
+  tableOpenRate            Decimal?             @db.Decimal(10, 6)
+  tableTurnoverRate        Decimal?             @db.Decimal(10, 6)
+  seatOccupancyRate        Decimal?             @db.Decimal(10, 6)
+  avgDiningDurationMinutes Decimal?             @db.Decimal(10, 2)
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  @@unique([storeId, businessDate])
+  @@index([monthlyRecordId, businessDate])
+}
+
+model ActualRevenueSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model StoreMonthlyTarget {
+  id                            String               @id @default(cuid())
+  recordNo                      String               @unique @db.VarChar(12)
+  sourceActualRevenueId         String               @unique
+  sourceActualRevenue           ActualRevenueMonthly @relation(fields: [sourceActualRevenueId], references: [id], onDelete: Restrict)
+  storeId                       String
+  store                         Store                @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  storeNameSnapshot             String               @db.VarChar(100)
+  brandId                       String
+  brandCode                     String               @db.VarChar(50)
+  brandNameSnapshot             String               @db.VarChar(100)
+  regionNameSnapshot            String?              @db.VarChar(100)
+  targetMonth                   String               @db.VarChar(7)
+  previousActualMonth           String               @db.VarChar(7)
+  previousActualRevenueSnapshot Decimal              @db.Decimal(18, 2)
+  targetAmount                  Decimal              @db.Decimal(18, 2)
+  dailyTargetStatus             String               @default("PENDING") @db.VarChar(20)
+  remark                        String?              @db.VarChar(200)
+  sourceType                    String               @db.VarChar(30)
+  createdByUserId               String?
+  createdBy                     User?                @relation("MonthlyTargetCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUsername             String               @db.VarChar(50)
+  createdByName                 String               @db.VarChar(50)
+  createdAt                     DateTime             @default(now())
+  updatedAt                     DateTime             @updatedAt
+  dailyTargets                  StoreDailyTarget[]
+
+  @@unique([storeId, targetMonth])
+  @@index([targetMonth, storeNameSnapshot])
+  @@index([brandId, targetMonth])
+}
+
+model StoreMonthlyTargetSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model StoreDailyTarget {
+  id              String             @id @default(cuid())
+  monthlyTargetId String
+  monthlyTarget   StoreMonthlyTarget @relation(fields: [monthlyTargetId], references: [id], onDelete: Cascade)
+  storeId         String
+  store           Store              @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  targetDate      DateTime           @db.Date
+  targetAmount    Decimal            @db.Decimal(18, 2)
+  createdAt       DateTime           @default(now())
+
+  @@unique([storeId, targetDate])
+  @@index([monthlyTargetId, targetDate])
 }
 
 model LeadH5Review {
@@ -404,7 +533,9 @@ model LeadH5Review {
   store                         Store              @relation(fields: [storeId], references: [id])
   storeNameSnapshot             String             @db.VarChar(100)
   brandId                       String
+  brandCodeSnapshot             String?            @db.VarChar(50)
   brandNameSnapshot             String             @db.VarChar(100)
+  responsiblePersonUserId       String?            @db.VarChar(191)
   responsiblePersonNameSnapshot String?            @db.VarChar(50)
   responsiblePersonType         String?            @db.VarChar(20)
   reviewerUserId                String
@@ -431,20 +562,46 @@ model LeadH5Review {
 }
 
 model LeadH5ReviewItem {
-  id              String       @id @default(cuid())
+  id              String              @id @default(cuid())
   reviewId        String
-  review          LeadH5Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  itemKey         String       @db.VarChar(100)
-  sectionName     String       @db.VarChar(100)
-  subsectionName  String       @db.VarChar(100)
-  itemDescription String       @db.Text
-  maxScore        Decimal      @db.Decimal(10, 1)
-  result          String       @db.VarChar(20)
-  actualScore     Decimal      @db.Decimal(10, 1)
+  review          LeadH5Review        @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  itemKey         String              @db.VarChar(100)
+  sectionName     String              @db.VarChar(100)
+  subsectionName  String              @db.VarChar(100)
+  itemDescription String              @db.Text
+  maxScore        Decimal             @db.Decimal(10, 1)
+  result          String              @db.VarChar(20)
+  actualScore     Decimal             @db.Decimal(10, 1)
   sortOrder       Int
+  photos          LeadH5ReviewPhoto[]
 
   @@unique([reviewId, itemKey])
   @@index([reviewId, sortOrder])
+}
+
+model LeadH5ReviewPhoto {
+  id                String            @id @default(cuid())
+  reviewItemId      String?
+  reviewItem        LeadH5ReviewItem? @relation(fields: [reviewItemId], references: [id], onDelete: Cascade)
+  uploaderUserId    String
+  uploader          User              @relation("LeadH5ReviewPhotoUploader", fields: [uploaderUserId], references: [id])
+  storeId           String            @db.VarChar(191)
+  reviewMonth       String            @db.VarChar(7)
+  reviewType        String            @db.VarChar(50)
+  assessmentId      String            @db.VarChar(191)
+  assessmentVersion Int
+  itemKey           String            @db.VarChar(100)
+  r2StorageId       String            @db.VarChar(191)
+  objectKey         String            @unique @db.VarChar(500)
+  originalName      String            @db.VarChar(255)
+  mimeType          String            @db.VarChar(100)
+  size              Int
+  consumedAt        DateTime?
+  createdAt         DateTime          @default(now())
+
+  @@index([uploaderUserId, storeId, reviewMonth, reviewType, assessmentId, assessmentVersion, itemKey])
+  @@index([reviewItemId])
+  @@index([createdAt])
 }
 
 model LeadH5ReviewSequence {
@@ -617,6 +774,7 @@ model TaskRecord {
   @@index([assignedUserId, executionDate, status])
   @@index([storeId, executionDate])
   @@index([status, dueDate])
+  @@index([status, taskId])
 }
 
 model TaskSchedulerRun {
@@ -889,17 +1047,17 @@ model Course {
 }
 
 model CourseAssignment {
-  id               String   @id @default(cuid())
+  id               String                 @id @default(cuid())
   batchId          String?
   batch            CourseAssignmentBatch? @relation(fields: [batchId], references: [id], onDelete: Restrict)
   courseId         String
-  course           Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  userId           String   @db.VarChar(191)
-  user             User     @relation("CourseAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
-  assignedByUserId String?  @db.VarChar(191)
-  assignedBy       User?    @relation("CourseAssignmentCreator", fields: [assignedByUserId], references: [id], onDelete: SetNull)
-  assignedByName   String   @db.VarChar(50)
-  createdAt        DateTime @default(now())
+  course           Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId           String                 @db.VarChar(191)
+  user             User                   @relation("CourseAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedByUserId String?                @db.VarChar(191)
+  assignedBy       User?                  @relation("CourseAssignmentCreator", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  assignedByName   String                 @db.VarChar(50)
+  createdAt        DateTime               @default(now())
 
   @@unique([batchId, courseId, userId])
   @@index([courseId, userId])
@@ -908,20 +1066,20 @@ model CourseAssignment {
 }
 
 model CourseAssignmentBatch {
-  id                 String @id @default(cuid())
-  recordNo           String @unique @db.VarChar(12)
-  clientRequestId    String? @unique @db.VarChar(36)
+  id                 String                   @id @default(cuid())
+  recordNo           String                   @unique @db.VarChar(12)
+  clientRequestId    String?                  @unique @db.VarChar(36)
   courseCount        Int
   userCount          Int
-  status             RecordStatus @default(ENABLED)
-  assignedByUserId   String? @db.VarChar(191)
-  assignedByUsername String @db.VarChar(100)
-  assignedByName     String @db.VarChar(100)
-  assignedAt         DateTime @default(now())
-  legacyImported     Boolean @default(false)
-  version            Int @default(1)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  status             RecordStatus             @default(ENABLED)
+  assignedByUserId   String?                  @db.VarChar(191)
+  assignedByUsername String                   @db.VarChar(100)
+  assignedByName     String                   @db.VarChar(100)
+  assignedAt         DateTime                 @default(now())
+  legacyImported     Boolean                  @default(false)
+  version            Int                      @default(1)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
   courses            CourseAssignmentCourse[]
   users              CourseAssignmentUser[]
   assignments        CourseAssignment[]
@@ -931,34 +1089,34 @@ model CourseAssignmentBatch {
 
 // Snapshot IDs deliberately have no foreign key to live courses/users.
 model CourseAssignmentCourse {
-  id                         String @id @default(cuid())
+  id                         String                @id @default(cuid())
   batchId                    String
   batch                      CourseAssignmentBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  courseId                   String @db.VarChar(191)
-  courseRecordNoSnapshot     String @db.VarChar(12)
-  courseNameSnapshot         String @db.VarChar(100)
-  applicablePositionSnapshot String @db.VarChar(100)
-  coverR2StorageId            String? @db.VarChar(191)
-  coverObjectKey              String? @db.VarChar(1024)
-  coverOriginalName           String? @db.VarChar(255)
-  coverMimeType               String? @db.VarChar(100)
-  coverSizeBytes              Int?
-  coverDataUrl                String? @db.LongText
-  createdAt                  DateTime @default(now())
+  courseId                   String                @db.VarChar(191)
+  courseRecordNoSnapshot     String                @db.VarChar(12)
+  courseNameSnapshot         String                @db.VarChar(100)
+  applicablePositionSnapshot String                @db.VarChar(100)
+  coverR2StorageId           String?               @db.VarChar(191)
+  coverObjectKey             String?               @db.VarChar(1024)
+  coverOriginalName          String?               @db.VarChar(255)
+  coverMimeType              String?               @db.VarChar(100)
+  coverSizeBytes             Int?
+  coverDataUrl               String?               @db.LongText
+  createdAt                  DateTime              @default(now())
 
   @@unique([batchId, courseId])
   @@index([courseId])
 }
 
 model CourseAssignmentUser {
-  id               String @id @default(cuid())
+  id               String                      @id @default(cuid())
   batchId          String
-  batch            CourseAssignmentBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  userId           String @db.VarChar(191)
-  usernameSnapshot String @db.VarChar(100)
-  realNameSnapshot String @db.VarChar(100)
-  roleSnapshot     String @db.VarChar(100)
-  createdAt        DateTime @default(now())
+  batch            CourseAssignmentBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  userId           String                      @db.VarChar(191)
+  usernameSnapshot String                      @db.VarChar(100)
+  realNameSnapshot String                      @db.VarChar(100)
+  roleSnapshot     String                      @db.VarChar(100)
+  createdAt        DateTime                    @default(now())
   scopes           CourseAssignmentUserScope[]
 
   @@unique([batchId, userId])
@@ -966,21 +1124,21 @@ model CourseAssignmentUser {
 }
 
 model CourseAssignmentUserScope {
-  id               String @id @default(cuid())
+  id               String               @id @default(cuid())
   assignmentUserId String
   assignmentUser   CourseAssignmentUser @relation(fields: [assignmentUserId], references: [id], onDelete: Cascade)
-  brandId          String @db.VarChar(191)
-  storeId          String @db.VarChar(191)
-  brandName        String @db.VarChar(100)
-  storeName        String @db.VarChar(100)
+  brandId          String               @db.VarChar(191)
+  storeId          String               @db.VarChar(191)
+  brandName        String               @db.VarChar(100)
+  storeName        String               @db.VarChar(100)
 
   @@index([assignmentUserId])
   @@index([brandId, storeId])
 }
 
 model CourseAssignmentSequence {
-  dateKey   String @id @db.VarChar(8)
-  nextValue Int @default(1)
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
   updatedAt DateTime @updatedAt
 }
 
@@ -1033,17 +1191,17 @@ model CourseLesson {
 }
 
 model CourseLearningProgress {
-  id          String    @id @default(cuid())
-  courseId    String
-  course      Course    @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  userId      String    @db.VarChar(191)
-  progress    Int       @default(0)
-  firstLearnedAt DateTime?
-  lastLearnedAt DateTime?
-  learnerRealNameSnapshot String? @db.VarChar(100)
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                      String    @id @default(cuid())
+  courseId                String
+  course                  Course    @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  userId                  String    @db.VarChar(191)
+  progress                Int       @default(0)
+  firstLearnedAt          DateTime?
+  lastLearnedAt           DateTime?
+  learnerRealNameSnapshot String?   @db.VarChar(100)
+  completedAt             DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   @@unique([courseId, userId])
   @@index([userId, createdAt])
@@ -1072,23 +1230,23 @@ model CourseSequence {
 // One actual lesson-page entry, not one user/lesson aggregate. Snapshot IDs have
 // no live-course/user foreign key so historical visits survive later deletion.
 model CourseLessonVisit {
-  id                      String @id @db.VarChar(36)
-  userId                  String @db.VarChar(191)
-  courseId                String @db.VarChar(191)
-  lessonId                String? @db.VarChar(191)
-  channel                 String @db.VarChar(20)
-  courseRecordNoSnapshot  String @db.VarChar(12)
-  courseNameSnapshot      String @db.VarChar(100)
-  chapterNameSnapshot     String @db.VarChar(100)
-  learnerRealNameSnapshot String @db.VarChar(100)
-  status                  String @default("ACTIVE") @db.VarChar(20)
+  id                      String    @id @db.VarChar(36)
+  userId                  String    @db.VarChar(191)
+  courseId                String    @db.VarChar(191)
+  lessonId                String?   @db.VarChar(191)
+  channel                 String    @db.VarChar(20)
+  courseRecordNoSnapshot  String    @db.VarChar(12)
+  courseNameSnapshot      String    @db.VarChar(100)
+  chapterNameSnapshot     String    @db.VarChar(100)
+  learnerRealNameSnapshot String    @db.VarChar(100)
+  status                  String    @default("ACTIVE") @db.VarChar(20)
   startedAt               DateTime?
   lastActiveAt            DateTime?
   endedAt                 DateTime?
-  endReason               String? @db.VarChar(30)
-  legacySourceKey         String? @unique @db.VarChar(191)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  endReason               String?   @db.VarChar(30)
+  legacySourceKey         String?   @unique @db.VarChar(191)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   @@index([courseId, userId, createdAt, id])
   @@index([courseId, createdAt, id])
@@ -1217,6 +1375,7 @@ model R2StorageConfig {
   references               R2StorageReference[]
   tests                    R2StorageTest[]
   tasks                    Task[]               @relation("TaskR2Storage")
+  assessments              Assessment[]         @relation("AssessmentR2Storage")
   deletedAt                DateTime?
   createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt

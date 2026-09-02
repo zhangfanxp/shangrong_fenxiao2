@@ -12,13 +12,14 @@ import { LoginNotificationModal } from "@/components/login-notification-modal";
 
 const FRONT_HALL_REVIEW_TYPE = "FRONT_HALL_AUDIT";
 const BACK_KITCHEN_REVIEW_TYPE = "BACK_KITCHEN_AUDIT";
+const STORE_CREDIT_REVIEW_TYPE = "STORE_CREDIT_SCORE";
 type Store = { id: string; name: string; recordNo: string; brand: { id: string; name: string } };
 type HomeEntry = { name: string; icon: React.ReactNode; active?: boolean; scoreType?: string; route?: string; research?: boolean };
 
 const entries: HomeEntry[] = [
   { name: "前厅稽核评分", icon: <AuditOutlined />, active: true, scoreType: FRONT_HALL_REVIEW_TYPE, route: "front-hall" },
   { name: "后厨稽核评分", icon: <SafetyCertificateOutlined />, active: true, scoreType: BACK_KITCHEN_REVIEW_TYPE, route: "back-kitchen" },
-  { name: "门店信用评分", icon: <CheckSquareOutlined /> },
+  { name: "门店信用评分", icon: <CheckSquareOutlined />, active: true, scoreType: STORE_CREDIT_REVIEW_TYPE, route: "store-credit" },
   { name: "门店调研表", icon: <FileSearchOutlined />, active: true, route: "research/store", research: true },
   { name: "每日学习", icon: <BookOutlined />, active: true, route: "daily-learning" },
   { name: "通知", icon: <BellOutlined />, active: true, route: "notifications" },

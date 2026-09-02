@@ -86,6 +86,34 @@ export async function createStoreTaskDirectUpload(input: {
   }
 }
 
+export async function createLeadH5ReviewPhotoDirectUpload(input: {
+  r2StorageId: string;
+  storeId: string;
+  reviewType: string;
+  itemKey: string;
+  file: { name: string; type: string; size: number };
+}) {
+  const metadata = validateStoreTaskFileMetadata(input.file, "photo");
+  let config: Awaited<ReturnType<typeof getEnabledR2Config>>;
+  try { config = await getEnabledR2Config(input.r2StorageId); }
+  catch (error) {
+    if (error instanceof R2ConfigError) throw new TaskAttachmentError(error.message);
+    throw new TaskAttachmentError("巡店照片存储空间不可用，请联系系统管理员");
+  }
+  const safeSegment = (value: string) => value.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 100) || "unknown";
+  const objectKey = `lead-h5-reviews/${shanghaiDatePrefix()}/${safeSegment(input.storeId)}/${safeSegment(input.reviewType)}/${safeSegment(input.itemKey)}/${crypto.randomUUID()}-${metadata.name}`;
+  const expiresIn = Math.max(1, Math.min(config.signedUrlExpireSeconds, 300));
+  const client = clientFor(config);
+  try {
+    const uploadUrl = await getSignedUrl(client, new PutObjectCommand({
+      Bucket: config.bucketName, Key: objectKey, ContentType: metadata.mimeType, IfNoneMatch: "*",
+    }), { expiresIn });
+    return { uploadUrl, objectKey, expiresIn, r2StorageId: input.r2StorageId, bucketName: config.bucketName, ...metadata };
+  } catch {
+    throw new TaskAttachmentError("生成巡店照片直传地址失败，请稍后重试");
+  } finally { client.destroy(); }
+}
+
 export async function verifyStoreTaskDirectUpload(input: {
   r2StorageId: string;
   objectKey: string;

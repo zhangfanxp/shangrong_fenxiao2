@@ -1,5 +1,7 @@
 import { Card, Descriptions } from "antd";
 import { AssessmentList } from "@/components/assessment-list";
+import { ActualRevenueList } from "@/components/actual-revenue-list";
+import { RevenueTargetList } from "@/components/revenue-target-list";
 import { ClearBusinessData } from "@/components/clear-business-data";
 import { DictionaryManagement } from "@/components/dictionary-management";
 import { OperationLogList } from "@/components/operation-log-list";
@@ -10,6 +12,7 @@ import { ResearchTemplateList } from "@/components/research-template-list";
 import { R2StorageList } from "@/components/r2-storage-list";
 import { SystemParameters } from "@/components/system-parameters";
 import { StoreReviewList } from "@/components/store-review-list";
+import { StoreCreditScoreList } from "@/components/store-credit-score-list";
 import { StoreResearchRecordList } from "@/components/store-research-record-list";
 import { UserManagement } from "@/components/user-management";
 import { DailyLearningList } from "@/components/daily-learning-list";
@@ -19,10 +22,16 @@ import { getPlatformConfig } from "@/lib/platform-config";
 import { requirePageAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { serializeStoreReview, storeReviewDataScope, storeReviewSelect } from "@/lib/store-reviews";
+import { serializeStoreCreditScore, storeCreditScoreDataScope, storeCreditScoreFilterWhere, storeCreditScoreSelect } from "@/lib/store-credit-scores";
 import { serializeStoreResearch, storeResearchDataScope, storeResearchSelect } from "@/lib/store-research-records";
+import { actualRevenueDataScope, actualRevenueListSelect, serializeActualRevenue } from "@/lib/actual-revenue";
+import { revenueTargetDataScope, revenueTargetListSelect, serializeRevenueTarget } from "@/lib/revenue-targets";
 
 const titles: Record<string, { title: string; description: string }> = {
   "inspection/2": { title: "门店稽核评分", description: "查询、查看及管理门店前厅、后厨等稽核评分记录" },
+  "inspection/3": { title: "门店信用得分", description: "查询和管理运营移动端正式提交的门店信用评分结果" },
+  "operations/0": { title: "目标营业额", description: "管理门店月度营业目标及每日目标分解" },
+  "operations/1": { title: "实际营业额", description: "管理门店月度实际经营数据及目标" },
   "inspection/4": { title: "巡店调研表", description: "查询、查看及管理运营 H5 正式提交的门店调研记录" },
   "notifications/publish": { title: "发布通知", description: "创建定时通知，指定接收用户并在发布日期 06:00 自动发布" },
   "training/0": { title: "每日学习", description: "按 ISO 周制定移动端每日学习计划，并跟踪学员完成情况" },
@@ -37,13 +46,37 @@ const pageTitle = (section: string, page: string) => titles[`${section}/${page}`
 
 export default async function GenericPage({ params }: { params: Promise<{ section: string; page: string }> }) {
   const { section, page } = await params; const session = await requirePageAccess(`/lead_pc/${section}/${page}`); const meta = pageTitle(section, page); const key = `${section}/${page}`;
+  if (key === "operations/0") {
+    const where = await revenueTargetDataScope(session);
+    const [initialRows, initialTotal] = await db.$transaction([
+      db.storeMonthlyTarget.findMany({ where, select: revenueTargetListSelect, orderBy: [{ targetMonth: "desc" }, { storeNameSnapshot: "asc" }], take: 20 }),
+      db.storeMonthlyTarget.count({ where }),
+    ]);
+    return <main className="page-wrap"><PageHeader {...meta} /><RevenueTargetList permissions={session.permissions} initialRows={initialRows.map(serializeRevenueTarget)} initialTotal={initialTotal} /></main>;
+  }
+  if (key === "operations/1") {
+    const where = await actualRevenueDataScope(session);
+    const [initialRows, initialTotal] = await db.$transaction([
+      db.actualRevenueMonthly.findMany({ where, select: actualRevenueListSelect, orderBy: [{ statMonth: "desc" }, { storeNameSnapshot: "asc" }], take: 20 }),
+      db.actualRevenueMonthly.count({ where }),
+    ]);
+    return <main className="page-wrap"><PageHeader {...meta} /><ActualRevenueList permissions={session.permissions} initialRows={initialRows.map(serializeActualRevenue)} initialTotal={initialTotal} /></main>;
+  }
   if (key === "inspection/2") {
-    const where = { AND: [await storeReviewDataScope(session), {}] };
+    const where = { AND: [await storeReviewDataScope(session), { reviewType: { in: ["FRONT_HALL_AUDIT", "BACK_KITCHEN_AUDIT"] } }] };
     const [initialRows, initialTotal] = await db.$transaction([
       db.leadH5Review.findMany({ where, select: storeReviewSelect, orderBy: [{ assessmentDate: "desc" }, { createdAt: "desc" }, { recordNo: "desc" }], take: 20 }),
       db.leadH5Review.count({ where }),
     ]);
     return <main className="page-wrap"><PageHeader {...meta} /><StoreReviewList permissions={session.permissions} initialRows={initialRows.map(serializeStoreReview)} initialTotal={initialTotal} /></main>;
+  }
+  if (key === "inspection/3") {
+    const where = { AND: [await storeCreditScoreDataScope(session), storeCreditScoreFilterWhere({})] };
+    const [initialRows, initialTotal] = await db.$transaction([
+      db.leadH5Review.findMany({ where, select: storeCreditScoreSelect, orderBy: [{ assessmentDate: "desc" }, { id: "desc" }], take: 20 }),
+      db.leadH5Review.count({ where }),
+    ]);
+    return <main className="page-wrap"><PageHeader {...meta} /><StoreCreditScoreList permissions={session.permissions} initialRows={initialRows.map(serializeStoreCreditScore)} initialTotal={initialTotal} /></main>;
   }
   if (key === "inspection/4") {
     const where = { AND: [await storeResearchDataScope(session), { status: "SUBMITTED" }] };

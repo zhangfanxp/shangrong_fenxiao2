@@ -13,7 +13,7 @@ const bodySchema = z.object({
   recordIds: z.array(z.string().min(1)).max(10000).optional(),
   filters: z.object({
     brand: z.string().optional(), storeId: z.string().optional(), assessmentType: z.string().optional(),
-    startDate: z.string().optional(), endDate: z.string().optional(), reviewerUserId: z.string().optional(),
+    startDate: z.string().optional(), endDate: z.string().optional(), reviewerUserId: z.string().optional(), reviewerName: z.string().max(50).optional(),
   }).default({}),
 });
 
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "考核日期范围不正确" }, { status: 400 });
   }
   try {
-    const where = { AND: [await storeReviewDataScope(session), recordIds?.length ? { id: { in: recordIds } } : storeReviewFilterWhere(filters)] };
+    const where = { AND: [await storeReviewDataScope(session), recordIds?.length ? { AND: [{ reviewType: { in: ["FRONT_HALL_AUDIT", "BACK_KITCHEN_AUDIT"] } }, { id: { in: recordIds } }] } : storeReviewFilterWhere(filters)] };
     const rows = await db.leadH5Review.findMany({ where, select: storeReviewSelect, orderBy: [{ assessmentDate: "desc" }, { createdAt: "desc" }] });
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "餐饮管理系统";

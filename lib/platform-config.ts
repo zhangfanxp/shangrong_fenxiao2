@@ -1,4 +1,5 @@
-import { copyFile, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { copyFile, mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const DEFAULT_PLATFORM_NAME = "餐饮运营管理";
@@ -22,6 +23,12 @@ export type PlatformConfig = {
 };
 
 const targetPath = () => path.join(process.cwd(), "config", "platform.config.json");
+const DEFAULT_PLATFORM_CONFIG: PlatformConfig = { platformName: DEFAULT_PLATFORM_NAME, logoDataUrl: null, loginBackgroundDataUrl: null, courseCoverDataUrl: null, lessonCoverDataUrl: null, leadPcLoginTags: "", leadH5LoginTags: "", storeH5LoginTags: "", automaticTaskExecutionTime: "05:30", defaultTaskDeadlineDayOffset: 0, defaultTaskDeadlineTime: "23:59", dailyLearningR2StorageId: null, trainingVideoR2StorageId: null, trainingAudioR2StorageId: null, trainingDocumentR2StorageId: null };
+let platformConfigCache: { mtimeMs: number; size: number; value: PlatformConfig } | null = null;
+
+export function platformAssetVersion(value: string) {
+  return createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
 
 export function normalizeLoginTags(value?: unknown) {
   if (typeof value !== "string") return "";
@@ -37,6 +44,8 @@ export function userHasAnyLoginTag(userTags: string | null | undefined, configur
 
 export async function getPlatformConfig(): Promise<PlatformConfig> {
   try {
+    const file = await stat(targetPath());
+    if (platformConfigCache?.mtimeMs === file.mtimeMs && platformConfigCache.size === file.size) return platformConfigCache.value;
     const value = JSON.parse(await readFile(targetPath(), "utf8")) as { platformName?: unknown; logoDataUrl?: unknown; loginBackgroundDataUrl?: unknown; courseCoverDataUrl?: unknown; lessonCoverDataUrl?: unknown; leadPcLoginTags?: unknown; leadH5LoginTags?: unknown; storeH5LoginTags?: unknown; automaticTaskExecutionTime?: unknown; defaultTaskDeadlineDayOffset?: unknown; defaultTaskDeadlineTime?: unknown; dailyLearningR2StorageId?: unknown; trainingVideoR2StorageId?: unknown; trainingAudioR2StorageId?: unknown; trainingDocumentR2StorageId?: unknown };
     const platformName = typeof value.platformName === "string" && value.platformName.trim() ? value.platformName.trim() : DEFAULT_PLATFORM_NAME;
     const logoDataUrl = typeof value.logoDataUrl === "string" && value.logoDataUrl.startsWith("data:image/") ? value.logoDataUrl : null;
@@ -44,15 +53,18 @@ export async function getPlatformConfig(): Promise<PlatformConfig> {
     const courseCoverDataUrl = typeof value.courseCoverDataUrl === "string" && value.courseCoverDataUrl.startsWith("data:image/") ? value.courseCoverDataUrl : null;
     const lessonCoverDataUrl = typeof value.lessonCoverDataUrl === "string" && value.lessonCoverDataUrl.startsWith("data:image/") ? value.lessonCoverDataUrl : null;
     const automaticTaskExecutionTime = typeof value.automaticTaskExecutionTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.automaticTaskExecutionTime) ? value.automaticTaskExecutionTime : "05:30";
-    const defaultTaskDeadlineDayOffset = value.defaultTaskDeadlineDayOffset === 1 ? 1 : 0;
+    const defaultTaskDeadlineDayOffset: 0 | 1 = value.defaultTaskDeadlineDayOffset === 1 ? 1 : 0;
     const defaultTaskDeadlineTime = typeof value.defaultTaskDeadlineTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.defaultTaskDeadlineTime) ? value.defaultTaskDeadlineTime : "23:59";
     const dailyLearningR2StorageId = typeof value.dailyLearningR2StorageId === "string" && value.dailyLearningR2StorageId.trim() ? value.dailyLearningR2StorageId.trim() : null;
     const trainingVideoR2StorageId = typeof value.trainingVideoR2StorageId === "string" && value.trainingVideoR2StorageId.trim() ? value.trainingVideoR2StorageId.trim() : null;
     const trainingAudioR2StorageId = typeof value.trainingAudioR2StorageId === "string" && value.trainingAudioR2StorageId.trim() ? value.trainingAudioR2StorageId.trim() : null;
     const trainingDocumentR2StorageId = typeof value.trainingDocumentR2StorageId === "string" && value.trainingDocumentR2StorageId.trim() ? value.trainingDocumentR2StorageId.trim() : null;
-    return { platformName, logoDataUrl, loginBackgroundDataUrl, courseCoverDataUrl, lessonCoverDataUrl, leadPcLoginTags: normalizeLoginTags(value.leadPcLoginTags), leadH5LoginTags: normalizeLoginTags(value.leadH5LoginTags), storeH5LoginTags: normalizeLoginTags(value.storeH5LoginTags), automaticTaskExecutionTime, defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime, dailyLearningR2StorageId, trainingVideoR2StorageId, trainingAudioR2StorageId, trainingDocumentR2StorageId };
+    const config = { platformName, logoDataUrl, loginBackgroundDataUrl, courseCoverDataUrl, lessonCoverDataUrl, leadPcLoginTags: normalizeLoginTags(value.leadPcLoginTags), leadH5LoginTags: normalizeLoginTags(value.leadH5LoginTags), storeH5LoginTags: normalizeLoginTags(value.storeH5LoginTags), automaticTaskExecutionTime, defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime, dailyLearningR2StorageId, trainingVideoR2StorageId, trainingAudioR2StorageId, trainingDocumentR2StorageId };
+    platformConfigCache = { mtimeMs: file.mtimeMs, size: file.size, value: config };
+    return config;
   } catch {
-    return { platformName: DEFAULT_PLATFORM_NAME, logoDataUrl: null, loginBackgroundDataUrl: null, courseCoverDataUrl: null, lessonCoverDataUrl: null, leadPcLoginTags: "", leadH5LoginTags: "", storeH5LoginTags: "", automaticTaskExecutionTime: "05:30", defaultTaskDeadlineDayOffset: 0, defaultTaskDeadlineTime: "23:59", dailyLearningR2StorageId: null, trainingVideoR2StorageId: null, trainingAudioR2StorageId: null, trainingDocumentR2StorageId: null };
+    platformConfigCache = null;
+    return DEFAULT_PLATFORM_CONFIG;
   }
 }
 
@@ -69,6 +81,8 @@ export async function savePlatformConfig(config: PlatformConfig) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       });
       await rename(temporary, targetPath());
+      const file = await stat(targetPath());
+      platformConfigCache = { mtimeMs: file.mtimeMs, size: file.size, value: config };
     } finally {
       await unlink(temporary).catch(() => undefined);
     }

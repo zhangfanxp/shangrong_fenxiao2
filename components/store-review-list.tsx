@@ -1,7 +1,7 @@
 "use client";
 
 import { DeleteOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined, SearchOutlined, WarningOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, DatePicker, Descriptions, Empty, Form, message, Modal, Select, Skeleton, Space, Table, Tag, Tooltip } from "antd";
+import { Alert, Button, Card, DatePicker, Descriptions, Empty, Form, Image, Input, message, Modal, Select, Skeleton, Space, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType, TableRowSelection } from "antd/es/table/interface";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
@@ -13,18 +13,17 @@ type ReviewRow = {
   responsiblePersonNameSnapshot: string; assessmentDate: string; actualScore: number; maxScore: number;
   reviewerRealName: string; reviewMonth: string;
 };
-type Filters = { brand: string; storeId: string; assessmentType: string; startDate: string; endDate: string; reviewerUserId: string };
-type FormValues = { brand?: string; storeId?: string; assessmentType?: string; startDate?: Dayjs | null; endDate?: Dayjs | null; reviewerUserId?: string };
+type Filters = { brand: string; storeId: string; assessmentType: string; startDate: string; endDate: string; reviewerName: string };
+type FormValues = { brand?: string; storeId?: string; assessmentType?: string; startDate?: Dayjs | null; endDate?: Dayjs | null; reviewerName?: string };
 type StoreOption = { storeId: string; storeName: string; brandId: string; brandName: string };
-type Supervisor = { userId: string; username: string; realName: string };
-type DetailItem = { id: string; sectionName: string; subsectionName: string; itemDescription: string; maxScore: number; result: string; actualScore: number; sortOrder: number };
+type DetailItem = { id: string; sectionName: string; subsectionName: string; itemDescription: string; maxScore: number; result: string; actualScore: number; sortOrder: number; photos: { id: string; name: string; size: number; mimeType: string; url: string | null }[] };
 type ReviewDetail = {
   id: string; recordNo: string; reviewMonth: string; brandName: string; storeName: string; assessmentName: string;
   responsiblePersonName: string; reviewerRealName: string; assessmentDate: string; actualScore: number; maxScore: number;
   assessmentVersion: number; configSnapshot?: unknown; items: DetailItem[];
 };
 
-const emptyFilters: Filters = { brand: "", storeId: "", assessmentType: "", startDate: "", endDate: "", reviewerUserId: "" };
+const emptyFilters: Filters = { brand: "", storeId: "", assessmentType: "", startDate: "", endDate: "", reviewerName: "" };
 const resultLabels: Record<string, { text: string; color: string }> = {
   PASS: { text: "合格", color: "success" }, PARTIAL: { text: "部分合格", color: "warning" }, FAIL: { text: "不合格", color: "error" },
 };
@@ -59,8 +58,6 @@ export function StoreReviewList({ permissions, initialRows = [], initialTotal = 
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
   const [storeLoading, setStoreLoading] = useState(false);
-  const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
-  const [supervisorError, setSupervisorError] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [detailId, setDetailId] = useState<string>();
   const [detail, setDetail] = useState<ReviewDetail>();
@@ -104,17 +101,6 @@ export function StoreReviewList({ permissions, initialRows = [], initialTotal = 
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [filters, load, page, pageSize]);
-  useEffect(() => {
-    void (async () => {
-      try {
-        const response = await fetch("/api/store-reviews/supervisors", { cache: "no-store" });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message);
-        setSupervisors(data); setSupervisorError(false);
-      } catch { setSupervisorError(true); }
-    })();
-  }, []);
-
   const searchStores = useCallback(async (keyword = "") => {
     setStoreLoading(true);
     try {
@@ -140,7 +126,7 @@ export function StoreReviewList({ permissions, initialRows = [], initialTotal = 
     const next = {
       brand: values.brand || "", storeId: values.storeId || "", assessmentType: values.assessmentType || "",
       startDate: values.startDate?.format("YYYY-MM-DD") || "", endDate: values.endDate?.format("YYYY-MM-DD") || "",
-      reviewerUserId: values.reviewerUserId || "",
+      reviewerName: values.reviewerName?.trim() || "",
     };
     if (next.startDate && next.endDate && next.startDate > next.endDate) { message.warning("考核开始日期不能晚于考核截止日期"); return null; }
     return next;
@@ -207,18 +193,22 @@ export function StoreReviewList({ permissions, initialRows = [], initialTotal = 
   ];
   const rowSelection: TableRowSelection<ReviewRow> = { selectedRowKeys, preserveSelectedRowKeys: true, onChange: setSelectedRowKeys, columnWidth: 48, selections: true };
   const detailGroups = useMemo(() => groupedItems(detail?.items || []), [detail]);
+  const reviewTypeOptions = useMemo(
+    () => (dictionaries.ASSESSMENT_TYPE || []).filter(option => ["前厅稽核评分", "后厨稽核评分"].includes(option.label) || ["前厅稽核评分", "后厨稽核评分"].includes(option.value)),
+    [dictionaries.ASSESSMENT_TYPE],
+  );
 
   return <>
-    {(dictionariesError || supervisorError) && <Alert className="store-review-alert" type="warning" showIcon message="部分筛选项加载失败" description={[dictionariesError, supervisorError ? "考核督导数据加载失败，请稍后重试" : ""].filter(Boolean).join("；")} action={dictionariesError ? <Button size="small" icon={<ReloadOutlined />} onClick={() => void reloadDictionaries()}>重试</Button> : undefined} />}
+    {dictionariesError && <Alert className="store-review-alert" type="warning" showIcon message="部分筛选项加载失败" description={dictionariesError} action={<Button size="small" icon={<ReloadOutlined />} onClick={() => void reloadDictionaries()}>重试</Button>} />}
     <Card className="store-review-filter-card">
-      <Form form={form} layout="vertical" initialValues={{ brand: undefined, assessmentType: undefined, reviewerUserId: undefined }}>
+      <Form form={form} layout="vertical" initialValues={{ brand: undefined, assessmentType: undefined, reviewerName: "" }}>
         <div className="store-review-filter-grid">
           <Form.Item label="品牌" name="brand"><Select allowClear loading={dictionariesLoading} placeholder="全部" options={dictionaries.BRAND} onChange={() => { form.setFieldValue("storeId", undefined); setStoreOptions([]); }} /></Form.Item>
           <Form.Item label="考核门店" name="storeId"><Select showSearch allowClear filterOption={false} placeholder="请输入门店名称" loading={storeLoading} options={storeOptions.map(store => ({ value: store.storeId, label: `${store.storeName}（${store.brandName}）` }))} onFocus={() => { if (!storeOptions.length) void searchStores(); }} onSearch={delayedStoreSearch} notFoundContent={storeLoading ? "加载中..." : "未找到匹配门店"} /></Form.Item>
-          <Form.Item label="考核表类型" name="assessmentType"><Select allowClear loading={dictionariesLoading} placeholder="全部" options={dictionaries.ASSESSMENT_TYPE} /></Form.Item>
+          <Form.Item label="考核表类型" name="assessmentType"><Select allowClear loading={dictionariesLoading} placeholder="全部" options={reviewTypeOptions} /></Form.Item>
           <Form.Item label="开始日期" name="startDate"><DatePicker format="YYYY-MM-DD" placeholder="开始日期" /></Form.Item>
           <Form.Item label="截止日期" name="endDate"><DatePicker format="YYYY-MM-DD" placeholder="截止日期" /></Form.Item>
-          <Form.Item label="考核督导" name="reviewerUserId"><Select allowClear showSearch optionFilterProp="label" placeholder="全部" options={supervisors.map(user => ({ value: user.userId, label: `${user.realName}（${user.username}）` }))} /></Form.Item>
+          <Form.Item label="考核督导" name="reviewerName"><Input allowClear maxLength={50} placeholder="请输入督导姓名" onPressEnter={applyFilters} /></Form.Item>
           <div className="store-review-filter-actions"><Space><Button onClick={resetFilters}>重置</Button><Button type="primary" icon={<SearchOutlined />} onClick={applyFilters}>筛选</Button></Space></div>
         </div>
       </Form>
@@ -242,7 +232,7 @@ export function StoreReviewList({ permissions, initialRows = [], initialTotal = 
         </Descriptions>
         <h3>评分明细</h3>
         {!detail.configSnapshot && <Alert type="warning" showIcon message="历史评分配置快照缺失，以下内容来自已保存的评分明细" />}
-        {Array.from(detailGroups.entries()).map(([section, subsections], sectionIndex) => <section className="store-review-detail-section" key={`${section}-${sectionIndex}`}><h4>{section}</h4>{Array.from(subsections.entries()).map(([subsection, items], subsectionIndex) => <div className="store-review-detail-subsection" key={`${subsection}-${subsectionIndex}`}><h5>{subsection}</h5>{items.map((item, index) => { const result = resultLabels[item.result] || { text: item.result, color: "default" }; return <div className="store-review-detail-item" key={item.id}><div className="store-review-detail-index">{index + 1}</div><div className="store-review-detail-copy"><strong>{item.itemDescription}</strong><Space size={[8, 6]} wrap><span>满分：{score(item.maxScore)}</span><span>评分结果：<Tag color={result.color}>{result.text}</Tag></span><span>实际得分：<b>{score(item.actualScore)}</b></span></Space></div></div>; })}</div>)}</section>)}
+        {Array.from(detailGroups.entries()).map(([section, subsections], sectionIndex) => <section className="store-review-detail-section" key={`${section}-${sectionIndex}`}><h4>{section}</h4>{Array.from(subsections.entries()).map(([subsection, items], subsectionIndex) => <div className="store-review-detail-subsection" key={`${subsection}-${subsectionIndex}`}><h5>{subsection}</h5>{items.map((item, index) => { const result = resultLabels[item.result] || { text: item.result, color: "default" }; return <div className="store-review-detail-item" key={item.id}><div className="store-review-detail-index">{index + 1}</div><div className="store-review-detail-copy"><strong>{item.itemDescription}</strong><Space size={[8, 6]} wrap><span>满分：{score(item.maxScore)}</span><span>评分结果：<Tag color={result.color}>{result.text}</Tag></span><span>实际得分：<b>{score(item.actualScore)}</b></span></Space>{!!item.photos?.length && <div className="store-review-detail-photos"><Image.PreviewGroup>{item.photos.map(photo => photo.url ? <Image key={photo.id} src={photo.url} alt={photo.name} width={88} height={88} /> : <span key={photo.id}>{photo.name}（暂不可访问）</span>)}</Image.PreviewGroup></div>}</div></div>; })}</div>)}</section>)}
       </div>}
     </Modal>
 

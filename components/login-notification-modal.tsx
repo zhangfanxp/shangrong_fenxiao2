@@ -14,7 +14,7 @@ type LoginNotification = {
   releaseAtText: string;
 };
 
-export function LoginNotificationModal({ apiPath }: { apiPath: string }) {
+export function LoginNotificationModal({ apiPath, deferUntilIdle = false }: { apiPath: string; deferUntilIdle?: boolean }) {
   const [rows, setRows] = useState<LoginNotification[]>([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -33,7 +33,15 @@ export function LoginNotificationModal({ apiPath }: { apiPath: string }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { void load(); }, [apiPath]);
+  useEffect(() => {
+    if (!deferUntilIdle) { void load(); return; }
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(() => void load(), { timeout: 1500 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+    const timer = window.setTimeout(() => void load(), 500);
+    return () => window.clearTimeout(timer);
+  }, [apiPath, deferUntilIdle]); // eslint-disable-line react-hooks/exhaustive-deps
   const current = rows[index] || null;
 
   const acknowledge = async () => {

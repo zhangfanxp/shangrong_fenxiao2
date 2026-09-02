@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
-import { getPlatformConfig, normalizeLoginTags, savePlatformConfig } from "@/lib/platform-config";
+import { getPlatformConfig, normalizeLoginTags, platformAssetVersion, savePlatformConfig } from "@/lib/platform-config";
 
 const imagePattern = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
 const inputSchema = z.object({
@@ -46,9 +46,13 @@ const inputSchema = z.object({
   trainingDocumentR2StorageId: z.string().trim().min(1, "请选择正确的课件文档R2存储空间").nullable().optional(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   const platform = await getPlatformConfig();
-  return NextResponse.json({ platformName: platform.platformName, loginBackgroundDataUrl: platform.loginBackgroundDataUrl }, { headers: { "Cache-Control": "no-store" } });
+  const backgroundVersion = platform.loginBackgroundDataUrl ? platformAssetVersion(platform.loginBackgroundDataUrl) : null;
+  const etag = `"${platformAssetVersion(`${platform.platformName}\0${backgroundVersion || ""}`)}"`;
+  const headers = { "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=3600", ETag: etag };
+  if (request.headers.get("if-none-match")?.split(",").map(value => value.trim()).includes(etag)) return new NextResponse(null, { status: 304, headers });
+  return NextResponse.json({ platformName: platform.platformName, loginBackgroundUrl: backgroundVersion ? `/api/settings/login-background?v=${backgroundVersion}` : null }, { headers });
 }
 
 export async function PUT(request: Request) {

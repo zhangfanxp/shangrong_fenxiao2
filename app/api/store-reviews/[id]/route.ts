@@ -4,6 +4,7 @@ import { requireApiSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog, writeOperationLogWithTransaction } from "@/lib/operation-log";
 import { canStoreReview, formatReviewDate, storeReviewDataScope } from "@/lib/store-reviews";
+import { createTaskAttachmentReadUrl, deleteTaskDraftFiles } from "@/lib/task-r2-upload";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession();
@@ -12,8 +13,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   try {
     const row = await db.leadH5Review.findFirst({
-      where: { AND: [{ id }, await storeReviewDataScope(session)] },
-      include: { items: { orderBy: { sortOrder: "asc" } } },
+      where: { AND: [{ id, reviewType: { in: ["FRONT_HALL_AUDIT", "BACK_KITCHEN_AUDIT"] } }, await storeReviewDataScope(session)] },
+      include: { items: { orderBy: { sortOrder: "asc" }, include: { photos: { orderBy: { createdAt: "asc" } } } } },
     });
     if (!row) return NextResponse.json({ message: "该评分记录已不存在或无权查看" }, { status: 404 });
     await writeOperationLog({ userId: session.userId, username: session.username, page: "门店稽核评分", action: "查看", result: "成功", detail: `记录编号：${row.recordNo}`, request }).catch(() => undefined);
@@ -32,7 +33,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       maxScore: Number(row.maxScore),
       assessmentVersion: row.assessmentVersion,
       configSnapshot: row.configSnapshot,
-      items: row.items.map(item => ({
+      items: await Promise.all(row.items.map(async item => ({
         id: item.id,
         itemKey: item.itemKey,
         sectionName: item.sectionName,
@@ -42,7 +43,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         result: item.result,
         actualScore: Number(item.actualScore),
         sortOrder: item.sortOrder,
-      })),
+        photos: await Promise.all(item.photos.map(async photo => ({
+          id: photo.id, name: photo.originalName, size: photo.size, mimeType: photo.mimeType,
+          url: await createTaskAttachmentReadUrl({ r2StorageId: photo.r2StorageId, objectKey: photo.objectKey }).catch(() => null),
+        }))),
+      }))),
     });
   } catch {
     await writeOperationLog({ userId: session.userId, username: session.username, page: "门店稽核评分", action: "查看", result: "失败", detail: `记录ID：${id}`, request }).catch(() => undefined);
@@ -57,10 +62,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { id } = await params;
   try {
     const scope = await storeReviewDataScope(session);
-    const found = await db.leadH5Review.findFirst({ where: { AND: [{ id }, scope] } });
+    const found = await db.leadH5Review.findFirst({ where: { AND: [{ id, reviewType: { in: ["FRONT_HALL_AUDIT", "BACK_KITCHEN_AUDIT"] } }, scope] }, include: { items: { include: { photos: { select: { r2StorageId: true, objectKey: true } } } } } });
     if (!found) return NextResponse.json({ message: "该评分记录已不存在或已被删除" }, { status: 404 });
     await db.$transaction(async tx => {
-      const current = await tx.leadH5Review.findFirst({ where: { AND: [{ id }, scope] } });
+      const current = await tx.leadH5Review.findFirst({ where: { AND: [{ id, reviewType: { in: ["FRONT_HALL_AUDIT", "BACK_KITCHEN_AUDIT"] } }, scope] } });
       if (!current) throw new Prisma.PrismaClientKnownRequestError("评分记录不存在", { code: "P2025", clientVersion: Prisma.prismaVersion.client });
       await tx.leadH5ReviewItem.deleteMany({ where: { reviewId: current.id } });
       await tx.leadH5Review.delete({ where: { id: current.id } });
@@ -74,6 +79,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         request,
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    await deleteTaskDraftFiles(found.items.flatMap(item => item.photos)).catch(() => undefined);
     return NextResponse.json({ message: "门店稽核评分删除成功" });
   } catch (error) {
     const missing = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";

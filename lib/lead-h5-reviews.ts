@@ -6,10 +6,13 @@ export const FRONT_HALL_REVIEW_TYPE = "FRONT_HALL_AUDIT";
 export const FRONT_HALL_ASSESSMENT_NAME = "前厅稽核评分";
 export const BACK_KITCHEN_REVIEW_TYPE = "BACK_KITCHEN_AUDIT";
 export const BACK_KITCHEN_ASSESSMENT_NAME = "后厨稽核评分";
+export const STORE_CREDIT_REVIEW_TYPE = "STORE_CREDIT_SCORE";
+export const STORE_CREDIT_ASSESSMENT_NAME = "门店信用评分";
 
 export const REVIEW_DEFINITIONS = [
   { reviewType: FRONT_HALL_REVIEW_TYPE, assessmentName: FRONT_HALL_ASSESSMENT_NAME, title: "前厅稽核评分", route: "front-hall" },
   { reviewType: BACK_KITCHEN_REVIEW_TYPE, assessmentName: BACK_KITCHEN_ASSESSMENT_NAME, title: "后厨稽核评分", route: "back-kitchen" },
+  { reviewType: STORE_CREDIT_REVIEW_TYPE, assessmentName: STORE_CREDIT_ASSESSMENT_NAME, title: "门店信用评分", route: "store-credit" },
 ] as const;
 
 export type LeadH5ReviewType = (typeof REVIEW_DEFINITIONS)[number]["reviewType"];
@@ -28,6 +31,7 @@ export type ReviewConfig = {
   scoreModeLabel?: string;
   configVersion: number;
   totalScore: number;
+  photoAttachmentLimit?: number;
   sections: AssessmentSection[];
 };
 
@@ -57,7 +61,26 @@ function isReviewConfig(value: Record<string, unknown>): value is Record<string,
 export async function loadReviewConfig(fileName: string) {
   const config = await readAssessmentConfig(fileName);
   if (!isReviewConfig(config)) throw new LeadH5ReviewError("评分表配置异常，请联系系统管理员。", 500);
-  return config;
+  const photoAttachmentLimit = Number.isInteger(config.photoAttachmentLimit) && Number(config.photoAttachmentLimit) >= 1 && Number(config.photoAttachmentLimit) <= 20 ? Number(config.photoAttachmentLimit) : 3;
+  return {
+    ...config,
+    photoAttachmentLimit,
+    sections: config.sections.map(section => ({
+      ...section,
+      children: section.children.map(subsection => ({
+        ...subsection,
+        items: subsection.items.map(item => ({ ...item, supportsPhoto: item.supportsPhoto === true })),
+      })),
+    })),
+  };
+}
+
+export function findReviewConfigItem(config: ReviewConfig, itemId: string) {
+  for (const section of config.sections) for (const subsection of section.children) {
+    const item = subsection.items.find(candidate => candidate.id === itemId);
+    if (item) return item;
+  }
+  return null;
 }
 
 export function brandMatches(applicableBrands: unknown, brand: { id: string; code: string; name: string }) {

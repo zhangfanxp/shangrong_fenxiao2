@@ -17,6 +17,8 @@ const editSchema = z.object({
   scoreMode: z.nativeEnum(AssessmentScoreMode, { message: "请选择评分模式" }),
   configFileBase: z.string().trim().min(1, "请输入考核明细配置文件名"),
   applicableBrands: z.array(z.string().trim().min(1)).default([]),
+  r2StorageId: z.string().trim().min(1, "请选择存储空间"),
+  photoAttachmentLimit: z.number().int().min(1, "拍照附件数量不能少于1").max(20, "拍照附件数量不能超过20"),
   detailText: z.string().min(1, "请输入考核明细项"),
   remark: z.string().trim().refine(value => Array.from(value).length <= 50, "备注不能超过50个汉字").optional().default(""),
   updatedAt: z.string().datetime({ offset: true }),
@@ -26,7 +28,7 @@ const statusSchema = z.object({ action: z.literal("status"), status: z.nativeEnu
 function forbidden() { return NextResponse.json({ message: "暂无此操作权限" }, { status: 403 }); }
 function sameTimestamp(date: Date, value: string) { return date.getTime() === new Date(value).getTime(); }
 function rowJson<T extends { totalScore: Prisma.Decimal }>(row: T) { return { ...row, totalScore: Number(row.totalScore) }; }
-function buildConfig(input: z.infer<typeof editSchema>, recordNo: string, version: number, parsed: ReturnType<typeof parseAssessmentDetails>) {
+function buildConfig(input: z.infer<typeof editSchema>, recordNo: string, version: number, parsed: ReturnType<typeof parseAssessmentDetails>, storage: { id: string; name: string }) {
   return {
     recordNo,
     reviewName: input.name,
@@ -34,6 +36,9 @@ function buildConfig(input: z.infer<typeof editSchema>, recordNo: string, versio
     scoreMode: input.scoreMode,
     scoreModeLabel: input.scoreMode === AssessmentScoreMode.BINARY ? "0或满分" : "允许自定义得分",
     applicableBrands: input.applicableBrands,
+    photoStorage: storage,
+    photoAttachmentLimit: input.photoAttachmentLimit,
+    detailFormat: parsed.detailFormat,
     configVersion: version,
     totalScore: parsed.totalScore,
     statistics: { sectionCount: parsed.sectionCount, subsectionCount: parsed.subsectionCount, itemCount: parsed.itemCount },
@@ -41,7 +46,7 @@ function buildConfig(input: z.infer<typeof editSchema>, recordNo: string, versio
   };
 }
 async function findAssessment(id: string) {
-  return db.assessment.findFirst({ where: { id, deletedAt: null }, include: { createdBy: { select: { realName: true } }, _count: { select: { records: true, leadH5Reviews: true } } } });
+  return db.assessment.findFirst({ where: { id, deletedAt: null }, include: { createdBy: { select: { realName: true } }, r2Storage: { select: { id: true, name: true, status: true } }, _count: { select: { records: true, leadH5Reviews: true } } } });
 }
 async function log(userId: string, action: string, result: OperationLogResult, detail: string) {
   await writeOperationLog({ userId, page: "考核表格", action, result, detail }).catch(() => undefined);
@@ -117,7 +122,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (nextFileName !== assessment.configFileName && (await assessmentFileExists(nextFileName) || await db.assessment.findFirst({ where: { configFileName: nextFileName, id: { not: id }, deletedAt: null } }))) {
       throw new AssessmentConfigError("考核明细配置文件名称已存在，请重新输入");
     }
-    const [brandOptions, assessmentTypeOptions] = await Promise.all([getBusinessDictionaryOptions("BRAND"), getBusinessDictionaryOptions("ASSESSMENT_TYPE")]);
+    const [brandOptions, assessmentTypeOptions, storage] = await Promise.all([
+      getBusinessDictionaryOptions("BRAND"), getBusinessDictionaryOptions("ASSESSMENT_TYPE"),
+      db.r2StorageConfig.findFirst({ where: { id: input.r2StorageId, status: "ENABLED", deletedAt: null }, select: { id: true, name: true } }),
+    ]);
+    if (!storage) throw new AssessmentConfigError("所选R2存储空间不存在或已停用，请重新选择");
     const assessmentTypeUnchanged = input.name === assessment.name;
     if (!assessmentTypeOptions.some(option => option.value === input.name) && !assessmentTypeUnchanged) throw new AssessmentConfigError("所选考核表类型不在已启用的Assessment_Type数据字典中");
     const validBrandValues = new Set(brandOptions.map(option => option.value));
@@ -129,9 +138,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const scopeConflict = await findAssessmentScopeConflict(applicableBrands, input.name, id);
       if (scopeConflict) throw new AssessmentConfigError(assessmentScopeConflictMessage(scopeConflict.brands));
     }
-    const parsedDetails = parseAssessmentDetails(input.detailText);
+    const parsedDetails = parseAssessmentDetails(input.detailText, input.name);
     const nextVersion = assessment.configVersion + 1;
-    const nextConfig = buildConfig(input, assessment.recordNo, nextVersion, parsedDetails);
+    const nextConfig = buildConfig(input, assessment.recordNo, nextVersion, parsedDetails, storage);
     if (nextFileName === assessment.configFileName) await writeAssessmentConfig(nextFileName, nextConfig);
     else {
       await createAssessmentConfig(nextFileName, nextConfig);
@@ -142,6 +151,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       await db.$transaction(async tx => {
         const result = await tx.assessment.updateMany({ where: { id, updatedAt: assessment.updatedAt }, data: {
           name: input.name, scoreMode: input.scoreMode, configFileName: nextFileName, applicableBrands,
+          r2StorageId: storage.id,
+          photoAttachmentLimit: input.photoAttachmentLimit,
           detailText: parsedDetails.normalizedText, sectionCount: parsedDetails.sectionCount,
           subsectionCount: parsedDetails.subsectionCount, itemCount: parsedDetails.itemCount,
           totalScore: parsedDetails.totalScore, remark: input.remark || null, configVersion: nextVersion,
@@ -149,6 +160,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         if (!result.count) throw new AssessmentConfigError("当前考核表配置已被其他用户修改，请刷新后重新操作。");
         await tx.assessmentBrandScope.deleteMany({ where: { assessmentId: id } });
         if (assessment.status === RecordStatus.ENABLED && applicableBrands.length) await tx.assessmentBrandScope.createMany({ data: assessmentScopeRows(applicableBrands, input.name).map(scope => ({ assessmentId: id, ...scope })) });
+        await tx.r2StorageReference.upsert({
+          where: { businessType_businessId: { businessType: "ASSESSMENT_PHOTO_STORAGE", businessId: id } },
+          create: { r2ConfigId: storage.id, businessType: "ASSESSMENT_PHOTO_STORAGE", businessId: id },
+          update: { r2ConfigId: storage.id },
+        });
       });
     } catch (error) {
       if (nextFileName !== assessment.configFileName) await deleteAssessmentConfig(nextFileName).catch(() => undefined);
@@ -176,7 +192,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   try {
     const oldConfig = await readAssessmentConfig(assessment.configFileName);
     await deleteAssessmentConfig(assessment.configFileName);
-    try { await db.$transaction([db.assessmentBrandScope.deleteMany({ where: { assessmentId: id } }), db.assessment.update({ where: { id }, data: { deletedAt: new Date() } })]); }
+    try { await db.$transaction([db.assessmentBrandScope.deleteMany({ where: { assessmentId: id } }), db.r2StorageReference.deleteMany({ where: { businessType: "ASSESSMENT_PHOTO_STORAGE", businessId: id } }), db.assessment.update({ where: { id }, data: { deletedAt: new Date() } })]); }
     catch (error) { await writeAssessmentConfig(assessment.configFileName, oldConfig); throw error; }
     await log(session.userId, "删除", "成功", `删除考核表：${assessment.recordNo}`);
     return NextResponse.json({ message: "考核表删除成功" });
