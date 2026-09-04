@@ -40,6 +40,7 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (pathname === "/lead_pc/settings/assessments") return anyPrefix(permissions, "assessments:");
   if (pathname === "/lead_pc/settings/survey-templates") return anyPrefix(permissions, "research-templates:");
   if (pathname === "/lead_pc/settings/storage") return anyPrefix(permissions, "r2-storage:");
+  if (pathname === "/lead_pc/settings/backups") return anyPrefix(permissions, "database-backups:");
   if (pathname === "/lead_pc/settings/parameters") return hasPermission(permissions, "settings:parameters");
   if (pathname === "/lead_pc/settings/operation-logs") return hasPermission(permissions, ["operation-logs:view", "settings:logs"]);
   return false;
@@ -49,7 +50,7 @@ export const accessibleLandingPaths = [
   "/lead_pc/dashboard", "/lead_pc/stores/contracts", "/lead_pc/stores/list", "/lead_pc/operations/0", "/lead_pc/operations/1", "/lead_pc/inspection/2", "/lead_pc/inspection/3", "/lead_pc/inspection/4",
   "/lead_pc/tasks/settings", "/lead_pc/tasks/records", "/lead_pc/staff/0", "/lead_pc/training/0", "/lead_pc/training/1", "/lead_pc/training/3", "/lead_pc/meetings/0",
   "/lead_pc/notifications/publish", "/lead_pc/notifications/manage", "/lead_pc/settings/roles", "/lead_pc/settings/users",
-  "/lead_pc/settings/dictionaries", "/lead_pc/settings/assessments", "/lead_pc/settings/survey-templates", "/lead_pc/settings/storage", "/lead_pc/settings/parameters", "/lead_pc/settings/operation-logs",
+  "/lead_pc/settings/dictionaries", "/lead_pc/settings/assessments", "/lead_pc/settings/survey-templates", "/lead_pc/settings/storage", "/lead_pc/settings/backups", "/lead_pc/settings/parameters", "/lead_pc/settings/operation-logs",
 ] as const;
 
 export function firstAccessiblePath(permissions: string[]) {

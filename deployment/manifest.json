@@ -1,0 +1,20 @@
+{
+  "deploymentVersion": 1,
+  "databaseSchemaVersion": 1,
+  "databaseSchemaChecksum": "96df7e0620edd67d489225d87e796b7ef2a277fea1d785c68c9efad4455fe362",
+  "latestMigration": null,
+  "configSchemaVersion": 1,
+  "requiredEnvironment": [
+    "DATABASE_URL",
+    "AUTH_SECRET",
+    "TASK_SCHEDULER_SECRET",
+    "NOTIFICATION_SCHEDULER_SECRET",
+    "R2_CONFIG_ENCRYPTION_KEY",
+    "APP_HOST",
+    "APP_PORT",
+    "APP_URL",
+    "SESSION_COOKIE_SECURE",
+    "MYSQL_BIN",
+    "MYSQLDUMP_BIN"
+  ]
+}

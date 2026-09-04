@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getPlatformConfig, userHasAnyLoginTag } from "@/lib/platform-config";
 import { jsonIdArray, resolveUserStores } from "@/lib/user-store-scope";
+import { sessionCookieSecure } from "@/lib/session-cookie";
 
 const cookieName = "canyin_store_h5_session";
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "development-secret-change-me");
@@ -90,7 +91,7 @@ export const storeH5SessionCookie = {
   name: cookieName,
   options: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: sessionCookieSecure(),
     sameSite: "lax" as const,
     path: "/",
     maxAge: 60 * 60 * 8,

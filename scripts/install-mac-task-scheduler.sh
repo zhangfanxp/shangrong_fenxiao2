@@ -40,4 +40,4 @@ PLIST
 launchctl bootout "gui/$(id -u)/com.canyin.task-scheduler" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$agent_file"
 launchctl enable "gui/$(id -u)/com.canyin.task-scheduler"
-echo "任务生成与通知发布调度已安装并启动：$agent_file"
+echo "任务生成、通知发布与数据库备份调度已安装并启动：$agent_file"

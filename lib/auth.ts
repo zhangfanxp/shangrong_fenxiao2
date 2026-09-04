@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { canAccessPath, type PermissionRequirement, hasPermission } from "@/lib/access-control";
 import { db } from "@/lib/db";
+import { sessionCookieSecure } from "@/lib/session-cookie";
 
 const cookieName = "canyin_session";
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "development-secret-change-me");
@@ -47,4 +48,4 @@ export async function requireApiSession() {
   return getSession();
 }
 
-export const sessionCookie = { name: cookieName, options: { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: 60 * 60 * 8 } };
+export const sessionCookie = { name: cookieName, options: { httpOnly: true, secure: sessionCookieSecure(), sameSite: "lax" as const, path: "/", maxAge: 60 * 60 * 8 } };

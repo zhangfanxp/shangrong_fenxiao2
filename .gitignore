@@ -19,6 +19,7 @@ coverage/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.backup-*
 !.env.example
 
 # Runtime logs
@@ -50,6 +51,9 @@ temp/
 # Local R2 credentials: contains secretAccessKey and must not be public
 data/R2_Bucket/cloudflare_R2.json
 data/R2_Bucket/cloudflare_R2.json.*.tmp
+
+# Local installation state and deployment reports
+data/deployment/
 
 # JSON files below are required project data and must be committed
 !package.json

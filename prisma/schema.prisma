@@ -1412,3 +1412,60 @@ model R2StorageTest {
   @@unique([r2ConfigId, fileName])
   @@index([createdAt])
 }
+
+model DatabaseBackupSetting {
+  id              String   @id @db.VarChar(32)
+  r2StorageId     String   @db.VarChar(191)
+  enabled         Boolean  @default(false)
+  frequency       String   @default("DAILY") @db.VarChar(10)
+  weekdays        Json?
+  executionTimes  Json
+  updatedByUserId String?  @db.VarChar(191)
+  updatedByName   String?  @db.VarChar(50)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([r2StorageId])
+}
+
+model DatabaseBackupFile {
+  id                    String    @id @default(cuid())
+  fileName              String    @unique @db.VarChar(255)
+  r2StorageId           String    @db.VarChar(191)
+  r2StorageNameSnapshot String    @db.VarChar(50)
+  bucketNameSnapshot    String    @db.VarChar(63)
+  objectKey             String    @unique @db.VarChar(500)
+  backupType            String    @db.VarChar(20)
+  status                String    @db.VarChar(20)
+  sizeBytes             BigInt    @default(0)
+  checksumSha256        String?   @db.VarChar(64)
+  durationSeconds       Int?
+  scheduleKey           String?   @unique @db.VarChar(20)
+  activeLockKey         String?   @unique @db.VarChar(32)
+  errorMessage          String?   @db.Text
+  createdByUserId       String?   @db.VarChar(191)
+  createdByName         String    @db.VarChar(50)
+  startedAt             DateTime  @default(now())
+  completedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([status, startedAt])
+  @@index([r2StorageId])
+  @@index([backupType, startedAt])
+}
+
+/// Records one-time database changes applied by the local deployment assistant.
+/// Future deploy migrations must use a stable id and immutable checksum.
+model DeploymentMigration {
+  id          String   @id @db.VarChar(100)
+  checksum    String   @db.VarChar(64)
+  appVersion  String   @db.VarChar(30)
+  description String?  @db.VarChar(200)
+  status      String   @default("SUCCESS") @db.VarChar(20)
+  startedAt   DateTime @default(now())
+  appliedAt   DateTime?
+  error       String?  @db.Text
+
+  @@index([status, startedAt])
+}

@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { RoleManagement } from "@/components/role-management";
 import { ResearchTemplateList } from "@/components/research-template-list";
 import { R2StorageList } from "@/components/r2-storage-list";
+import { DatabaseBackup } from "@/components/database-backup";
 import { SystemParameters } from "@/components/system-parameters";
 import { StoreReviewList } from "@/components/store-review-list";
 import { StoreCreditScoreList } from "@/components/store-credit-score-list";
@@ -28,6 +29,7 @@ import { actualRevenueDataScope, actualRevenueListSelect, serializeActualRevenue
 import { revenueTargetDataScope, revenueTargetListSelect, serializeRevenueTarget } from "@/lib/revenue-targets";
 
 const titles: Record<string, { title: string; description: string }> = {
+  "settings/backups": { title: "数据库备份", description: "将可独立恢复的 MySQL 全量备份安全保存至 Cloudflare R2" },
   "inspection/2": { title: "门店稽核评分", description: "查询、查看及管理门店前厅、后厨等稽核评分记录" },
   "inspection/3": { title: "门店信用得分", description: "查询和管理运营移动端正式提交的门店信用评分结果" },
   "operations/0": { title: "目标营业额", description: "管理门店月度营业目标及每日目标分解" },
@@ -100,6 +102,7 @@ export default async function GenericPage({ params }: { params: Promise<{ sectio
   if (key === "settings/assessments") return <main className="page-wrap"><PageHeader {...meta} /><AssessmentList permissions={session.permissions} /></main>;
   if (key === "settings/survey-templates") return <main className="page-wrap"><PageHeader {...meta} /><ResearchTemplateList permissions={session.permissions} /></main>;
   if (key === "settings/storage") return <main className="page-wrap"><PageHeader {...meta} /><R2StorageList permissions={session.permissions} /></main>;
+  if (key === "settings/backups") return <main className="page-wrap"><PageHeader {...meta} /><DatabaseBackup permissions={session.permissions} /></main>;
   if (key === "settings/dictionaries") return <main className="page-wrap"><PageHeader {...meta} /><DictionaryManagement permissions={session.permissions} /></main>;
   if (key === "settings/parameters") {
     const [initialPlatform, r2Storages] = await Promise.all([
