@@ -9,7 +9,7 @@ export function setupPage(token: string) {
     :root { color-scheme: light; --primary:#1768e5; --primary2:#0f4fb4; --text:#172033; --muted:#637087; --line:#dce3ee; --bg:#f4f7fb; --card:#fff; --ok:#16805b; --warn:#a45b08; --bad:#c93636; }
     * { box-sizing:border-box; }
     body { margin:0; color:var(--text); background:radial-gradient(circle at 10% 0,#e9f2ff 0,transparent 36%),var(--bg); font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif; }
-    button,input,select { font:inherit; }
+    button,input { font:inherit; }
     .shell { width:min(1080px,calc(100% - 32px)); margin:32px auto 72px; }
     .hero { color:#fff; padding:30px 34px; border-radius:18px; background:linear-gradient(135deg,#102b57,#1768e5); box-shadow:0 18px 55px rgba(29,73,143,.18); }
     .hero h1 { margin:0 0 5px; font-size:28px; letter-spacing:.5px; }
@@ -22,11 +22,9 @@ export function setupPage(token: string) {
     .span2 { grid-column:1/-1; }
     label { display:block; color:#38445a; font-weight:600; }
     label small { display:block; margin-top:2px; color:var(--muted); font-weight:400; }
-    input,select { width:100%; height:42px; margin-top:7px; padding:0 12px; color:var(--text); border:1px solid #cbd5e3; border-radius:8px; background:#fff; outline:none; transition:.15s; }
-    input:focus,select:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(23,104,229,.11); }
+    input { width:100%; height:42px; margin-top:7px; padding:0 12px; color:var(--text); border:1px solid #cbd5e3; border-radius:8px; background:#fff; outline:none; transition:.15s; }
+    input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(23,104,229,.11); }
     input[type=checkbox] { width:17px; height:17px; margin:0 7px 0 0; padding:0; box-shadow:none; vertical-align:-3px; }
-    .checks { display:flex; flex-wrap:wrap; gap:10px 20px; margin-top:10px; }
-    .checks label { font-weight:400; }
     details { border:1px dashed #c8d3e2; border-radius:9px; padding:11px 13px; }
     summary { cursor:pointer; font-weight:600; }
     .actions { display:flex; gap:12px; align-items:center; margin-top:22px; }
@@ -63,10 +61,10 @@ export function setupPage(token: string) {
 <main class="shell">
   <section class="hero">
     <h1>本地部署助手</h1>
-    <p>初始化数据库、R2、自动备份和 macOS 登录启动服务</p>
+    <p>初始化数据库、超级管理员和 macOS 登录启动服务</p>
     <span class="local">仅允许本机访问 · 127.0.0.1</span>
   </section>
-  <div class="notice">请保持本页面和启动 setup 的终端窗口开启。密码与密钥只用于本次安装，不会显示在日志中。</div>
+  <div class="notice">请保持本页面和启动 setup 的终端窗口开启。密码不会显示在日志中，建库管理员凭据不会保存。</div>
   <section class="card">
     <h2>环境检查</h2>
     <div id="preflight" class="preflight"><span class="muted">正在检查…</span></div>
@@ -114,40 +112,7 @@ export function setupPage(token: string) {
     </section>
 
     <section class="card">
-      <h2>4. Cloudflare R2</h2>
-      <div class="grid">
-        <label>配置名称<input name="r2Name" value="默认存储" maxlength="20" required /></label>
-        <label>Account ID<input id="accountId" name="r2AccountId" maxlength="50" required /></label>
-        <label>Access Key ID<input name="r2AccessKeyId" autocomplete="off" required /></label>
-        <label>Secret Access Key<input name="r2SecretAccessKey" type="password" autocomplete="new-password" required /></label>
-        <label>Bucket 名称<input name="r2BucketName" maxlength="50" required /></label>
-        <label>Signed URL 有效秒数<input name="r2Expiry" type="number" value="300" min="60" max="604800" required /></label>
-        <label class="span2">Endpoint<input id="endpoint" name="r2Endpoint" type="url" placeholder="https://ACCOUNT_ID.r2.cloudflarestorage.com" required /></label>
-        <div class="span2 notice" style="margin:0">setup 还会检查 Bucket CORS 是否允许本机系统地址执行 PUT；未配置时会给出准确来源地址并停止安装。</div>
-        <div class="span2"><label>同时用于</label><div class="checks">
-          <label><input name="usageDaily" type="checkbox" checked />日常学习</label>
-          <label><input name="usageVideo" type="checkbox" checked />培训视频</label>
-          <label><input name="usageAudio" type="checkbox" checked />培训音频</label>
-          <label><input name="usageDocument" type="checkbox" checked />培训文档</label>
-          <label><input type="checkbox" checked disabled />数据库备份（必选）</label>
-        </div></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>5. 数据库自动备份</h2>
-      <div class="grid">
-        <label>备份频率<select id="frequency" name="backupFrequency"><option value="DAILY">每日</option><option value="WEEKLY">每周</option></select></label>
-        <label>执行时间<small>每日可填1-3个，用英文逗号分隔</small><input name="backupTimes" value="03:30" placeholder="03:30,15:30" required /></label>
-        <div id="weekdays" class="span2 hidden"><label>执行星期</label><div class="checks">
-          ${["一","二","三","四","五","六","日"].map((label, index) => `<label><input name="weekday" type="checkbox" value="${index + 1}" ${index === 0 ? "checked" : ""}/>星期${label}</label>`).join("")}
-        </div>
-        <label class="span2">mysqldump 路径<small>留空时自动检测 Homebrew 或系统路径</small><input name="mysqldumpBin" placeholder="/opt/homebrew/bin/mysqldump" /></label>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>6. 确认安装</h2>
+      <h2>4. 确认安装</h2>
       <label style="font-weight:400"><input id="confirm" type="checkbox" required />我确认目标数据库为新建空库，并允许 setup 创建配置文件、数据库结构和登录启动服务。</label>
       <div class="actions"><button id="installButton" class="primary" type="submit">开始部署并验证</button><span class="muted">通常需要 1–5 分钟</span></div>
       <div id="formError" class="error"></div>
@@ -185,7 +150,6 @@ async function loadStatus(){
       $("openApp").href=s.appUrl+"/lead_pc/login";
     }else{
       $("setupForm").classList.remove("hidden");
-      const dump=statusData.preflight.find(item=>item.key==="mysqldump"); if(dump&&dump.path) document.querySelector('[name="mysqldumpBin"]').value=dump.path;
     }
   }catch(error){ $("preflight").innerHTML='<div class="error">'+esc(error.message)+'</div>'; }
 }
@@ -193,13 +157,10 @@ function formPayload(){
   const form=new FormData($("setupForm"));
   const password=String(form.get("adminPassword")||"");
   if(password!==String(form.get("adminPasswordConfirm")||"")) throw new Error("两次输入的管理员密码不一致");
-  const times=String(form.get("backupTimes")||"").split(/[,，]/).map(v=>v.trim()).filter(Boolean);
   return {
     platformName:String(form.get("platformName")||""), appPort:Number(form.get("appPort")),
     database:{host:String(form.get("dbHost")||""),port:Number(form.get("dbPort")),name:String(form.get("dbName")||""),user:String(form.get("dbUser")||""),password:String(form.get("dbPassword")||""),adminUser:String(form.get("dbAdminUser")||"")||undefined,adminPassword:String(form.get("dbAdminPassword")||"")||undefined},
-    administrator:{username:String(form.get("adminUsername")||""),realName:String(form.get("adminRealName")||""),phone:String(form.get("adminPhone")||"")||undefined,password},
-    r2:{name:String(form.get("r2Name")||""),accountId:String(form.get("r2AccountId")||""),accessKeyId:String(form.get("r2AccessKeyId")||""),secretAccessKey:String(form.get("r2SecretAccessKey")||""),bucketName:String(form.get("r2BucketName")||""),endpoint:String(form.get("r2Endpoint")||""),signedUrlExpireSeconds:Number(form.get("r2Expiry")),usages:{dailyLearning:form.has("usageDaily"),trainingVideo:form.has("usageVideo"),trainingAudio:form.has("usageAudio"),trainingDocument:form.has("usageDocument")}},
-    backup:{frequency:String(form.get("backupFrequency")),weekdays:form.getAll("weekday").map(Number),executionTimes:times,mysqldumpBin:String(form.get("mysqldumpBin")||"")||undefined}
+    administrator:{username:String(form.get("adminUsername")||""),realName:String(form.get("adminRealName")||""),phone:String(form.get("adminPhone")||"")||undefined,password}
   };
 }
 function renderJob(job){
@@ -208,7 +169,7 @@ function renderJob(job){
   $("jobError").textContent=job.error||"";
   if(job.status==="success"){
     $("jobResult").classList.remove("hidden");
-    $("jobResult").innerHTML='<h3>部署和验证全部完成</h3><div>访问地址：<a href="'+esc(job.result.appUrl)+'/lead_pc/login" target="_blank">'+esc(job.result.appUrl)+'/lead_pc/login</a></div><div>首份数据库备份：'+esc(job.result.backupFileName||"已完成")+'</div><div>主站与调度器将在每次登录 macOS 后自动启动。</div>';
+    $("jobResult").innerHTML='<h3>部署和验证全部完成</h3><div>访问地址：<a href="'+esc(job.result.appUrl)+'/lead_pc/login" target="_blank">'+esc(job.result.appUrl)+'/lead_pc/login</a></div><div>主站与调度器将在每次登录 macOS 后自动启动。</div><div class="muted">R2 和数据库自动备份可在登录系统后按需配置。</div>';
     $("progressTitle").textContent="部署完成";
   }else if(job.status==="failed"){
     $("progressTitle").textContent="部署需要处理";
@@ -234,9 +195,6 @@ $("repairButton").addEventListener("click",async()=>{
   try{ const result=await api("/api/repair",{method:"POST",body:"{}"}); await watchJob(result.jobId); }
   catch(error){ $("installedPanel").classList.remove("hidden"); $("repairButton").disabled=false; alert(error.message); }
 });
-$("frequency").addEventListener("change",event=>$("weekdays").classList.toggle("hidden",event.target.value!=="WEEKLY"));
-let endpointEdited=false; $("endpoint").addEventListener("input",()=>{endpointEdited=true});
-$("accountId").addEventListener("input",event=>{if(!endpointEdited) $("endpoint").value=event.target.value?'https://'+event.target.value+'.r2.cloudflarestorage.com':""});
 loadStatus();
 </script>
 </body></html>`;

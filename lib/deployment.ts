@@ -25,8 +25,6 @@ export const SYSTEM_DICTIONARIES = [
   { recordNo: "202608250001", name: "调研模版类型", code: "Research_Template_Type", fileName: "Research_Template_Type.json" },
 ] as const;
 
-const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "备份时间格式不正确");
-const endpointSchema = z.string().trim().url("请输入正确的R2 endpoint").refine(value => new URL(value).protocol === "https:", "R2 endpoint必须使用HTTPS").transform(value => value.replace(/\/+$/, ""));
 const dbNameSchema = z.string().trim().regex(/^[A-Za-z0-9_]{1,64}$/, "数据库名称只能包含字母、数字和下划线");
 
 export const setupInputSchema = z.object({
@@ -47,31 +45,6 @@ export const setupInputSchema = z.object({
     phone: z.string().trim().max(30).optional(),
     password: z.string().min(10, "管理员密码至少需要10位").max(128).refine(value => /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value), "管理员密码须同时包含大小写字母、数字和特殊字符"),
   }),
-  r2: z.object({
-    name: z.string().trim().min(1, "请输入R2存储空间名称").max(20),
-    accountId: z.string().trim().min(1, "请输入R2 account ID").max(50),
-    accessKeyId: z.string().min(1, "请输入R2 access key ID").max(50),
-    secretAccessKey: z.string().min(1, "请输入R2 secret access key").max(100),
-    bucketName: z.string().trim().min(1, "请输入R2 bucket名称").max(50),
-    endpoint: endpointSchema,
-    signedUrlExpireSeconds: z.number().int().min(60).max(604800),
-    usages: z.object({
-      dailyLearning: z.boolean(),
-      trainingVideo: z.boolean(),
-      trainingAudio: z.boolean(),
-      trainingDocument: z.boolean(),
-    }),
-  }),
-  backup: z.object({
-    frequency: z.enum(["DAILY", "WEEKLY"]),
-    weekdays: z.array(z.number().int().min(1).max(7)).max(7),
-    executionTimes: z.array(timeSchema).min(1, "请至少设置一个备份时间").max(3, "每天最多设置三个备份时间"),
-    mysqldumpBin: z.string().trim().max(500).optional(),
-  }),
-}).superRefine((value, context) => {
-  if (new Set(value.backup.executionTimes).size !== value.backup.executionTimes.length) context.addIssue({ code: "custom", path: ["backup", "executionTimes"], message: "备份时间不能重复" });
-  if (value.backup.frequency === "WEEKLY" && !value.backup.weekdays.length) context.addIssue({ code: "custom", path: ["backup", "weekdays"], message: "每周备份至少选择一个星期" });
-  if (value.backup.frequency === "WEEKLY" && value.backup.executionTimes.length !== 1) context.addIssue({ code: "custom", path: ["backup", "executionTimes"], message: "每周备份只能设置一个执行时间" });
 });
 
 export type SetupInput = z.infer<typeof setupInputSchema>;

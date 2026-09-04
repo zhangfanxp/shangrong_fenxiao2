@@ -7,8 +7,6 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
-import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { CONFIG_SCHEMA_VERSION, DATABASE_SCHEMA_VERSION, DEPLOYMENT_SCHEMA_VERSION, SCHEDULER_AGENT_LABEL, SETUP_HOST, SETUP_PORT, setupInputSchema, type DeploymentState, type SetupInput, WEB_AGENT_LABEL } from "../lib/deployment";
 import { installCanyinLaunchAgents, launchAgentStatus } from "../lib/mac-launch-agents";
 import { setupPage } from "./setup-page";
@@ -89,9 +87,8 @@ async function writePending(value: PendingInstall) {
 async function preflight(): Promise<PreflightItem[]> {
   let configured: Record<string, string> = {};
   try { configured = parseEnvironment(await readFile(envPath, "utf8")); } catch { /* Not installed yet. */ }
-  const [mysql, dump, webStatus, schedulerStatus] = await Promise.all([
+  const [mysql, webStatus, schedulerStatus] = await Promise.all([
     findBinary("mysql", process.env.MYSQL_BIN || configured.MYSQL_BIN),
-    findBinary("mysqldump", process.env.MYSQLDUMP_BIN || configured.MYSQLDUMP_BIN),
     launchAgentStatus(WEB_AGENT_LABEL).catch(() => ({ loaded: false })),
     launchAgentStatus(SCHEDULER_AGENT_LABEL).catch(() => ({ loaded: false })),
   ]);
@@ -102,7 +99,6 @@ async function preflight(): Promise<PreflightItem[]> {
     { key: "node", label: "Node.js", status: nodeMajor >= 20 ? "ok" : "bad", detail: `${process.version} · ${process.execPath}` },
     { key: "build", label: "生产构建", status: existsSync(path.join(projectDirectory, ".next", "BUILD_ID")) ? "ok" : "bad", detail: existsSync(path.join(projectDirectory, ".next", "BUILD_ID")) ? "已找到.next/BUILD_ID" : "请先执行npm run build" },
     { key: "mysql", label: "MySQL客户端", status: mysql ? "ok" : "bad", detail: mysql || "未找到mysql命令", ...(mysql ? { path: mysql } : {}) },
-    { key: "mysqldump", label: "数据库备份工具", status: dump ? "ok" : "bad", detail: dump || "未找到mysqldump或mariadb-dump", ...(dump ? { path: dump } : {}) },
     { key: "directory", label: "项目目录", status: protectedDirectory ? "warn" : "ok", detail: protectedDirectory ? "位于macOS隐私保护目录；若后台启动被拦截，请给终端完整磁盘访问权限" : projectDirectory },
     { key: "web-agent", label: "主站服务", status: webStatus.loaded ? "ok" : "warn", detail: webStatus.loaded ? "LaunchAgent已加载" : "尚未安装" },
     { key: "scheduler-agent", label: "统一调度器", status: schedulerStatus.loaded ? "ok" : "warn", detail: schedulerStatus.loaded ? "LaunchAgent已加载" : "尚未安装" },
@@ -215,7 +211,7 @@ function envQuote(value: string) {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
-async function writeEnvironment(input: SetupInput, mysqlPath: string, dumpPath: string, installId: string) {
+async function writeEnvironment(input: SetupInput, mysqlPath: string, dumpPath: string | null, installId: string) {
   let existing = "";
   try { existing = await readFile(envPath, "utf8"); } catch { /* First installation. */ }
   if (existing) {
@@ -234,7 +230,7 @@ async function writeEnvironment(input: SetupInput, mysqlPath: string, dumpPath: 
     NOTIFICATION_SCHEDULER_SECRET: randomBytes(48).toString("base64url"),
     R2_CONFIG_ENCRYPTION_KEY: randomBytes(48).toString("base64url"),
     MYSQL_BIN: mysqlPath,
-    MYSQLDUMP_BIN: dumpPath,
+    MYSQLDUMP_BIN: dumpPath || "",
     APP_HOST: SETUP_HOST,
     APP_PORT: String(input.appPort),
     APP_URL: `http://${SETUP_HOST}:${input.appPort}`,
@@ -248,48 +244,6 @@ async function writeEnvironment(input: SetupInput, mysqlPath: string, dumpPath: 
   await rename(temporary, envPath);
   await chmod(envPath, 0o600);
   return generated;
-}
-
-async function testR2(input: SetupInput) {
-  const client = new S3Client({
-    region: "auto",
-    endpoint: input.r2.endpoint,
-    credentials: { accessKeyId: input.r2.accessKeyId, secretAccessKey: input.r2.secretAccessKey },
-    maxAttempts: 2,
-    requestChecksumCalculation: "WHEN_REQUIRED",
-  });
-  const key = `setup-checks/${randomUUID()}.txt`;
-  const contents = `canyin-setup-${randomUUID()}`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
-  let deleted = false;
-  try {
-    await client.send(new PutObjectCommand({ Bucket: input.r2.bucketName, Key: key, Body: contents, ContentType: "text/plain", IfNoneMatch: "*" }), { abortSignal: controller.signal });
-    const [head, downloaded] = await Promise.all([
-      client.send(new HeadObjectCommand({ Bucket: input.r2.bucketName, Key: key }), { abortSignal: controller.signal }),
-      client.send(new GetObjectCommand({ Bucket: input.r2.bucketName, Key: key }), { abortSignal: controller.signal }),
-    ]);
-    const actual = await downloaded.Body?.transformToString("utf-8");
-    if (actual !== contents || head.ContentLength !== Buffer.byteLength(contents)) throw new Error("R2测试对象读取结果与写入内容不一致");
-    await client.send(new DeleteObjectCommand({ Bucket: input.r2.bucketName, Key: key }), { abortSignal: controller.signal });
-    deleted = true;
-    const origin = `http://${SETUP_HOST}:${input.appPort}`;
-    const signedPut = await getSignedUrl(client, new PutObjectCommand({ Bucket: input.r2.bucketName, Key: `setup-checks/cors-${randomUUID()}.txt`, ContentType: "text/plain", IfNoneMatch: "*" }), { expiresIn: 60 });
-    const cors = await fetch(signedPut, {
-      method: "OPTIONS",
-      headers: { Origin: origin, "Access-Control-Request-Method": "PUT", "Access-Control-Request-Headers": "content-type,if-none-match" },
-      signal: controller.signal,
-    });
-    const allowedOrigin = cors.headers.get("access-control-allow-origin") || "";
-    const allowedMethods = cors.headers.get("access-control-allow-methods") || "";
-    if (!cors.ok || !["*", origin].includes(allowedOrigin) || !allowedMethods.toUpperCase().includes("PUT")) {
-      throw new Error(`R2对象读写正常，但Bucket CORS尚未允许${origin}执行PUT；请在Cloudflare中添加该来源后重试`);
-    }
-  } finally {
-    clearTimeout(timeout);
-    if (!deleted) await client.send(new DeleteObjectCommand({ Bucket: input.r2.bucketName, Key: key })).catch(() => undefined);
-    client.destroy();
-  }
 }
 
 function parsedJson(output: string) {
@@ -335,7 +289,7 @@ function runtimeEnvironment(values: Record<string, string>): NodeJS.ProcessEnv {
 }
 
 async function install(job: Job, input: SetupInput) {
-  const secrets = [input.database.password, input.database.adminPassword || "", input.r2.accessKeyId, input.r2.secretAccessKey, input.administrator.password];
+  const secrets = [input.database.password, input.database.adminPassword || "", input.administrator.password];
   jobSecrets.set(job, secrets);
   let state: DeploymentState | null = null;
   try {
@@ -350,12 +304,10 @@ async function install(job: Job, input: SetupInput) {
     const appVersion = await readPackageVersion();
     const checks = await runStep(job, "检查Mac、构建文件和运行工具", preflight, value => `${value.filter(item => item.status === "ok").length}/${value.length}项通过`);
     const mysqlPath = checks.find(item => item.key === "mysql")?.path;
-    const autoDump = checks.find(item => item.key === "mysqldump")?.path;
-    const requestedDump = input.backup.mysqldumpBin ? await executable(input.backup.mysqldumpBin) : null;
-    const dumpPath = requestedDump || autoDump;
-    const blocking = checks.filter(item => item.status === "bad" && !(item.key === "mysqldump" && requestedDump));
+    const dumpPath = await findBinary("mysqldump", process.env.MYSQLDUMP_BIN);
+    const blocking = checks.filter(item => item.status === "bad");
     if (blocking.length) throw new Error(blocking.map(item => `${item.label}：${item.detail}`).join("；"));
-    if (!mysqlPath || !dumpPath) throw new Error("MySQL客户端或数据库备份工具不可用");
+    if (!mysqlPath) throw new Error("MySQL客户端不可用");
     if (!(await portAvailable(input.appPort))) throw new Error(`端口${input.appPort}已被其他程序占用，请更换端口后重试`);
 
     const pending = { installId, databaseHost: input.database.host, databasePort: input.database.port, databaseName: input.database.name, databaseUser: input.database.user, createdAt: samePendingDatabase && previousPending ? previousPending.createdAt : now(), allowNonEmptyResume: allowResume };
@@ -363,19 +315,15 @@ async function install(job: Job, input: SetupInput) {
     await runStep(job, "连接MySQL并创建空数据库", () => createAndValidateDatabase(input, mysqlPath, allowResume), () => `${input.database.name} · utf8mb4`);
     pending.allowNonEmptyResume = true;
     await writePending(pending);
-    await runStep(job, "测试Cloudflare R2对象权限与浏览器CORS", () => testR2(input), () => `${input.r2.bucketName}读写、删除和CORS正常`);
     const generatedEnv = await runStep(job, "生成本机环境配置和安全密钥", () => writeEnvironment(input, mysqlPath, dumpPath, installId), () => ".env已安全写入（0600）");
     const childEnv = runtimeEnvironment(generatedEnv);
     const prismaCli = path.join(projectDirectory, "node_modules", "prisma", "build", "index.js");
     await runStep(job, "创建最新数据库结构", () => runProcess({ command: process.execPath, args: [prismaCli, "db", "push", "--skip-generate"], env: childEnv, timeoutMs: 10 * 60 * 1000, secrets }), () => "Prisma结构同步完成");
     const migrationOutput = await runStep(job, "建立数据库部署基线", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "run-deployment-migrations.ts"), "--baseline"], env: childEnv, timeoutMs: 3 * 60 * 1000, secrets }), () => "后续升级将按版本执行");
     parsedJson(migrationOutput);
-    const initializedOutput = await runStep(job, "初始化管理员、字典、R2和备份计划", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "setup-apply.ts")], env: childEnv, stdin: JSON.stringify(input), timeoutMs: 5 * 60 * 1000, secrets }), () => "未写入演示门店、合同或任务");
-    const initialized = parsedJson(initializedOutput) as { administratorId: string; r2StorageId: string };
-    const verificationOutput = await runStep(job, "生成首份全量备份并上传R2", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "setup-verify.ts")], env: childEnv, stdin: JSON.stringify(initialized), timeoutMs: 60 * 60 * 1000, secrets }), value => {
-      const result = parsedJson(value); return `${String(result.backupFileName || "全量备份成功")}`;
-    });
-    const verification = parsedJson(verificationOutput);
+    const initializedOutput = await runStep(job, "初始化管理员和必要字典", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "setup-apply.ts")], env: childEnv, stdin: JSON.stringify(input), timeoutMs: 5 * 60 * 1000, secrets }), () => "未写入演示门店、合同或任务");
+    const initialized = parsedJson(initializedOutput) as { administratorId: string };
+    await runStep(job, "验证数据库和基础数据", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "setup-verify.ts")], env: childEnv, stdin: JSON.stringify(initialized), timeoutMs: 5 * 60 * 1000, secrets }), value => `${String(parsedJson(value).dictionaries || 0)}项必要字典正常`);
     state = {
       schemaVersion: DEPLOYMENT_SCHEMA_VERSION,
       databaseSchemaVersion: DATABASE_SCHEMA_VERSION,
@@ -390,7 +338,7 @@ async function install(job: Job, input: SetupInput) {
       status: "needs-attention",
       webAgentLabel: WEB_AGENT_LABEL,
       schedulerAgentLabel: SCHEDULER_AGENT_LABEL,
-      lastVerification: { database: true, r2: true, backup: true, web: false, scheduler: false },
+      lastVerification: { database: true, r2: false, backup: false, web: false, scheduler: false },
     };
     await writeState(state);
     await rm(pendingPath, { force: true }).catch(() => undefined);
@@ -398,10 +346,10 @@ async function install(job: Job, input: SetupInput) {
     if (!agents.web.loaded || !agents.scheduler.loaded) throw new Error("LaunchAgent安装后未能正确加载");
     await runStep(job, "验证主站和数据库健康状态", () => waitForHealth(state!.appUrl), () => "HTTP、Next.js和MySQL均正常");
     state.status = "installed";
-    state.lastVerification = { database: true, r2: true, backup: true, web: true, scheduler: true };
+    state.lastVerification = { database: true, r2: false, backup: false, web: true, scheduler: true };
     await writeState(state);
     job.status = "success";
-    job.result = { appUrl: state.appUrl, backupFileName: verification.backupFileName, appVersion };
+    job.result = { appUrl: state.appUrl, appVersion };
   } catch (error) {
     if (state) { state.status = "needs-attention"; await writeState(state).catch(() => undefined); }
     job.status = "failed";
@@ -432,8 +380,12 @@ async function repair(job: Job, originalState: DeploymentState) {
     const fileEnv = parseEnvironment(await readFile(envPath, "utf8"));
     jobSecrets.set(job, [fileEnv.DATABASE_URL, fileEnv.AUTH_SECRET, fileEnv.TASK_SCHEDULER_SECRET, fileEnv.NOTIFICATION_SCHEDULER_SECRET, fileEnv.R2_CONFIG_ENCRYPTION_KEY].filter(Boolean));
     const childEnv = runtimeEnvironment(fileEnv);
-    const backupOutput = await runStep(job, "升级前创建全量数据库备份", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "create-deployment-backup.ts")], env: childEnv, timeoutMs: 60 * 60 * 1000 }), value => String(parsedJson(value).backupFileName || "备份完成"));
-    parsedJson(backupOutput);
+    const backupOutput = await runStep(job, "检查并执行升级前数据库备份", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "create-deployment-backup.ts")], env: childEnv, timeoutMs: 60 * 60 * 1000 }), value => {
+      const result = parsedJson(value);
+      return result.skipped ? "尚未配置数据库备份，已跳过" : String(result.backupFileName || "备份完成");
+    });
+    const backup = parsedJson(backupOutput);
+    const backupCreated = backup.skipped !== true;
     const migrationOutput = await runStep(job, "执行尚未应用的版本迁移", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "run-deployment-migrations.ts")], env: childEnv, timeoutMs: 20 * 60 * 1000 }), value => {
       const result = parsedJson(value); return `${Array.isArray(result.applied) ? result.applied.length : 0}个新迁移`;
     });
@@ -445,10 +397,10 @@ async function repair(job: Job, originalState: DeploymentState) {
     const agents = await runStep(job, "重装并重启LaunchAgent", () => installCanyinLaunchAgents(projectDirectory, state.appPort), value => `主站：${value.web.loaded ? "已加载" : "异常"}；调度器：${value.scheduler.loaded ? "已加载" : "异常"}`);
     if (!agents.web.loaded || !agents.scheduler.loaded) throw new Error("LaunchAgent修复后未能正确加载");
     await runStep(job, "验证主站和数据库健康状态", () => waitForHealth(state.appUrl), () => "服务运行正常");
-    state = { ...state, schemaVersion: DEPLOYMENT_SCHEMA_VERSION, databaseSchemaVersion: DATABASE_SCHEMA_VERSION, configSchemaVersion: CONFIG_SCHEMA_VERSION, appVersion: await readPackageVersion(), lastRepairedAt: now(), status: "installed", lastVerification: { database: true, r2: true, backup: true, web: true, scheduler: true } };
+    state = { ...state, schemaVersion: DEPLOYMENT_SCHEMA_VERSION, databaseSchemaVersion: DATABASE_SCHEMA_VERSION, configSchemaVersion: CONFIG_SCHEMA_VERSION, appVersion: await readPackageVersion(), lastRepairedAt: now(), status: "installed", lastVerification: { database: true, r2: backupCreated || state.lastVerification?.r2 === true, backup: backupCreated, web: true, scheduler: true } };
     await writeState(state);
     job.status = "success";
-    job.result = { appUrl: state.appUrl, backupFileName: parsedJson(backupOutput).backupFileName, appVersion: state.appVersion };
+    job.result = { appUrl: state.appUrl, backupFileName: backup.backupFileName || null, backupSkipped: !backupCreated, appVersion: state.appVersion };
   } catch (error) {
     state.status = "needs-attention";
     await writeState(state).catch(() => undefined);

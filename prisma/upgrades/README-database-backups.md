@@ -3,7 +3,7 @@
 ## 部署
 
 1. 在部署主机安装与 MySQL 服务端版本兼容的 `mysqldump`（MariaDB 可使用 `mariadb-dump`），并确认运行应用的系统用户可以执行该命令。如果命令不在 `PATH`，在 `.env` 中设置 `MYSQLDUMP_BIN` 的绝对路径。
-2. 对已有数据库执行一次增量 SQL，然后重新生成 Prisma Client：
+2. 当前 Setup 创建的新数据库已经包含备份相关结构，不需要人工执行 SQL。只有尚未纳入 Setup 管理的旧数据库，才需要执行一次旧版增量 SQL 并重新生成 Prisma Client：
 
    ```sh
    npx prisma db execute --file prisma/upgrades/20260903_database_backups.sql --schema prisma/schema.prisma
@@ -12,7 +12,7 @@
 
 3. 给需要使用此页面的角色配置“数据库备份”的查询、定时设置、手动备份、下载、删除权限。超级管理员的 `*` 权限无需调整。
 4. 确保所选 R2 API 凭证拥有对应存储桶的对象读写权限。系统会使用分片上传，并在完成后核对对象大小与 SHA-256 元数据。
-5. 自动备份由现有每分钟调度器执行。在 Mac 上重新执行 `npm run tasks:scheduler:install`；其他服务器应每分钟运行一次 `npm run tasks:scheduler:check`，也可单独运行 `npm run backups:scheduler:check`。
+5. 自动备份由现有每分钟调度器执行。Mac 使用 Setup 安装的 `com.canyin.scheduler`，不需要再执行 `npm run tasks:scheduler:install`；其他服务器应每分钟运行一次 `npm run tasks:scheduler:check`，也可单独运行 `npm run backups:scheduler:check`。
 
 上线前可运行 `npm run verify:database-backup`。该命令会用与正式备份相同的参数生成一次临时全量备份、计算校验值并立即清理，不会上传至R2或新增备份记录。
 
