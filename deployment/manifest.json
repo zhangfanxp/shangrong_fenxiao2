@@ -1,8 +1,8 @@
 {
   "deploymentVersion": 2,
-  "databaseSchemaVersion": 1,
-  "databaseSchemaChecksum": "96df7e0620edd67d489225d87e796b7ef2a277fea1d785c68c9efad4455fe362",
-  "latestMigration": null,
+  "databaseSchemaVersion": 6,
+  "databaseSchemaChecksum": "10f1a55cc56f50249a6802da8bda395b4649573bc545ed7e02eb730141a7c342",
+  "latestMigration": "202609081100_add_intelligent_analysis_records.sql",
   "configSchemaVersion": 1,
   "requiredEnvironment": [
     "DATABASE_URL",

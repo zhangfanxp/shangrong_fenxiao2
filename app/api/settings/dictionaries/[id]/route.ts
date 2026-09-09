@@ -1,4 +1,5 @@
 import { RecordStatus } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiSession } from "@/lib/auth";
@@ -55,6 +56,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!result.count) return NextResponse.json({ message: "当前数据字典已被其他用户修改，请刷新后重新操作" }, { status: 409 });
     const action = enabling ? "启用" : "禁用";
     await log(session.userId, action, "成功", `${action}数据字典：${dictionary.recordNo}（${dictionary.name}）`);
+    if ([dictionary.code, dictionary.fileName.replace(/\.json$/i, "")].some(value => value.toLowerCase() === "ai_service")) revalidatePath("/lead_pc/settings/parameters");
     return NextResponse.json({ message: `数据字典${action}成功` });
   }
   if (!canDictionary(session, "edit")) return forbidden();
@@ -81,6 +83,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!result.count) throw new DictionaryConfigError("当前数据字典已被其他用户修改，请刷新后重新操作");
     const fileDetail = nextFileName !== dictionary.fileName ? `；本地JSON文件：${dictionary.fileName} → ${nextFileName}` : "";
     await log(session.userId, "编辑", "成功", `编辑数据字典：${dictionary.recordNo}${fileDetail}`);
+    if ([dictionary.code, input.code, dictionary.fileName.replace(/\.json$/i, ""), nextFileName.replace(/\.json$/i, "")].some(value => value.toLowerCase() === "ai_service")) revalidatePath("/lead_pc/settings/parameters");
     return NextResponse.json({ message: "数据字典保存成功" });
   } catch (error) {
     if (renamed) await renameDictionaryFile(nextFileName, dictionary.fileName).catch(() => undefined);

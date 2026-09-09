@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiSession } from "@/lib/auth";
 import { canDictionary } from "@/lib/dictionary-permissions";
-import { createDictionaryFile, deleteDictionaryFile, dictionaryFileExists, DictionaryConfigError, normalizeDictionaryFileName } from "@/lib/dictionary-config";
+import { createDictionaryFile, deleteDictionaryFile, dictionaryFileExists, DictionaryConfigError, normalizeDictionaryFileName, readDictionaryValues } from "@/lib/dictionary-config";
 import { db } from "@/lib/db";
 import { writeOperationLog, type OperationLogResult } from "@/lib/operation-log";
 
@@ -46,8 +46,17 @@ export async function GET(request: Request) {
       db.dataDictionary.count({ where }),
       db.dataDictionary.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
     ]);
+    const rowsWithValueCounts = await Promise.all(rows.map(async row => {
+      try {
+        const values = await readDictionaryValues(row.fileName);
+        return { ...row, valueCount: values.length };
+      } catch {
+        // 单个文件异常不应导致整个列表不可用；对应行明确展示读取失败。
+        return { ...row, valueCount: null };
+      }
+    }));
     await log(session.userId, "筛选", "成功", name || code ? `中文名称：${name || "-"}；英文名称：${code || "-"}` : "加载全部数据字典");
-    return NextResponse.json({ rows, total, page, pageSize });
+    return NextResponse.json({ rows: rowsWithValueCounts, total, page, pageSize });
   } catch {
     return NextResponse.json({ message: "数据字典加载失败，请稍后重试" }, { status: 500 });
   }

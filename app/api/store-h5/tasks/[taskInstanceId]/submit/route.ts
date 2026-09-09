@@ -48,13 +48,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       itemName: string; componentType: string; dataType: string | null; description: string;
       required: boolean; weight: number; value: string | null; attachmentObjectKey: string | null;
       attachmentName: string | null; attachmentMimeType: string | null; r2StorageId: string | null; sortOrder: number;
+      aiAnalysisTypeSnapshot: string | null; aiAnalysisPromptSnapshot: string | null;
     }> = [];
     const attachmentIds: string[] = [];
     for (const [index, item] of snapshot.submitItems.entries()) {
       const submitted = submittedByIndex.get(index);
       if (!submitted) {
         if (item.required) throw new SubmissionError(`还有必填任务内容未完成：${item.name}`);
-        detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value: null, attachmentObjectKey: null, attachmentName: null, attachmentMimeType: null, r2StorageId: null, sortOrder: index });
+        detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value: null, attachmentObjectKey: null, attachmentName: null, attachmentMimeType: null, r2StorageId: null, aiAnalysisTypeSnapshot: item.aiAnalysisType || null, aiAnalysisPromptSnapshot: item.aiAnalysisPrompt || null, sortOrder: index });
         continue;
       }
       if (item.component === "attachment") {
@@ -64,8 +65,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
           const attachment = await db.taskAttachment.findFirst({ where: { id: ids[0], taskRecordId: record.id, itemIndex: index, uploaderUserId: session.userId, consumedAt: null } });
           if (!attachment) throw new SubmissionError(`“${item.name}”附件无效或尚未上传成功`);
           attachmentIds.push(attachment.id);
-          detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value: null, attachmentObjectKey: attachment.objectKey, attachmentName: attachment.originalName, attachmentMimeType: attachment.mimeType, r2StorageId: attachment.r2StorageId, sortOrder: index });
-        } else detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value: null, attachmentObjectKey: null, attachmentName: null, attachmentMimeType: null, r2StorageId: null, sortOrder: index });
+          detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value: null, attachmentObjectKey: attachment.objectKey, attachmentName: attachment.originalName, attachmentMimeType: attachment.mimeType, r2StorageId: attachment.r2StorageId, aiAnalysisTypeSnapshot: item.aiAnalysisType || null, aiAnalysisPromptSnapshot: item.aiAnalysisPrompt || null, sortOrder: index });
+        } else detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value: null, attachmentObjectKey: null, attachmentName: null, attachmentMimeType: null, r2StorageId: null, aiAnalysisTypeSnapshot: item.aiAnalysisType || null, aiAnalysisPromptSnapshot: item.aiAnalysisPrompt || null, sortOrder: index });
         continue;
       }
       if (item.required && valueIsEmpty(submitted.value)) throw new SubmissionError(`请完成“${item.name}”`);
@@ -75,7 +76,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
         if (item.dataType === "amount" && !/^\d+(?:\.\d{1,2})?$/.test(value)) throw new SubmissionError(`“${item.name}”最多保留2位小数`);
       }
       if (value !== null && item.component === "select" && !item.options.includes(value)) throw new SubmissionError(`“${item.name}”选项无效，请重新选择`);
-      detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value, attachmentObjectKey: null, attachmentName: null, attachmentMimeType: null, r2StorageId: null, sortOrder: index });
+      detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value, attachmentObjectKey: null, attachmentName: null, attachmentMimeType: null, r2StorageId: null, aiAnalysisTypeSnapshot: item.aiAnalysisType || null, aiAnalysisPromptSnapshot: item.aiAnalysisPrompt || null, sortOrder: index });
     }
     const now = new Date();
     const submission = await db.$transaction(async tx => {

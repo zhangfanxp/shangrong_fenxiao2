@@ -23,6 +23,7 @@ export const SYSTEM_DICTIONARIES = [
   { recordNo: "202608200010", name: "社保情况", code: "SOCIAL_SECURITY_STATUS", fileName: "Social_Security_Status.json" },
   { recordNo: "202608210001", name: "考核表类型", code: "Assessment_Type", fileName: "Assessment_Type.json" },
   { recordNo: "202608250001", name: "调研模版类型", code: "Research_Template_Type", fileName: "Research_Template_Type.json" },
+  { recordNo: "202609080001", name: "Ai服务", code: "Ai_Service", fileName: "Ai_Service.json" },
 ] as const;
 
 const dbNameSchema = z.string().trim().regex(/^[A-Za-z0-9_]{1,64}$/, "数据库名称只能包含字母、数字和下划线");

@@ -13,5 +13,7 @@
   "dailyLearningR2StorageId": "cmt0xbey80005tncek1xtase8",
   "trainingVideoR2StorageId": "cmt0xbey80005tncek1xtase8",
   "trainingAudioR2StorageId": "cmt0xbey80005tncek1xtase8",
-  "trainingDocumentR2StorageId": "cmt0xbey80005tncek1xtase8"
+  "trainingDocumentR2StorageId": "cmt0xbey80005tncek1xtase8",
+  "imageAnalysisApiUrl": "http://127.0.0.1:8000/api/v1/analyze/image",
+  "videoAnalysisApiUrl": "http://127.0.0.1:8000/api/v1/analyze/video"
 }

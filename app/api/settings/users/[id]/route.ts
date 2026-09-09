@@ -5,7 +5,9 @@ import { z } from "zod";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
+import { synchronizeStoreLeadership } from "@/lib/store-leadership";
 import { normalizeUserTags } from "@/lib/user-tags";
+import { jsonIdArray } from "@/lib/user-store-scope";
 
 const phone = z.string().trim().regex(/^1\d{10}$/, "请输入11位手机号码").optional().or(z.literal(""));
 const updateSchema = z.object({ username: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{1,29}$/, "账号须为2-30位字母、数字或下划线，且以字母开头"), realName: z.string().trim().min(1, "请输入真实姓名").max(30, "真实姓名不能超过30个字符"), phone, tags: z.string().trim().max(200, "用户标签不能超过200个字符").optional().or(z.literal("")), leadH5BrandIds: z.array(z.string().min(1)).nullable(), leadH5StoreIds: z.array(z.string().min(1)).nullable(), roleId: z.string().min(1, "请选择角色"), status: z.nativeEnum(RecordStatus), updatedAt: z.string().min(1) });
@@ -52,7 +54,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!sameTimestamp(user.updatedAt, parsed.data.updatedAt)) return NextResponse.json({ message: "用户已被其他人修改，请刷新后重试。" }, { status: 409 });
     if (user.type === UserType.SYSTEM && parsed.data.status === RecordStatus.DISABLED) return NextResponse.json({ message: "系统内置用户不可禁用" }, { status: 400 });
     if (user.id === session.userId && parsed.data.status === RecordStatus.DISABLED) return NextResponse.json({ message: "不可禁用当前登录账号" }, { status: 400 });
-    const result = await db.user.updateMany({ where: { id: user.id, updatedAt: user.updatedAt }, data: { status: parsed.data.status } });
+    const result = await db.$transaction(async transaction => {
+      const updated = await transaction.user.updateMany({ where: { id: user.id, updatedAt: user.updatedAt }, data: { status: parsed.data.status } });
+      if (updated.count) await synchronizeStoreLeadership(jsonIdArray(user.leadH5StoreIds), transaction);
+      return updated;
+    });
     if (!result.count) return NextResponse.json({ message: "用户已被其他人修改，请刷新后重试。" }, { status: 409 });
     const action = parsed.data.status === RecordStatus.ENABLED ? "启用" : "禁用"; await writeOperationLog({ userId: session.userId, username: session.username, page: "用户列表", action, result: "成功", detail: `${action}用户：${user.realName}（${user.username}）`, request }); return NextResponse.json({ message: `用户${action}成功` });
   }
@@ -71,7 +77,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const role = await enabledRole(parsed.data.roleId); if (!role) return NextResponse.json({ message: "所选角色不存在或已禁用，请重新选择" }, { status: 400 });
   try {
     const scope = await validateDataScope(parsed.data.leadH5BrandIds, parsed.data.leadH5StoreIds);
-    const result = await db.user.updateMany({ where: { id: user.id, updatedAt: user.updatedAt }, data: { username: parsed.data.username, realName: parsed.data.realName, phone: parsed.data.phone || null, tags: normalizeUserTags(parsed.data.tags), leadH5BrandIds: scope.brandIds ?? Prisma.DbNull, leadH5StoreIds: scope.storeIds ?? Prisma.DbNull, roleId: role.id, status: parsed.data.status } });
+    const affectedStoreIds = [...new Set([...jsonIdArray(user.leadH5StoreIds), ...(scope.storeIds || [])])];
+    const result = await db.$transaction(async transaction => {
+      const updated = await transaction.user.updateMany({ where: { id: user.id, updatedAt: user.updatedAt }, data: { username: parsed.data.username, realName: parsed.data.realName, phone: parsed.data.phone || null, tags: normalizeUserTags(parsed.data.tags), leadH5BrandIds: scope.brandIds ?? Prisma.DbNull, leadH5StoreIds: scope.storeIds ?? Prisma.DbNull, roleId: role.id, status: parsed.data.status } });
+      if (updated.count) await synchronizeStoreLeadership(affectedStoreIds, transaction);
+      return updated;
+    });
     if (!result.count) return NextResponse.json({ message: "用户已被其他人修改，请刷新后重试。" }, { status: 409 });
     await writeOperationLog({ userId: session.userId, username: session.username, page: "用户列表", action: "编辑", result: "成功", detail: `编辑用户：${user.realName}（${user.username}）`, request }); return NextResponse.json({ message: "用户保存成功" });
   } catch (error) {
@@ -88,11 +99,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (user.id === session.userId) return NextResponse.json({ message: "不可删除当前登录账号" }, { status: 400 });
   if (user.type === UserType.SYSTEM) return NextResponse.json({ message: "系统内置用户不可删除" }, { status: 400 });
   if (await db.leadH5Review.count({ where: { reviewerUserId: user.id } })) return NextResponse.json({ message: "该用户已产生运营H5正式评分记录，请禁用账号而非删除" }, { status: 400 });
-  await db.$transaction([
-    db.operationLog.updateMany({ where: { userId: user.id, username: null }, data: { username: user.username } }),
-    db.operationLog.updateMany({ where: { userId: user.id }, data: { userId: null } }),
-    db.user.delete({ where: { id: user.id } }),
-  ]);
+  await db.$transaction(async transaction => {
+    await transaction.operationLog.updateMany({ where: { userId: user.id, username: null }, data: { username: user.username } });
+    await transaction.operationLog.updateMany({ where: { userId: user.id }, data: { userId: null } });
+    await transaction.user.delete({ where: { id: user.id } });
+    await synchronizeStoreLeadership(jsonIdArray(user.leadH5StoreIds), transaction);
+  });
   await writeOperationLog({ userId: session.userId, username: session.username, page: "用户列表", action: "删除", result: "成功", detail: `删除用户：${user.realName}（${user.username}）`, request });
   return NextResponse.json({ message: "用户删除成功" });
 }

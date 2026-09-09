@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 
-const roleTags = { supervisor: "督导", manager: "店长", chef: "厨师长" } as const;
+// 门店表单仅保留负责督导的手工选择；店长、厨师长由用户权限自动同步。
+const roleTags = { supervisor: "督导" } as const;
 
 export async function GET(request: Request) {
   const session = await requireApiSession();

@@ -92,9 +92,9 @@ async function main() {
         const id = path.basename(file, ".sql");
         if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) throw new Error(`迁移文件名不合法：${file}`);
         const checksum = createHash("sha256").update(await readFile(path.join(directory, file))).digest("hex");
-        const existing = await runMysql(executable, defaultsFile, connection, { sql: `SELECT CONCAT(\`checksum\`, '\\t', \`status\`) FROM \`DeploymentMigration\` WHERE \`id\`=${sqlValue(id)} LIMIT 1;` });
+        const existing = await runMysql(executable, defaultsFile, connection, { sql: `SELECT CONCAT(\`checksum\`, '|', \`status\`) FROM \`DeploymentMigration\` WHERE \`id\`=${sqlValue(id)} LIMIT 1;` });
         if (existing) {
-          const [savedChecksum] = existing.split("\t");
+          const [savedChecksum] = existing.split("|");
           if (savedChecksum !== checksum) throw new Error(`迁移${id}的基线校验值冲突`);
           continue;
         }
@@ -110,9 +110,9 @@ async function main() {
       if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) throw new Error(`迁移文件名不合法：${file}`);
       const filePath = path.join(directory, file);
       const checksum = createHash("sha256").update(await readFile(filePath)).digest("hex");
-      const existing = await runMysql(executable, defaultsFile, connection, { sql: `SELECT CONCAT(\`checksum\`, '\\t', \`status\`) FROM \`DeploymentMigration\` WHERE \`id\`=${sqlValue(id)} LIMIT 1;` });
+      const existing = await runMysql(executable, defaultsFile, connection, { sql: `SELECT CONCAT(\`checksum\`, '|', \`status\`) FROM \`DeploymentMigration\` WHERE \`id\`=${sqlValue(id)} LIMIT 1;` });
       if (existing) {
-        const [savedChecksum, status] = existing.split("\t");
+        const [savedChecksum, status] = existing.split("|");
         if (savedChecksum !== checksum) throw new Error(`迁移${id}已执行但文件校验值发生变化，禁止继续部署`);
         if (status === "SUCCESS") continue;
         throw new Error(`迁移${id}上次执行未成功，请检查数据库后处理`);

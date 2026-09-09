@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "npm run verify:deployment && prisma generate && next build",
-    "start": "next start",
+    "start": "next start --hostname 127.0.0.1",
     "setup": "tsx scripts/setup-server.ts",
     "deploy:migrations": "tsx scripts/run-deployment-migrations.ts",
     "db:generate": "prisma generate",

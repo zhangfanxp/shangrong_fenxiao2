@@ -8,13 +8,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { firstAccessiblePath } from "@/lib/access-control";
 import { findNavigation, navigationForPermissions } from "@/lib/navigation";
-import type { PlatformConfig } from "@/lib/platform-config";
 import { LoginNotificationModal } from "@/components/login-notification-modal";
 
 const { Header, Content } = Layout;
 type HeaderNotification = { id: string; recordNo: string; title: string; content: string; publisherName: string; releaseAt: string; releaseAtText: string };
 
-export function AppShell({ children, realName, permissions, platform }: { children: React.ReactNode; realName: string; permissions: string[]; platform: PlatformConfig }) {
+type AppShellPlatform = { platformName: string; logoUrl: string | null };
+
+export function AppShell({ children, realName, permissions, platform }: { children: React.ReactNode; realName: string; permissions: string[]; platform: AppShellPlatform }) {
   const pathname = usePathname(); const router = useRouter();
   const [passwordOpen, setPasswordOpen] = useState(false); const [passwordSaving, setPasswordSaving] = useState(false); const [logoutOpen, setLogoutOpen] = useState(false); const [logoutSaving, setLogoutSaving] = useState(false); const [passwordForm] = Form.useForm<{ oldPassword: string; newPassword: string; confirmPassword: string }>();
   const [notificationOpen, setNotificationOpen] = useState(false); const [notificationLoading, setNotificationLoading] = useState(false); const [notificationRows, setNotificationRows] = useState<HeaderNotification[]>([]); const [notificationError, setNotificationError] = useState(false); const [currentNotification, setCurrentNotification] = useState<HeaderNotification | null>(null);
@@ -73,7 +74,7 @@ export function AppShell({ children, realName, permissions, platform }: { childr
   };
   return <Layout className="content-shell">
       <Header style={{ background: "#fff", padding: "0 24px", height: 64, display: "flex", alignItems: "center", borderBottom: "1px solid #f0f0f0", gap: 18 }}>
-        <Link href={landingPath} className="header-brand"><span className="header-brand-mark">{platform.logoDataUrl ? <img src={platform.logoDataUrl} alt="后台LOGO" /> : "餐"}</span><span>{platform.platformName}</span></Link>
+        <Link href={landingPath} className="header-brand"><span className="header-brand-mark">{platform.logoUrl ? <img src={platform.logoUrl} alt="后台LOGO" decoding="async" /> : "餐"}</span><span>{platform.platformName}</span></Link>
         <div style={{ flex: 1, minWidth: 0 }} className="top-nav"><Menu mode="horizontal" selectedKeys={activeGroup ? [activeGroup.key] : []} items={menuItems} onClick={handlePrimaryMenuClick} style={{ borderBottom: 0, lineHeight: "63px" }} /></div>
         <Tooltip title="我的通知"><Button type="text" icon={<BellOutlined />} aria-label="我的通知" onClick={() => void openNotifications()} /></Tooltip>
         <Tooltip title="帮助"><Button type="text" icon={<QuestionCircleOutlined />} aria-label="帮助" /></Tooltip>

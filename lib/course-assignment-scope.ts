@@ -34,7 +34,7 @@ export function scopeIsAllowed(scopes: AssignmentScope[], access: AssignmentAcce
 export function snapshotUserScopes(user: SnapshotUser, stores: ScopeStore[], brands: { id: string; name: string }[]): AssignmentScope[] {
   const brandIds = jsonIdArray(user.leadH5BrandIds);
   const storeIds = new Set(jsonIdArray(user.leadH5StoreIds));
-  if (user.personnelProfile?.status === "ACTIVE" && !user.personnelProfile.deletedAt) storeIds.add(user.personnelProfile.storeId);
+  if (user.personnelProfile?.storeId && user.personnelProfile.status === "ACTIVE" && !user.personnelProfile.deletedAt) storeIds.add(user.personnelProfile.storeId);
   if (storeIds.size) {
     // Unknown/deleted store IDs are retained as unscoped sentinels, never broadened.
     return [...storeIds].map(id => stores.find(store => store.id === id)).filter(store => !store || !brandIds.length || brandIds.includes(store.brandId))

@@ -13,12 +13,13 @@ export async function GET() {
   const [brands, stores, dictionaries, users, brandDayHours] = await Promise.all([
     db.brand.findMany({ where: { status: RecordStatus.ENABLED }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     db.store.findMany({ where: { operationStatus: { not: "CLOSED" } }, select: { id: true, name: true, operationStatus: true, managerName: true, brand: { select: { id: true, name: true } } }, orderBy: { name: "asc" } }),
-    getBusinessDictionaries(["POSITION_LEVEL", "PERSONNEL_STATUS", "SOCIAL_SECURITY_STATUS"]),
+    getBusinessDictionaries(["DEPARTMENT", "POSITION_LEVEL", "PERSONNEL_STATUS", "SOCIAL_SECURITY_STATUS"]),
     db.user.findMany({ where: { status: RecordStatus.ENABLED, OR: [{ personnelProfile: null }] }, select: { id: true, username: true, realName: true, role: { select: { name: true } } }, orderBy: { realName: "asc" } }),
     getBrandDayHourConfig(),
   ]);
   return NextResponse.json({
     organizations: ["总部", ...brands.map(item => item.name)], brands, stores, users,
+    departments: dictionaries.DEPARTMENT || [],
     positions: (dictionaries.POSITION_LEVEL || []).map(option => ({ id: option.value, ...option })),
     personnelStatuses: dictionaries.PERSONNEL_STATUS || [],
     socialSecurityStatuses: dictionaries.SOCIAL_SECURITY_STATUS || [], brandDayHours,

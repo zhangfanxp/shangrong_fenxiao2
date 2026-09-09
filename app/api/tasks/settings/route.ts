@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
 import { writeOperationLog } from "@/lib/operation-log";
-import { configFileExists, createTaskConfig, deleteTaskConfig, normalizeConfigFileName, parseSubmitContent, TaskConfigError } from "@/lib/task-config";
+import { configFileExists, createTaskConfig, deleteTaskConfig, normalizeConfigFileName, parseSubmitContent, TaskConfigError, type SubmitItem } from "@/lib/task-config";
 
 const dayValues = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"] as const;
 const monthlyDayValues = [...Array.from({ length: 28 }, (_, index) => String(index + 1)), "LAST_DAY"];
@@ -31,8 +32,7 @@ const taskSchema = z.object({
 
 const typeLabels: Record<TaskType, string> = { DAILY: "日任务", WEEKLY: "周任务", MONTHLY: "月任务", TEMPORARY: "临时任务" };
 
-function buildConfig(input: z.infer<typeof taskSchema>, recordNo: string, role: { id: string; name: string }, brands: { id: string; name: string }[], r2Storage: { id: string; name: string; bucketName: string }, version: number) {
-  const { items } = parseSubmitContent(input.submitContent);
+function buildConfig(input: z.infer<typeof taskSchema>, recordNo: string, role: { id: string; name: string }, brands: { id: string; name: string }[], r2Storage: { id: string; name: string; bucketName: string }, version: number, items: SubmitItem[]) {
   return {
     recordNo, taskName: input.title, taskType: typeLabels[input.type], executorRole: role,
     brands, storageSpace: r2Storage, executionDays: input.executionDays, weeklyExecutionDay: input.weeklyExecutionDay, monthlyExecutionDay: input.monthlyExecutionDay,
@@ -82,17 +82,18 @@ export async function POST(request: Request) {
   try {
     const fileName = normalizeConfigFileName(input.configFileBase);
     if (await configFileExists(fileName) || await db.task.findFirst({ where: { configFileName: fileName, deletedAt: null } })) return NextResponse.json({ message: "配置文件名称已存在，请重新输入" }, { status: 400 });
-    const [role, brands, r2Storage] = await Promise.all([
+    const [role, brands, r2Storage, aiServiceOptions] = await Promise.all([
       db.role.findFirst({ where: { id: input.executorRoleId, status: RecordStatus.ENABLED }, select: { id: true, name: true } }),
       db.brand.findMany({ where: { id: { in: [...new Set(input.brandIds)] }, status: RecordStatus.ENABLED }, select: { id: true, name: true } }),
       db.r2StorageConfig.findFirst({ where: { id: input.r2StorageId, status: RecordStatus.ENABLED, deletedAt: null }, select: { id: true, name: true, bucketName: true } }),
+      getBusinessDictionaryOptions("AI_SERVICE").catch(() => []),
     ]);
     if (!role) return NextResponse.json({ message: "当前执行人角色已禁用，请重新选择启用状态的角色。" }, { status: 400 });
     if (brands.length !== new Set(input.brandIds).size) return NextResponse.json({ message: "品牌数据无效，请重新选择" }, { status: 400 });
     if (!r2Storage) return NextResponse.json({ message: "请选择已启用的R2存储空间" }, { status: 400 });
     const recordNo = await nextRecordNo();
-    const { items, normalizedContent } = parseSubmitContent(input.submitContent);
-    const config = buildConfig({ ...input, submitContent: normalizedContent }, recordNo, role, brands, r2Storage, 1);
+    const { items, normalizedContent } = parseSubmitContent(input.submitContent, aiServiceOptions.map(option => option.value));
+    const config = buildConfig({ ...input, submitContent: normalizedContent }, recordNo, role, brands, r2Storage, 1, items);
     await createTaskConfig(fileName, config);
     try {
       const task = await db.$transaction(async tx => {

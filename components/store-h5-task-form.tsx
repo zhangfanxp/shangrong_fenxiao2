@@ -6,10 +6,12 @@ import type { UploadProps } from "antd";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { optimizeTaskPhoto, putFileWithProgress } from "@/lib/client/store-h5-direct-upload";
+import { optimizeTaskVideo } from "@/lib/client/task-video-compression";
+import { taskAttachmentMaxBytes, taskAttachmentMaxMb, TASK_VIDEO_SUGGESTED_MAX_SECONDS, TASK_VIDEO_SUGGESTED_MIN_SECONDS } from "@/lib/task-attachment-rules";
 
 type Item = { name: string; component: "attachment" | "input" | "select"; dataType: "photo" | "video" | "document" | "amount" | "quantity" | null; captureOnly?: boolean; options: string[]; description: string; required: boolean; weight: number };
 type TaskDetail = { id: string; recordNo?: string; taskName: string; taskTypeLabel: string; storeName?: string; brandName?: string; executionDate: string; dueDate: string; items: Item[] };
-type Attachment = { id?: string; name: string; status: "uploading" | "success" | "error"; message?: string; progress?: number };
+type Attachment = { id?: string; name: string; status: "uploading" | "success" | "error"; phase?: "preparing" | "uploading"; message?: string; progress?: number };
 
 export function StoreH5TaskForm({ taskInstanceId }: { taskInstanceId: string }) {
   const router = useRouter();
@@ -61,19 +63,30 @@ export function StoreH5TaskForm({ taskInstanceId }: { taskInstanceId: string }) 
   };
   const upload = (index: number, item: Item): UploadProps["beforeUpload"] => async file => {
     const typeOkay = item.dataType === "video" ? file.type.startsWith("video/") : item.dataType === "document" ? file.type.startsWith("application/") || file.type.startsWith("text/") : file.type.startsWith("image/");
-    const maxMb = item.dataType === "photo" ? 10 : 20;
-    if (!typeOkay || file.size > maxMb * 1024 * 1024) {
+    const dataType = item.dataType as "photo" | "video" | "document";
+    const maxBytes = taskAttachmentMaxBytes(dataType); const maxMb = taskAttachmentMaxMb(dataType);
+    if (!typeOkay || (dataType !== "video" && file.size > maxBytes)) {
       setAttachments(current => ({ ...current, [index]: { name: file.name, status: "error", message: !typeOkay ? "文件类型不符合要求" : `文件不能超过 ${maxMb}MB` } }));
       return Upload.LIST_IGNORE;
     }
     setDirty(true); setErrors(current => ({ ...current, [index]: "" }));
-    setAttachments(current => ({ ...current, [index]: { name: file.name, status: "uploading", progress: 0, message: item.dataType === "photo" ? "正在优化图片..." : "正在准备直传..." } }));
+    setAttachments(current => ({ ...current, [index]: { name: file.name, status: "uploading", phase: dataType === "document" ? "uploading" : "preparing", progress: 0, message: dataType === "photo" ? "正在优化图片..." : dataType === "video" ? "正在读取视频并准备压缩..." : "正在准备直传..." } }));
     try {
-      const prepared = item.dataType === "photo" ? await optimizeTaskPhoto(file) : { file, optimized: false };
+      const prepared: { file: File; optimized: boolean; durationSeconds?: number } = dataType === "photo"
+        ? await optimizeTaskPhoto(file)
+        : dataType === "video"
+          ? await optimizeTaskVideo(file, progress => setAttachments(current => ({ ...current, [index]: { ...current[index], name: file.name, status: "uploading", phase: "preparing", progress: Math.round(progress * .35), message: `正在压缩视频 ${progress}%` } })))
+          : { file, optimized: false };
       const directFile = prepared.file;
+      if (directFile.size > maxBytes) throw new Error(`文件不能超过 ${maxMb}MB`);
       const savedBytes = prepared.optimized ? file.size - directFile.size : 0;
-      const preparationMessage = prepared.optimized ? `图片已优化，减少 ${(savedBytes / 1024 / 1024).toFixed(1)}MB` : "正在上传到R2...";
-      setAttachments(current => ({ ...current, [index]: { name: directFile.name, status: "uploading", progress: 0, message: preparationMessage } }));
+      const durationText = prepared.durationSeconds ? `视频约 ${Math.round(prepared.durationSeconds)} 秒` : "视频";
+      const durationAdvice = prepared.durationSeconds && prepared.durationSeconds > TASK_VIDEO_SUGGESTED_MAX_SECONDS ? `，建议控制在 ${TASK_VIDEO_SUGGESTED_MAX_SECONDS} 秒以内` : "";
+      const resultMessage = dataType === "video"
+        ? `${durationText}${prepared.optimized ? `，已压缩至 ${(directFile.size / 1024 / 1024).toFixed(1)}MB` : ""}${durationAdvice}`
+        : prepared.optimized ? `图片已优化，减少 ${(savedBytes / 1024 / 1024).toFixed(1)}MB` : "";
+      const preparationMessage = resultMessage ? `${resultMessage}，正在上传到R2...` : "正在上传到R2...";
+      setAttachments(current => ({ ...current, [index]: { name: directFile.name, status: "uploading", phase: "uploading", progress: dataType === "video" && prepared.optimized ? 35 : 0, message: preparationMessage } }));
       const signResponse = await fetch(`/api/store-h5/tasks/${taskInstanceId}/attachments/sign`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ itemIndex: index, name: directFile.name, type: directFile.type || "application/octet-stream", size: directFile.size }),
@@ -83,7 +96,7 @@ export function StoreH5TaskForm({ taskInstanceId }: { taskInstanceId: string }) 
       if (!signResponse.ok) throw new Error(sign.message || "生成R2直传地址失败，请稍后重试");
       const uploaded = await putFileWithProgress({
         url: sign.uploadUrl, file: directFile, headers: sign.headers,
-        onProgress: progress => setAttachments(current => ({ ...current, [index]: { ...current[index], name: directFile.name, status: "uploading", progress, message: preparationMessage } })),
+        onProgress: progress => setAttachments(current => ({ ...current, [index]: { ...current[index], name: directFile.name, status: "uploading", progress: dataType === "video" && prepared.optimized ? 35 + Math.round(progress * .65) : progress, message: preparationMessage } })),
       });
       const confirmResponse = await fetch(`/api/store-h5/tasks/${taskInstanceId}/attachments/confirm`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -92,7 +105,7 @@ export function StoreH5TaskForm({ taskInstanceId }: { taskInstanceId: string }) 
       const confirmed = await confirmResponse.json();
       if (confirmResponse.status === 401) { router.replace("/store_h5/login"); return Upload.LIST_IGNORE; }
       if (!confirmResponse.ok) throw new Error(confirmed.message || "确认R2附件失败，请重新上传");
-      setAttachments(current => ({ ...current, [index]: { id: confirmed.id, name: confirmed.name, status: "success", progress: 100, message: prepared.optimized ? preparationMessage : undefined } }));
+      setAttachments(current => ({ ...current, [index]: { id: confirmed.id, name: confirmed.name, status: "success", progress: 100, message: resultMessage || undefined } }));
     } catch (reason) {
       setAttachments(current => ({ ...current, [index]: { name: current[index]?.name || file.name, status: "error", progress: current[index]?.progress, message: reason instanceof Error ? reason.message : "附件上传失败，请重新上传" } }));
     }
@@ -117,6 +130,14 @@ export function StoreH5TaskForm({ taskInstanceId }: { taskInstanceId: string }) 
     }
     setSubmitError(""); return true;
   };
+  const requiredItemsComplete = task ? task.items.every((item, index) => {
+    if (!item.required) return true;
+    if (item.component === "attachment") return attachments[index]?.status === "success" && Boolean(attachments[index]?.id);
+    const value = values[index];
+    return value !== undefined && value !== null && String(value).trim() !== "";
+  }) : false;
+  const attachmentUploading = Object.values(attachments).some(attachment => attachment.status === "uploading");
+  const canSubmit = requiredItemsComplete && !attachmentUploading && !submitting;
   const beginSubmit = () => { if (validate()) setConfirmOpen(true); };
   const submit = async () => {
     if (!task || submitting) return;
@@ -138,13 +159,13 @@ export function StoreH5TaskForm({ taskInstanceId }: { taskInstanceId: string }) 
     <section className="store-h5-task-summary"><div><h1>{task.taskName}</h1><Tag color="blue">{task.taskTypeLabel}</Tag></div><dl><div><dt>执行日期</dt><dd>{String(task.executionDate).slice(0, 10)}</dd></div><div><dt>截止时间</dt><dd>{new Date(task.dueDate).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</dd></div><div><dt>门店</dt><dd>{task.storeName || "-"}</dd></div></dl></section>
     <section className="store-h5-form-list">
       {task.items.map((item, index) => <div ref={node => { itemRefs.current[index] = node; }} className={`store-h5-form-item ${errors[index] ? "error" : ""}`} key={`${item.name}-${index}`}><div className="store-h5-form-title"><span>{index + 1}</span><div><h2>{item.name}{item.required && <b>*</b>}</h2><small>{item.required ? "必填" : "选填"} · 权重 {item.weight}</small></div></div><p>{item.description}</p>
-        {item.component === "attachment" ? <div><Upload showUploadList={false} maxCount={1} accept={item.dataType === "video" ? "video/*" : item.dataType === "document" ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" : "image/*"} capture={item.captureOnly && (item.dataType === "photo" || item.dataType === "video") ? "environment" : undefined} beforeUpload={upload(index, item)}><Button block disabled={attachments[index]?.status === "uploading"} icon={item.dataType === "video" ? <VideoCameraOutlined /> : item.dataType === "photo" ? <CameraOutlined /> : <UploadOutlined />}>{attachments[index]?.status === "uploading" ? "上传中..." : item.dataType === "video" ? item.captureOnly ? "拍摄视频" : "拍摄 / 选择相册视频" : item.dataType === "document" ? "上传文档" : item.captureOnly ? "拍照" : "拍照 / 选择相册照片"}</Button></Upload>
-          {attachments[index] && <div className={`store-h5-upload-status ${attachments[index].status}`}><span>{attachments[index].status === "uploading" ? <LoadingOutlined /> : attachments[index].status === "success" ? <CheckCircleFilled /> : <CloseCircleFilled />}{attachments[index].status === "uploading" ? `上传中 ${attachments[index].progress || 0}%` : attachments[index].status === "success" ? "上传成功" : "上传失败"}：{attachments[index].name}</span>{attachments[index].status !== "uploading" && <Button type="text" aria-label="删除附件" icon={<DeleteOutlined />} onClick={() => setAttachments(current => { const next = { ...current }; delete next[index]; return next; })} />} {attachments[index].status === "uploading" && <i className="store-h5-upload-progress"><b style={{ width: `${attachments[index].progress || 0}%` }} /></i>}{attachments[index].message && <small>{attachments[index].message}</small>}</div>}
+        {item.component === "attachment" ? <div><Upload showUploadList={false} maxCount={1} accept={item.dataType === "video" ? "video/*" : item.dataType === "document" ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" : "image/*"} capture={item.captureOnly && (item.dataType === "photo" || item.dataType === "video") ? "environment" : undefined} beforeUpload={upload(index, item)}><Button block disabled={attachments[index]?.status === "uploading"} icon={item.dataType === "video" ? <VideoCameraOutlined /> : item.dataType === "photo" ? <CameraOutlined /> : <UploadOutlined />}>{attachments[index]?.status === "uploading" ? "上传中..." : item.dataType === "video" ? item.captureOnly ? "拍摄视频" : "拍摄 / 选择相册视频" : item.dataType === "document" ? "上传文档" : item.captureOnly ? "拍照" : "拍照 / 选择相册照片"}</Button></Upload>{item.dataType === "video" && <small className="store-h5-video-hint">建议拍摄 {TASK_VIDEO_SUGGESTED_MIN_SECONDS}–{TASK_VIDEO_SUGGESTED_MAX_SECONDS} 秒，系统将自动压缩至最高约 720p，单个视频最大 {taskAttachmentMaxMb("video")}MB。</small>}
+          {attachments[index] && <div className={`store-h5-upload-status ${attachments[index].status}`}><span>{attachments[index].status === "uploading" ? <LoadingOutlined /> : attachments[index].status === "success" ? <CheckCircleFilled /> : <CloseCircleFilled />}{attachments[index].status === "uploading" ? `${attachments[index].phase === "preparing" ? "处理中" : "上传中"} ${attachments[index].progress || 0}%` : attachments[index].status === "success" ? "上传成功" : "上传失败"}：{attachments[index].name}</span>{attachments[index].status !== "uploading" && <Button type="text" aria-label="删除附件" icon={<DeleteOutlined />} onClick={() => setAttachments(current => { const next = { ...current }; delete next[index]; return next; })} />} {attachments[index].status === "uploading" && <i className="store-h5-upload-progress"><b style={{ width: `${attachments[index].progress || 0}%` }} /></i>}{attachments[index].message && <small>{attachments[index].message}</small>}</div>}
         </div> : item.component === "select" ? <Select value={values[index]} placeholder="请选择" options={item.options.map(option => ({ value: option, label: option }))} onChange={value => { setDirty(true); setValues(current => ({ ...current, [index]: value })); setErrors(current => ({ ...current, [index]: "" })); }} /> : <InputNumber value={values[index]} min={0} precision={item.dataType === "amount" ? 2 : undefined} stringMode={item.dataType === "amount"} inputMode="decimal" placeholder={item.dataType === "amount" ? "请输入金额" : "请输入数量"} addonBefore={item.dataType === "amount" ? "¥" : undefined} onChange={value => { setDirty(true); setValues(current => ({ ...current, [index]: value === null ? "" : value })); setErrors(current => ({ ...current, [index]: "" })); }} />}
         {errors[index] && <div className="store-h5-field-error">{errors[index]}</div>}
       </div>)}
     </section>
-    <div className="store-h5-submit-space" /><footer className="store-h5-submit-bar">{submitError && <Alert type="error" showIcon message={submitError} closable onClose={() => setSubmitError("")} />}<Button block type="primary" size="large" loading={submitting} disabled={submitting} onClick={beginSubmit}>{submitting ? "提交中..." : "提交"}</Button></footer>
+    <div className="store-h5-submit-space" /><footer className="store-h5-submit-bar">{submitError && <Alert type="error" showIcon message={submitError} closable onClose={() => setSubmitError("")} />}<Button block type="primary" size="large" loading={submitting} disabled={!canSubmit} onClick={beginSubmit}>{submitting ? "提交中..." : "提交"}</Button></footer>
     <Modal title="确认提交当前任务？" open={confirmOpen} centered maskClosable={false} closable={!submitting} okText="确认提交" cancelText="取消" confirmLoading={submitting} onCancel={() => !submitting && setConfirmOpen(false)} onOk={() => void submit()}><p>提交后当前任务将变为已完成，请确认填写内容无误。</p></Modal>
     <Modal title="当前任务尚未提交" open={leaveOpen} centered okText="确认离开" cancelText="继续填写" okButtonProps={{ danger: true }} onCancel={() => setLeaveOpen(false)} onOk={() => { setDirty(false); setLeaveOpen(false); router.push(leaveTarget); }}><p>离开后已填写内容可能丢失，是否继续？</p></Modal>
     <Modal title="温馨提示" open={successOpen} centered closable={false} maskClosable={false} footer={<Button block type="primary" onClick={() => { setSuccessOpen(false); router.replace("/store_h5/tasks"); router.refresh(); }}>我知道了</Button>}><div className="store-h5-success"><CheckCircleFilled /><strong>当前任务已提交并完成。</strong></div></Modal>

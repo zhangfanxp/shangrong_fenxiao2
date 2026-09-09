@@ -25,7 +25,8 @@ export const personnelInputSchema = z.object({
   hireDate: dateString,
   positionLevel: z.string().trim().min(1, "请选择所属岗位星级").max(50),
   organization: z.string().trim().min(1, "请选择人员归属").max(30),
-  storeId: z.string().min(1, "请选择部门/店面"),
+  department: z.string().trim().max(50, "总部部门不能超过50个字符").nullable().optional(),
+  storeId: z.string().nullable().optional(),
   contractSignDate: dateString,
   contractYears: z.number().int().min(1, "合同年限必须大于0").max(50, "合同年限不能超过50年").nullable().optional(),
   contractExpiryDate: dateString,
@@ -42,6 +43,8 @@ export const personnelInputSchema = z.object({
   version: z.number().int().positive().optional(),
 }).superRefine((data, ctx) => {
   if (data.status !== PersonnelStatus.ACTIVE) ctx.addIssue({ code: "custom", path: ["status"], message: "离职状态只能通过员工离职操作设置" });
+  if (data.organization === "总部" && !data.department) ctx.addIssue({ code: "custom", path: ["department"], message: "请选择总部部门" });
+  if (data.organization !== "总部" && !data.storeId) ctx.addIssue({ code: "custom", path: ["storeId"], message: "请选择部门/店面" });
   if (new Date(data.contractExpiryDate) < new Date(data.contractSignDate)) ctx.addIssue({ code: "custom", path: ["contractExpiryDate"], message: "合同到期日不能早于合同签署日期" });
   if (data.platformAccess === PlatformAccess.YES && !data.platformUserId) ctx.addIssue({ code: "custom", path: ["platformUserId"], message: "请选择平台用户" });
 });

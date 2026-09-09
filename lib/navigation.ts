@@ -17,7 +17,7 @@ export const navigation: NavGroup[] = [
     { key: "inspection-3", label: "门店信用得分", href: "/lead_pc/inspection/3" },
     { key: "inspection-4", label: "巡店调研表", href: "/lead_pc/inspection/4" },
   ] },
-  { key: "tasks", label: "任务", icon: UnorderedListOutlined, children: [{ key: "task-config", label: "任务设置", href: "/lead_pc/tasks/settings" }, { key: "task-records", label: "任务记录", href: "/lead_pc/tasks/records" }] },
+  { key: "tasks", label: "任务", icon: UnorderedListOutlined, children: [{ key: "task-config", label: "任务设置", href: "/lead_pc/tasks/settings" }, { key: "task-records", label: "任务记录", href: "/lead_pc/tasks/records" }, { key: "task-analysis", label: "智能分析", href: "/lead_pc/tasks/analysis" }] },
   { key: "staff", label: "员工", icon: TeamOutlined, children: [
     { key: "staff-0", label: "人员档案", href: "/lead_pc/staff/0" },
     { key: "staff-2", label: "考勤记录", href: "/lead_pc/staff/2" },

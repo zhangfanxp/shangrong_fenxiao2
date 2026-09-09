@@ -8,8 +8,8 @@
   },
   "brands": [
     {
-      "id": "cmszu2msr0003tnrr81c4rkbp",
-      "name": "奋小二"
+      "id": "cmszu2mss0005tnrrddx1naed",
+      "name": "蚝家伙"
     }
   ],
   "storageSpace": {
@@ -27,7 +27,7 @@
   "deadlineTime": "03:59",
   "includeCompletionRate": true,
   "status": "启用",
-  "configVersion": 2,
+  "configVersion": 3,
   "submitItems": [
     {
       "name": "门店门头",

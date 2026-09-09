@@ -5,6 +5,7 @@ import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { storeInputSchema } from "@/lib/store-validation";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
 import { storeContractSelect, validateStoreContract } from "@/lib/store-contract";
+import { synchronizeStoreLeadership } from "@/lib/store-leadership";
 import { writeOperationLog } from "@/lib/operation-log";
 
 export async function GET(request: Request) {
@@ -21,6 +22,8 @@ export async function GET(request: Request) {
   const formalOpenDate = startDate ? new Date(startDate) : undefined;
   const formalOpenDateEnd = endDate ? new Date(`${endDate}T23:59:59.999`) : undefined;
 
+  // 先按用户角色及运营H5店铺权限同步，确保列表展示和店长关键字筛选都是最新数据。
+  await synchronizeStoreLeadership();
   const rows = await db.store.findMany({
     where: {
       ...(keyword ? { OR: [{ recordNo: { contains: keyword } }, { name: { contains: keyword } }, { managerName: { contains: keyword } }, { ownerName: { contains: keyword } }, { ownerPhone: { contains: keyword } }] } : {}),
@@ -60,7 +63,14 @@ export async function POST(request: Request) {
   if (contractCheck.message) return NextResponse.json({ message: contractCheck.message }, { status: 400 });
   const number = await db.store.count();
   const store = await db.store.create({
-    data: { ...result.data, recordNo: `MD${new Date().getFullYear()}${String(number + 1).padStart(6, "0")}` },
+    data: {
+      ...result.data,
+      managerUserId: null,
+      managerName: null,
+      chefUserId: null,
+      chefName: null,
+      recordNo: `MD${new Date().getFullYear()}${String(number + 1).padStart(6, "0")}`,
+    },
     include: { brand: true, contract: { select: storeContractSelect } },
   });
   await writeOperationLog({ userId: session.userId, username: session.username, page: "门店列表", action: "新增", result: "成功", detail: `新增门店：${store.recordNo}（${store.name}）`, request }).catch(() => undefined);

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
 import { writeOperationLog } from "@/lib/operation-log";
 import { configFileExists, createTaskConfig, deleteTaskConfig, normalizeConfigFileName, parseSubmitContent, readTaskConfig, TaskConfigError, writeTaskConfig } from "@/lib/task-config";
 
@@ -69,15 +70,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const hasHistory = await db.taskRecord.count({ where: { taskId: id } });
     if (nextFileName !== task.configFileName && hasHistory) return NextResponse.json({ message: "该任务已经产生历史任务记录，配置文件名称不可修改。" }, { status: 400 });
     if (nextFileName !== task.configFileName && ((await configFileExists(nextFileName)) || await db.task.findFirst({ where: { configFileName: nextFileName, deletedAt: null, id: { not: id } } }))) return NextResponse.json({ message: "配置文件名称已存在，请重新输入" }, { status: 400 });
-    const [role, brands, r2Storage] = await Promise.all([
+    const [role, brands, r2Storage, aiServiceOptions] = await Promise.all([
       db.role.findFirst({ where: { id: input.executorRoleId, status: RecordStatus.ENABLED }, select: { id: true, name: true } }),
       db.brand.findMany({ where: { id: { in: [...new Set(input.brandIds)] }, status: RecordStatus.ENABLED }, select: { id: true, name: true } }),
       db.r2StorageConfig.findFirst({ where: { id: input.r2StorageId, status: RecordStatus.ENABLED, deletedAt: null }, select: { id: true, name: true, bucketName: true } }),
+      getBusinessDictionaryOptions("AI_SERVICE").catch(() => []),
     ]);
     if (!role) return NextResponse.json({ message: "当前执行人角色已禁用，请重新选择启用状态的角色。" }, { status: 400 });
     if (brands.length !== new Set(input.brandIds).size) return NextResponse.json({ message: "品牌数据无效，请重新选择" }, { status: 400 });
     if (!r2Storage) return NextResponse.json({ message: "请选择已启用的R2存储空间" }, { status: 400 });
-    const { items, normalizedContent } = parseSubmitContent(input.submitContent); const nextVersion = task.configVersion + 1;
+    const { items, normalizedContent } = parseSubmitContent(input.submitContent, aiServiceOptions.map(option => option.value)); const nextVersion = task.configVersion + 1;
     const normalizedExecutionDays = input.type === TaskType.DAILY ? input.executionDays : input.type === TaskType.WEEKLY && input.weeklyExecutionDay ? [input.weeklyExecutionDay] : [];
     const nextConfig = { recordNo: task.recordNo, taskName: input.title, taskType: labels[input.type], executorRole: role, brands, storageSpace: r2Storage, executionDays: normalizedExecutionDays, weeklyExecutionDay: input.weeklyExecutionDay, monthlyExecutionDay: input.monthlyExecutionDay, deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, includeCompletionRate: input.includeCompletionRate, status: input.status === RecordStatus.ENABLED ? "启用" : "禁用", configVersion: nextVersion, submitItems: items };
     if (nextFileName === task.configFileName) await writeTaskConfig(nextFileName, nextConfig); else { await createTaskConfig(nextFileName, nextConfig); await deleteTaskConfig(task.configFileName); }

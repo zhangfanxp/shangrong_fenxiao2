@@ -1,12 +1,13 @@
 "use client";
 
 import { PlusOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Divider, Drawer, Form, Input, message, Modal, Row, Select, Space, Tag, type FormProps } from "antd";
+import { Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Divider, Drawer, Empty, Form, Input, message, Modal, Row, Select, Space, Table, Tag, type FormProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import districtData from "@/District/pca-code.json";
 import { DataTable } from "@/components/data-table";
+import { PersonnelDetails, type PersonnelDetail } from "@/components/personnel-details";
 import { StatusTag } from "@/components/status-tag";
 import { displayDate } from "@/lib/format";
 import { useBusinessDictionaries } from "@/hooks/use-business-dictionaries";
@@ -21,36 +22,48 @@ type Store = {
   id: string; recordNo: string; contractId?: string; brandId: string; name: string; operationStatus: string; cooperationType: string;
   region?: string; supervisorName?: string; province?: string; city?: string; district?: string; address?: string;
   startDate?: string; endDate?: string; businessDistrict?: string; locationType?: string; trialOpenDate?: string;
-  formalOpenDate?: string; managerUserId?: string; managerName?: string; chefName?: string; ownerName?: string; ownerPhone?: string;
-  ownerIdNumber?: string; createdAt: string; brand: Brand; contract?: Contract;
+  formalOpenDate?: string; managerUserId?: string; managerName?: string; chefUserId?: string; chefName?: string; ownerName?: string; ownerPhone?: string;
+  ownerIdNumber?: string; douyinLaikeName?: string; kuaishouName?: string; meituanManagerName?: string; meituanBusinessName?: string;
+  createdAt: string; brand: Brand; contract?: Contract;
 };
 type Filters = { keyword: string; status: string; brandId: string; cooperationType: string; city: string; dates: [Dayjs | null, Dayjs | null] | null };
 type StoreForm = {
   contractId?: string; brandId: string; name: string; cooperationType: string; operationStatus: string; region?: string; supervisorName?: string;
   location?: string[]; address?: string; startDate?: Dayjs; endDate?: Dayjs; businessDistrict?: string; locationType?: string;
-  trialOpenDate?: Dayjs; formalOpenDate?: Dayjs; managerUserId?: string; managerName?: string; chefName?: string; ownerName?: string;
+  trialOpenDate?: Dayjs; formalOpenDate?: Dayjs; managerName?: string; chefName?: string; ownerName?: string;
   ownerPhone?: string; ownerIdNumber?: string;
 };
-type StaffRole = "supervisor" | "manager" | "chef";
+type StaffRole = "supervisor";
 type StaffMember = { id: string; realName: string; phone?: string | null; tags?: string | null };
-type StaffPicker = { role: StaffRole; title: string; field: "supervisorName" | "managerName" | "chefName"; idField?: "managerUserId" };
+type StaffPicker = { role: StaffRole; title: string; field: "supervisorName" };
+type AliasForm = { douyinLaikeName: string; kuaishouName: string; meituanManagerName: string; meituanBusinessName: string };
+type AliasMode = "view" | "edit";
+type StoreEmployee = { id: string; recordNo: string; name: string; phone: string; phoneMasked?: string; positionLevel: string; laborCost: string; storeId: string | null; platformUserId?: string | null; platformUser?: { role: { name: string } } | null };
+type StoreEmployeeData = { id: string; recordNo: string; name: string; managerName?: string | null; chefName?: string | null; employees: StoreEmployee[] };
+type EmployeeMode = "view" | "edit";
+type EmployeeFilters = { name: string; positionLevels: string[] };
 type DistrictNode = { code: string; name: string; children?: DistrictNode[] };
 
-const storeDictionaryCodes = ["BRAND", "COOPERATION_TYPE", "STORE_OPERATION_STATUS", "STORE_AREA", "LOCATION_TYPE"];
+const storeDictionaryCodes = ["BRAND", "COOPERATION_TYPE", "STORE_OPERATION_STATUS", "STORE_AREA", "LOCATION_TYPE", "POSITION_LEVEL"];
 const emptyFilters: Filters = { keyword: "", status: "", brandId: "", cooperationType: "", city: "", dates: null };
+const emptyEmployeeFilters: EmployeeFilters = { name: "", positionLevels: [] };
 const districtOptions = districtData as DistrictNode[];
 
 function text(value?: string | null) { return value || "-"; }
 function locationLabel(store: Pick<Store, "province" | "city" | "district">) { return [store.province, store.city, store.district].filter(Boolean).join(" ") || "-"; }
 function cooperationLabel(value: string) { return value === "DIRECT" ? "直营店" : "加盟店"; }
 
-export function StoreList() {
+export function StoreList({ permissions }: { permissions: string[] }) {
   const [messageApi, messageContextHolder] = message.useMessage();
+  const canEditAliases = permissions.includes("*") || permissions.includes("stores:aliases:edit");
+  const canEditEmployees = permissions.includes("*") || permissions.includes("stores:employees:edit");
+  const canViewSensitivePersonnel = permissions.includes("*") || permissions.includes("personnel:sensitive");
   const { options: dictionaries, loading: dictionariesLoading, error: dictionariesError, reload: reloadDictionaries } = useBusinessDictionaries(storeDictionaryCodes);
   const statusOptions = [{ value: "", label: "全部运营状态" }, ...(dictionaries.STORE_OPERATION_STATUS || [])];
   const cooperationOptions = [{ value: "", label: "全部合作类型" }, ...(dictionaries.COOPERATION_TYPE || [])];
   const areaOptions = dictionaries.STORE_AREA || [];
   const locationTypeOptions = dictionaries.LOCATION_TYPE || [];
+  const positionLevelOptions = dictionaries.POSITION_LEVEL || [];
   const [rows, setRows] = useState<Store[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,8 +84,29 @@ export function StoreList() {
   const [staffRows, setStaffRows] = useState<StaffMember[]>([]);
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffError, setStaffError] = useState(false);
+  const [aliasMode, setAliasMode] = useState<AliasMode | null>(null);
+  const [aliasStore, setAliasStore] = useState<Store | null>(null);
+  const [aliasSaving, setAliasSaving] = useState(false);
+  const [aliasSuccessOpen, setAliasSuccessOpen] = useState(false);
+  const [employeeMode, setEmployeeMode] = useState<EmployeeMode | null>(null);
+  const [employeeData, setEmployeeData] = useState<StoreEmployeeData | null>(null);
+  const [employeeDraft, setEmployeeDraft] = useState<StoreEmployee[]>([]);
+  const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [employeeSaving, setEmployeeSaving] = useState(false);
+  const [employeeDetail, setEmployeeDetail] = useState<PersonnelDetail | null>(null);
+  const [employeeSelectorOpen, setEmployeeSelectorOpen] = useState(false);
+  const [availableEmployees, setAvailableEmployees] = useState<StoreEmployee[]>([]);
+  const [availableTotal, setAvailableTotal] = useState(0);
+  const [availablePage, setAvailablePage] = useState(1);
+  const [availablePageSize, setAvailablePageSize] = useState(20);
+  const [availableLoading, setAvailableLoading] = useState(false);
+  const [availableError, setAvailableError] = useState(false);
+  const [employeeFilters, setEmployeeFilters] = useState<EmployeeFilters>(emptyEmployeeFilters);
+  const [appliedEmployeeFilters, setAppliedEmployeeFilters] = useState<EmployeeFilters>(emptyEmployeeFilters);
+  const [selectedAvailableEmployees, setSelectedAvailableEmployees] = useState<Map<string, StoreEmployee>>(new Map());
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [form] = Form.useForm<StoreForm>();
+  const [aliasForm] = Form.useForm<AliasForm>();
   const cityOptions = useMemo(() => Array.from(new Set(districtOptions.flatMap((province) => (province.children || []).map((city) => city.name)))).map((city) => ({ value: city, label: city })), []);
 
   const load = async (nextFilters = filters) => {
@@ -116,7 +150,6 @@ export function StoreList() {
   const chooseStaff = (staff: StaffMember) => {
     if (!staffPicker) return;
     form.setFieldValue(staffPicker.field, staff.realName);
-    if (staffPicker.idField) form.setFieldValue(staffPicker.idField, staff.id);
     setStaffPicker(null);
   };
   const chooseContract = (contract: Contract) => {
@@ -198,6 +231,176 @@ export function StoreList() {
       setSaving(false);
     }
   };
+  const openAliases = (store: Store) => {
+    setAliasStore(store);
+    aliasForm.setFieldsValue({
+      douyinLaikeName: store.douyinLaikeName || "",
+      kuaishouName: store.kuaishouName || "",
+      meituanManagerName: store.meituanManagerName || "",
+      meituanBusinessName: store.meituanBusinessName || "",
+    });
+    setAliasMode("view");
+  };
+  const closeAliases = () => {
+    if (aliasSaving) return;
+    setAliasMode(null);
+    setAliasStore(null);
+    aliasForm.resetFields();
+  };
+  const saveAliases = async () => {
+    if (!aliasStore || aliasSaving) return;
+    try {
+      const values = await aliasForm.validateFields();
+      setAliasSaving(true);
+      const response = await fetch(`/api/stores/${aliasStore.id}/aliases`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || "门店别名保存失败，请稍后重试");
+      const updated = data as Store;
+      setRows(current => current.map(store => store.id === aliasStore.id ? { ...store, ...updated } : store));
+      setAliasStore(current => current ? { ...current, ...updated } : current);
+      setAliasMode(null);
+      setAliasSuccessOpen(true);
+    } catch (error) {
+      if (error instanceof Error) messageApi.error(error.message);
+    } finally {
+      setAliasSaving(false);
+    }
+  };
+
+  const loadStoreEmployees = async (storeId: string) => {
+    setEmployeeLoading(true);
+    try {
+      const response = await fetch(`/api/stores/${storeId}/employees`, { cache: "no-store" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || "门店员工加载失败，请稍后重试");
+      const snapshot = data as StoreEmployeeData;
+      setEmployeeData(snapshot);
+      setEmployeeDraft(snapshot.employees);
+    } catch (loadError) {
+      messageApi.error(loadError instanceof Error ? loadError.message : "门店员工加载失败，请稍后重试");
+      setEmployeeMode(null);
+      setEmployeeData(null);
+    } finally {
+      setEmployeeLoading(false);
+    }
+  };
+  const openEmployees = (store: Store) => {
+    setEmployeeData({ id: store.id, recordNo: store.recordNo, name: store.name, managerName: store.managerName, chefName: store.chefName, employees: [] });
+    setEmployeeDraft([]);
+    setEmployeeMode("view");
+    void loadStoreEmployees(store.id);
+  };
+  const closeEmployees = () => {
+    if (employeeSaving) return;
+    setEmployeeMode(null);
+    setEmployeeData(null);
+    setEmployeeDraft([]);
+    setEmployeeSelectorOpen(false);
+    setEmployeeDetail(null);
+  };
+  const startEmployeeEdit = () => {
+    if (!employeeData) return;
+    setEmployeeDraft(employeeData.employees);
+    setEmployeeMode("edit");
+  };
+  const cancelEmployeeEdit = () => {
+    setEmployeeDraft(employeeData?.employees || []);
+    setEmployeeSelectorOpen(false);
+    setEmployeeMode("view");
+  };
+  const removeEmployee = (personnelId: string) => {
+    setEmployeeDraft(current => current.filter(personnel => personnel.id !== personnelId));
+  };
+  const saveEmployees = async () => {
+    if (!employeeData || employeeSaving) return;
+    setEmployeeSaving(true);
+    try {
+      const response = await fetch(`/api/stores/${employeeData.id}/employees`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeIds: employeeDraft.map(personnel => personnel.id) }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || "门店员工保存失败，请稍后重试");
+      const snapshot = data as StoreEmployeeData;
+      setEmployeeData(snapshot);
+      setEmployeeDraft(snapshot.employees);
+      setEmployeeMode("view");
+      messageApi.success("门店员工已保存");
+    } catch (saveEmployeeError) {
+      messageApi.error(saveEmployeeError instanceof Error ? saveEmployeeError.message : "门店员工保存失败，请稍后重试");
+    } finally {
+      setEmployeeSaving(false);
+    }
+  };
+  const openEmployeeDetail = async (personnel: StoreEmployee) => {
+    if (!employeeData) return;
+    try {
+      const response = await fetch(`/api/stores/${employeeData.id}/employees/${personnel.id}`, { cache: "no-store" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || "员工档案加载失败，请稍后重试");
+      setEmployeeDetail(data as PersonnelDetail);
+    } catch (detailError) {
+      messageApi.error(detailError instanceof Error ? detailError.message : "员工档案加载失败，请稍后重试");
+    }
+  };
+  const loadAvailableEmployees = async (nextPage: number, nextPageSize: number, nextFilters: EmployeeFilters) => {
+    if (!employeeData) return;
+    setAvailableLoading(true);
+    setAvailableError(false);
+    try {
+      const query = new URLSearchParams({ name: nextFilters.name.trim(), page: String(nextPage), pageSize: String(nextPageSize) });
+      nextFilters.positionLevels.forEach(positionLevel => query.append("positionLevels", positionLevel));
+      const response = await fetch(`/api/stores/${employeeData.id}/employees/available?${query}`, { cache: "no-store" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || "待选择人员加载失败，请稍后重试");
+      setAvailableEmployees(data?.rows || []);
+      setAvailableTotal(data?.total || 0);
+      setAvailablePage(data?.page || nextPage);
+      setAvailablePageSize(data?.pageSize || nextPageSize);
+    } catch {
+      setAvailableError(true);
+    } finally {
+      setAvailableLoading(false);
+    }
+  };
+  const openEmployeeSelector = () => {
+    if (!employeeData || !canEditEmployees) return;
+    setEmployeeFilters(emptyEmployeeFilters);
+    setAppliedEmployeeFilters(emptyEmployeeFilters);
+    setSelectedAvailableEmployees(new Map(employeeDraft.filter(personnel => !personnel.storeId).map(personnel => [personnel.id, personnel] as [string, StoreEmployee])));
+    setAvailablePage(1);
+    setEmployeeSelectorOpen(true);
+    void loadAvailableEmployees(1, availablePageSize, emptyEmployeeFilters);
+  };
+  const applyEmployeeFilters = () => {
+    const next = { name: employeeFilters.name.trim(), positionLevels: employeeFilters.positionLevels };
+    setAppliedEmployeeFilters(next);
+    setAvailablePage(1);
+    void loadAvailableEmployees(1, availablePageSize, next);
+  };
+  const resetEmployeeFilters = () => {
+    setEmployeeFilters(emptyEmployeeFilters);
+    setAppliedEmployeeFilters(emptyEmployeeFilters);
+    setAvailablePage(1);
+    void loadAvailableEmployees(1, availablePageSize, emptyEmployeeFilters);
+  };
+  const confirmAvailableEmployees = () => {
+    const currentAssignments = employeeDraft.filter(personnel => personnel.storeId === employeeData?.id);
+    setEmployeeDraft([...currentAssignments, ...selectedAvailableEmployees.values()]);
+    setEmployeeSelectorOpen(false);
+  };
+
+  const ordinaryEmployeeColumns: ColumnsType<StoreEmployee> = [
+    { title: "所属岗位星级", dataIndex: "positionLevel", width: 180, render: text },
+    { title: "姓名", dataIndex: "name", width: 140 },
+    { title: "用工成本（元/天）", dataIndex: "laborCost", width: 180, render: value => `¥ ${Number(value).toFixed(2)}` },
+    { title: "操作", width: employeeMode === "edit" ? 130 : 80, render: (_, personnel) => <Space className="table-actions" size={0}><Button type="link" size="small" onClick={() => void openEmployeeDetail(personnel)}>查看</Button>{employeeMode === "edit" && <Button type="link" danger size="small" onClick={() => removeEmployee(personnel.id)}>移除</Button>}</Space> },
+  ];
 
   const columns: ColumnsType<Store> = [
     { title: "门店编号", dataIndex: "recordNo", width: 150 },
@@ -210,7 +413,7 @@ export function StoreList() {
     { title: "店长", dataIndex: "managerName", width: 100, render: text },
     { title: "正式营业日期", dataIndex: "formalOpenDate", width: 130, render: displayDate },
     { title: "创建日期", dataIndex: "createdAt", width: 120, render: displayDate },
-    { title: "操作", fixed: "right", width: 120, render: (_, row) => <Space className="table-actions" size={0}><Button type="link" size="small" onClick={() => { setSelected(row); setDetailOpen(true); }}>查看</Button><Button type="link" size="small" onClick={() => openEdit(row)}>编辑</Button></Space> },
+    { title: "操作", fixed: "right", width: 220, render: (_, row) => <Space className="table-actions" size={0}><Button type="link" size="small" onClick={() => { setSelected(row); setDetailOpen(true); }}>查看</Button><Button type="link" size="small" onClick={() => openEdit(row)}>编辑</Button><Button type="link" size="small" onClick={() => openAliases(row)}>别名</Button><Button type="link" size="small" onClick={() => openEmployees(row)}>员工</Button></Space> },
   ];
 
   return <>
@@ -233,7 +436,6 @@ export function StoreList() {
     <Drawer title={editing ? "编辑门店" : "新增门店"} width={920} open={formOpen} onClose={closeForm} destroyOnHidden maskClosable={!saving} footer={saveError ? <Alert type="error" showIcon message={saveError} /> : null} extra={<Space><Button onClick={closeForm} disabled={saving}>取消</Button><Button type="primary" loading={saving} onClick={() => void save()}>保存</Button></Space>}>
       <Form form={form} layout="vertical">
         <Form.Item name="contractId" hidden><Input /></Form.Item>
-        <Form.Item name="managerUserId" hidden><Input /></Form.Item>
         <FormHeading title="基础信息" />
         <Row gutter={16}><Col span={24}><Form.Item label="关联合同"><Space wrap><Button onClick={openContractModal}>选择合同</Button>{selectedContract ? <span>当前关联合同：{selectedContract.recordNo}</span> : <span className="store-form-hint">未关联合同，可直接维护门店档案。</span>}</Space></Form.Item></Col></Row>
         <Row gutter={16}><FormItem span={8} label="品牌" name="brandId" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} placeholder="请选择品牌" options={brands.map((brand) => ({ value: brand.id, label: brand.name }))} /></FormItem><FormItem span={8} label="门店名称" name="name" required><Input disabled={!!selectedContract} maxLength={60} placeholder="请输入门店名称" /></FormItem><FormItem span={8} label="合作类型" name="cooperationType" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} options={cooperationOptions.filter((option) => option.value)} /></FormItem></Row>
@@ -245,13 +447,122 @@ export function StoreList() {
         <FormHeading title="经营周期" />
         <Row gutter={16}><FormItem span={6} label="筹备开始日期" name="startDate"><DatePicker style={{ width: "100%" }} /></FormItem><FormItem span={6} label="筹备结束日期" name="endDate"><DatePicker style={{ width: "100%" }} /></FormItem><FormItem span={6} label="试营业日期" name="trialOpenDate"><DatePicker disabled={!!selectedContract} style={{ width: "100%" }} /></FormItem><FormItem span={6} label="正式营业日期" name="formalOpenDate"><DatePicker style={{ width: "100%" }} /></FormItem></Row>
         <FormHeading title="人员与业主信息" />
-        <Row gutter={16}><FormItem span={8} label="店长" name="managerName"><Input readOnly placeholder="请选择店长" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "manager", title: "店长", field: "managerName", idField: "managerUserId" })}>选择</Button>} /></FormItem><FormItem span={8} label="厨师长" name="chefName"><Input readOnly placeholder="请选择厨师长" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "chef", title: "厨师长", field: "chefName" })}>选择</Button>} /></FormItem><FormItem span={8} label="业主姓名" name="ownerName"><Input disabled={!!selectedContract} maxLength={30} /></FormItem></Row>
+        <Row gutter={16}><FormItem span={8} label="店长" name="managerName"><Input readOnly placeholder="由运营H5店铺权限自动匹配" /></FormItem><FormItem span={8} label="厨师长" name="chefName"><Input readOnly placeholder="由运营H5店铺权限自动匹配" /></FormItem><FormItem span={8} label="业主姓名" name="ownerName"><Input disabled={!!selectedContract} maxLength={30} /></FormItem></Row>
+        <div className="store-leadership-hint">店长、厨师长由“设置 / 用户列表”中的用户角色及“运营H5店铺权限”自动匹配，不支持在门店档案中手工修改。</div>
         <Row gutter={16}><FormItem span={8} label="业主联系电话" name="ownerPhone" rules={[{ pattern: /^$|^1\d{10}$/, message: "请输入正确的 11 位手机号码" }]}><Input disabled={!!selectedContract} maxLength={11} /></FormItem><FormItem span={8} label="业主身份证号" name="ownerIdNumber"><Input disabled={!!selectedContract} maxLength={30} /></FormItem></Row>
       </Form>
     </Drawer>
     <Drawer title="门店详情" width={840} open={detailOpen} onClose={() => setDetailOpen(false)} extra={selected ? <Button type="primary" onClick={() => { setDetailOpen(false); openEdit(selected); }}>编辑门店</Button> : null}>
       {selected && <StoreDetails store={selected} />}
     </Drawer>
+    <Modal title={aliasMode === "edit" ? "编辑-门店别名" : "查看-门店别名"} open={!!aliasMode && !!aliasStore} onCancel={closeAliases} width={640} destroyOnHidden maskClosable={!aliasSaving} closable={!aliasSaving} footer={aliasMode === "edit" ? <Space><Button disabled={aliasSaving} onClick={closeAliases}>取消</Button><Button type="primary" loading={aliasSaving} onClick={() => void saveAliases()}>保存</Button></Space> : <Space>{canEditAliases && <Button type="primary" onClick={() => setAliasMode("edit")}>编辑</Button>}<Button onClick={closeAliases}>返回</Button></Space>}>
+      {aliasStore && aliasMode === "view" && <Descriptions bordered size="middle" column={1} items={[
+        { key: "name", label: "门店名称", children: aliasStore.name },
+        { key: "recordNo", label: "门店编号", children: aliasStore.recordNo },
+        { key: "douyinLaikeName", label: "抖音来客（店名）", children: text(aliasStore.douyinLaikeName) },
+        { key: "kuaishouName", label: "快手（店名）", children: text(aliasStore.kuaishouName) },
+        { key: "meituanManagerName", label: "美团管家（店名）", children: text(aliasStore.meituanManagerName) },
+        { key: "meituanBusinessName", label: "美团经营宝（店名）", children: text(aliasStore.meituanBusinessName) },
+      ]} />}
+      {aliasStore && aliasMode === "edit" && <Form form={aliasForm} layout="vertical">
+        <Form.Item label="门店名称"><Input value={aliasStore.name} readOnly /></Form.Item>
+        <Form.Item label="门店编号"><Input value={aliasStore.recordNo} readOnly /></Form.Item>
+        <Form.Item label="抖音来客（店名）" name="douyinLaikeName" rules={[{ max: 50, message: "抖音来客（店名）不能超过50个字符" }]}><Input maxLength={50} showCount placeholder="请输入抖音来客店名" /></Form.Item>
+        <Form.Item label="快手（店名）" name="kuaishouName" rules={[{ max: 50, message: "快手（店名）不能超过50个字符" }]}><Input maxLength={50} showCount placeholder="请输入快手店名" /></Form.Item>
+        <Form.Item label="美团管家（店名）" name="meituanManagerName" rules={[{ max: 50, message: "美团管家（店名）不能超过50个字符" }]}><Input maxLength={50} showCount placeholder="请输入美团管家店名" /></Form.Item>
+        <Form.Item label="美团经营宝（店名）" name="meituanBusinessName" rules={[{ max: 50, message: "美团经营宝（店名）不能超过50个字符" }]}><Input maxLength={50} showCount placeholder="请输入美团经营宝店名" /></Form.Item>
+      </Form>}
+    </Modal>
+    <Modal title="温馨提示" open={aliasSuccessOpen} centered closable={false} maskClosable={false} footer={<Button type="primary" onClick={() => { setAliasSuccessOpen(false); setAliasStore(null); aliasForm.resetFields(); }}>我知道了</Button>}>
+      <p>门店别名已成功保存。</p>
+    </Modal>
+    <Modal
+      title={employeeMode === "edit" ? "编辑-员工列表" : "查看-员工列表"}
+      open={!!employeeMode && !!employeeData}
+      onCancel={closeEmployees}
+      width={900}
+      destroyOnHidden
+      maskClosable={!employeeSaving}
+      closable={!employeeSaving}
+      footer={employeeMode === "edit"
+        ? <Space><Button disabled={employeeSaving} onClick={cancelEmployeeEdit}>取消</Button><Button type="primary" loading={employeeSaving} onClick={() => void saveEmployees()}>保存</Button></Space>
+        : <Space>{canEditEmployees && <Button type="primary" disabled={employeeLoading} onClick={startEmployeeEdit}>编辑</Button>}<Button onClick={closeEmployees}>返回</Button></Space>}
+    >
+      {employeeData && <>
+        <Descriptions bordered size="small" column={2} items={[
+          { key: "recordNo", label: "门店编号", children: employeeData.recordNo },
+          { key: "name", label: "门店名称", children: employeeData.name },
+          { key: "manager", label: "店长", children: text(employeeData.managerName) },
+          { key: "chef", label: "厨师长", children: text(employeeData.chefName) },
+        ]} />
+        <div className="store-employee-table-heading"><strong>普通员工列表</strong>{employeeMode === "edit" && <Button type="primary" ghost icon={<PlusOutlined />} onClick={openEmployeeSelector}>添加</Button>}</div>
+        <Table<StoreEmployee>
+          rowKey="id"
+          size="middle"
+          loading={{ spinning: employeeLoading, tip: "员工数据加载中..." }}
+          columns={ordinaryEmployeeColumns}
+          dataSource={employeeMode === "edit" ? employeeDraft : employeeData.employees}
+          pagination={false}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前门店暂无普通员工" /> }}
+        />
+      </>}
+    </Modal>
+    <Drawer title="查看员工" width={1000} open={!!employeeDetail} zIndex={1300} onClose={() => setEmployeeDetail(null)} extra={<Button onClick={() => setEmployeeDetail(null)}>返回</Button>}>
+      {employeeDetail && <PersonnelDetails row={employeeDetail} sensitive={canViewSensitivePersonnel} />}
+    </Drawer>
+    <Modal
+      rootClassName="notification-user-modal"
+      title={<div><strong>选择人员</strong><span>仅展示尚未安排门店的在职人员，支持按姓名和岗位星级筛选并跨页保留已选项</span></div>}
+      open={employeeSelectorOpen}
+      onCancel={() => setEmployeeSelectorOpen(false)}
+      width={960}
+      zIndex={1200}
+      maskClosable={false}
+      destroyOnHidden
+      footer={<div className="notification-user-footer"><span>已选择 <strong>{selectedAvailableEmployees.size}</strong> 人{selectedAvailableEmployees.size > 0 && <Button type="link" size="small" onClick={() => setSelectedAvailableEmployees(new Map())}>清空已选</Button>}</span><Space><Button onClick={() => setEmployeeSelectorOpen(false)}>取消</Button><Button type="primary" disabled={!selectedAvailableEmployees.size} onClick={confirmAvailableEmployees}>选择并返回</Button></Space></div>}
+    >
+      <div className="notification-user-filters">
+        <Input value={employeeFilters.name} maxLength={8} allowClear placeholder="请输入姓名" onChange={event => setEmployeeFilters(previous => ({ ...previous, name: event.target.value }))} onPressEnter={applyEmployeeFilters} />
+        <Select mode="multiple" maxTagCount="responsive" loading={dictionariesLoading} value={employeeFilters.positionLevels} onChange={positionLevels => setEmployeeFilters(previous => ({ ...previous, positionLevels }))} options={positionLevelOptions.map(option => ({ value: option.label, label: option.label }))} placeholder="全部岗位星级" />
+        <Space><Button onClick={resetEmployeeFilters}>重置筛选</Button><Button type="primary" onClick={applyEmployeeFilters}>查询</Button></Space>
+      </div>
+      {availableError ? <Alert type="error" showIcon message="待选择人员加载失败，请稍后重试" action={<Button size="small" onClick={() => void loadAvailableEmployees(availablePage, availablePageSize, appliedEmployeeFilters)}>重新加载</Button>} /> : <Table<StoreEmployee>
+        rowKey="id"
+        size="middle"
+        loading={{ spinning: availableLoading, tip: "人员数据加载中..." }}
+        rowSelection={{
+          selectedRowKeys: [...selectedAvailableEmployees.keys()],
+          preserveSelectedRowKeys: true,
+          onSelect: (record, checked) => setSelectedAvailableEmployees(previous => {
+            const next = new Map(previous);
+            if (checked) next.set(record.id, record); else next.delete(record.id);
+            return next;
+          }),
+          onSelectAll: (checked, _selectedRows, changedRows) => setSelectedAvailableEmployees(previous => {
+            const next = new Map(previous);
+            changedRows.forEach(record => { if (checked) next.set(record.id, record); else next.delete(record.id); });
+            return next;
+          }),
+        }}
+        columns={[
+          { title: "所属岗位星级", dataIndex: "positionLevel", width: 240, render: text },
+          { title: "姓名", dataIndex: "name", width: 180 },
+          { title: "手机号码", dataIndex: "phoneMasked", width: 200, render: (value: string | undefined, row: StoreEmployee) => value || row.phone || "-" },
+        ]}
+        dataSource={availableEmployees}
+        scroll={{ x: 720, y: 390 }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<><div>没有找到符合当前条件的未分配人员</div><Button type="link" onClick={resetEmployeeFilters}>重置筛选</Button></>} /> }}
+        pagination={{
+          current: availablePage,
+          pageSize: availablePageSize,
+          total: availableTotal,
+          showSizeChanger: true,
+          pageSizeOptions: [20, 50, 100],
+          showTotal: count => `共 ${count} 人`,
+          onChange: (nextPage, nextPageSize) => void loadAvailableEmployees(nextPage, nextPageSize, appliedEmployeeFilters),
+        }}
+      />}
+    </Modal>
     <Modal title="选择合同" open={contractModalOpen} onCancel={() => setContractModalOpen(false)} footer={<Button onClick={() => setContractModalOpen(false)}>取消</Button>} width={680} destroyOnHidden>
       {contractsError ? <Alert type="error" showIcon message="合同记录加载失败，请稍后重试" action={<Button size="small" onClick={() => void loadAvailableContracts()}>重新加载</Button>} /> : <DataTable rowKey="id" scroll={{ x: 620 }} loading={contractsLoading} dataSource={contractRows} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 条未关联合同` }} columns={[
         { title: "合同编号", dataIndex: "recordNo", width: 150 },

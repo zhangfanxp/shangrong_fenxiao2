@@ -127,7 +127,7 @@ export async function availableRecipientUserIds(session: Session) {
   return new Set(candidates.filter(user => {
     if (user.id === session.userId) return true;
     const profile = user.personnelProfile;
-    if (profile && profile.status === "ACTIVE" && !profile.deletedAt && storeAllowed(profile.storeId, profile.store.brandId)) return true;
+    if (profile?.storeId && profile.store && profile.status === "ACTIVE" && !profile.deletedAt && storeAllowed(profile.storeId, profile.store.brandId)) return true;
     const userStores = jsonIds(user.leadH5StoreIds) || [];
     if (userStores.some(storeId => {
       const brandId = storeBrand.get(storeId);

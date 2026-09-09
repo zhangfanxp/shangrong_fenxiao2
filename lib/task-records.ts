@@ -2,7 +2,7 @@ import { Prisma, TaskRecordStatus, TaskType } from "@prisma/client";
 import type { Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export type TaskRecordAction = "query" | "view" | "export" | "delete";
+export type TaskRecordAction = "query" | "view" | "export" | "analyze" | "delete";
 
 export type TaskRecordFilters = {
   status?: "COMPLETED" | "PENDING" | "OVERDUE";
@@ -97,6 +97,7 @@ export const taskRecordListSelect = {
   triggeredAt: true,
   completedAt: true,
   formalSubmission: { select: { recordNo: true, submittedAt: true } },
+  aiAnalysis: { select: { id: true } },
 } satisfies Prisma.TaskRecordSelect;
 
 type SelectedTaskRecord = Prisma.TaskRecordGetPayload<{ select: typeof taskRecordListSelect }>;
@@ -139,6 +140,7 @@ export function serializeTaskRecord(row: SelectedTaskRecord) {
     createdAt: formatTaskRecordDateTime(row.triggeredAt),
     submittedAt: completed ? formatTaskRecordDateTime(row.formalSubmission?.submittedAt || row.completedAt) : "-",
     status: row.status,
+    hasAiAnalysis: Boolean(row.aiAnalysis),
   };
 }
 

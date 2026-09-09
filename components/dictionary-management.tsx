@@ -13,7 +13,7 @@ type Permission = "query" | "create" | "edit" | "view" | "enable" | "disable" | 
 type Status = "ENABLED" | "DISABLED";
 type DictionaryRow = {
   id: string; recordNo: string; name: string; code: string; fileName: string; remark: string | null;
-  status: Status; version: number; createdAt: string; updatedAt: string;
+  status: Status; version: number; valueCount: number | null; createdAt: string; updatedAt: string;
 };
 type DictionaryFormValues = { name: string; code: string; fileBase: string; remark: string; status: Status };
 
@@ -100,7 +100,7 @@ export function DictionaryManagement({ permissions }: { permissions: string[] })
   if (!can("query")) return <Alert type="warning" showIcon message="暂无数据字典查询权限" description="请联系管理员为当前角色配置相应权限。" />;
   const columns: ColumnsType<DictionaryRow> = [
     { title: "字典中文名称", dataIndex: "name", width: 150 }, { title: "字典英文名称", dataIndex: "code", width: 190 },
-    { title: "备注", dataIndex: "remark", width: 240, ellipsis: true, render: value => value || "-" }, { title: "状态", dataIndex: "status", width: 90, render: value => <StatusTag value={value} /> },
+    { title: "枚举值数量", dataIndex: "valueCount", width: 130, align: "center", render: value => value === null ? <Typography.Text type="danger">读取失败</Typography.Text> : value === 0 ? <Typography.Text type="secondary">0（未设置）</Typography.Text> : `${value} 项` }, { title: "状态", dataIndex: "status", width: 90, render: value => <StatusTag value={value} /> },
     { title: "创建日期", dataIndex: "createdAt", width: 175, render: formatTime },
     { title: "操作", fixed: "right", width: 300, render: (_, row) => <Space className="table-actions" size={0}>{can("values:view") && <Button type="link" size="small" onClick={() => void openValues(row)}>枚举值</Button>}{can("edit") && <Button type="link" size="small" onClick={() => void openExisting(row, "edit")}>编辑</Button>}{can("view") && <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => void openExisting(row, "view")}>查看</Button>}{row.status === "ENABLED" && can("disable") && <Button type="link" size="small" onClick={() => changeStatus(row)}>停用</Button>}{row.status === "DISABLED" && can("enable") && <Button type="link" size="small" onClick={() => changeStatus(row)}>启用</Button>}</Space> },
   ];

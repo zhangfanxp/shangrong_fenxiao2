@@ -1,15 +1,19 @@
 "use client";
 
-import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Empty, Form, Input, InputNumber, message, Modal, Select, Space, Table, Upload } from "antd";
+import { LoadingOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Empty, Form, Input, InputNumber, message, Modal, Result, Select, Space, Table, Upload } from "antd";
 import type { UploadProps } from "antd";
 import { useEffect, useState } from "react";
-import type { PlatformConfig } from "@/lib/platform-config";
+import type { PlatformAssetUrls, PlatformSettings } from "@/lib/platform-config";
 
 type BrandOption = { label: string; value: string };
 type R2StorageOption = { label: string; value: string };
 type BrandDayHour = { brand: string; workdayHours: number };
-type PlatformValues = { platformName: string; leadPcLoginTags: string; leadH5LoginTags: string; storeH5LoginTags: string; automaticTaskExecutionTime: string; defaultTaskDeadlineDayOffset: 0 | 1; defaultTaskDeadlineTime: string; dailyLearningR2StorageId: string | null; trainingVideoR2StorageId: string | null; trainingAudioR2StorageId: string | null; trainingDocumentR2StorageId: string | null };
+type PlatformValues = { platformName: string; leadPcLoginTags: string; leadH5LoginTags: string; storeH5LoginTags: string; automaticTaskExecutionTime: string; defaultTaskDeadlineDayOffset: 0 | 1; defaultTaskDeadlineTime: string };
+type TrainingValues = { dailyLearningR2StorageId: string | null; trainingVideoR2StorageId: string | null; trainingAudioR2StorageId: string | null; trainingDocumentR2StorageId: string | null };
+type AiApiValues = { endpoints: Record<string, string> };
+type AiApiTestResult = { service: string; label: string; ok: boolean; message: string; elapsedMilliseconds: number };
+type AiApiTestDialog = { open: boolean; phase: "testing" | "success" | "error"; message: string; results: AiApiTestResult[] };
 type BrandHourValues = { brand: string; workdayHours: number };
 type SchedulerStatus = {
   scheduledTime: string;
@@ -32,18 +36,24 @@ const loginAddresses: Array<{ title: string; path: string; field: "leadPcLoginTa
   { title: "门店H5移动端", path: "/store_h5/login", field: "storeH5LoginTags" },
 ];
 
-export function SystemParameters({ initialPlatform, r2StorageOptions }: { initialPlatform: PlatformConfig; r2StorageOptions: R2StorageOption[] }) {
+export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageOptions, aiServiceOptions, aiServiceLoadError }: { initialPlatform: PlatformSettings; initialAssetUrls: PlatformAssetUrls; r2StorageOptions: R2StorageOption[]; aiServiceOptions: R2StorageOption[]; aiServiceLoadError: boolean }) {
   const [platformForm] = Form.useForm<PlatformValues>();
+  const [trainingForm] = Form.useForm<TrainingValues>();
+  const [aiApiForm] = Form.useForm<AiApiValues>();
   const [brandHourForm] = Form.useForm<BrandHourValues>();
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(initialPlatform.logoDataUrl);
-  const [loginBackgroundDataUrl, setLoginBackgroundDataUrl] = useState<string | null>(initialPlatform.loginBackgroundDataUrl);
-  const [courseCoverDataUrl, setCourseCoverDataUrl] = useState<string | null>(initialPlatform.courseCoverDataUrl);
-  const [lessonCoverDataUrl, setLessonCoverDataUrl] = useState<string | null>(initialPlatform.lessonCoverDataUrl);
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(initialAssetUrls.logo);
+  const [loginBackgroundDataUrl, setLoginBackgroundDataUrl] = useState<string | null>(initialAssetUrls.loginBackground);
+  const [courseCoverDataUrl, setCourseCoverDataUrl] = useState<string | null>(initialAssetUrls.courseCover);
+  const [lessonCoverDataUrl, setLessonCoverDataUrl] = useState<string | null>(initialAssetUrls.lessonCover);
   const [logoChanged, setLogoChanged] = useState(false);
   const [loginBackgroundChanged, setLoginBackgroundChanged] = useState(false);
   const [courseCoverChanged, setCourseCoverChanged] = useState(false);
   const [lessonCoverChanged, setLessonCoverChanged] = useState(false);
   const [platformSaving, setPlatformSaving] = useState(false);
+  const [trainingSaving, setTrainingSaving] = useState(false);
+  const [aiApiSaving, setAiApiSaving] = useState(false);
+  const [aiApiTesting, setAiApiTesting] = useState(false);
+  const [aiApiTestDialog, setAiApiTestDialog] = useState<AiApiTestDialog>({ open: false, phase: "testing", message: "", results: [] });
   const [siteOrigin, setSiteOrigin] = useState("");
   const [rows, setRows] = useState<BrandDayHour[]>([]);
   const [brandOptions, setBrandOptions] = useState<BrandOption[]>([]);
@@ -141,25 +151,99 @@ export function SystemParameters({ initialPlatform, r2StorageOptions }: { initia
       const imageChanges = {
         ...(logoChanged && logoDataUrl ? { logoDataUrl } : {}),
         ...(loginBackgroundChanged && loginBackgroundDataUrl ? { loginBackgroundDataUrl } : {}),
-        ...(courseCoverChanged && courseCoverDataUrl ? { courseCoverDataUrl } : {}),
-        ...(lessonCoverChanged && lessonCoverDataUrl ? { lessonCoverDataUrl } : {}),
         removeLogo: logoChanged && logoDataUrl === null,
         removeLoginBackground: loginBackgroundChanged && loginBackgroundDataUrl === null,
-        removeCourseCover: courseCoverChanged && courseCoverDataUrl === null,
-        removeLessonCover: lessonCoverChanged && lessonCoverDataUrl === null,
       };
-      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, ...imageChanges }), signal: controller.signal });
+      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section: "platform", ...values, ...imageChanges }), signal: controller.signal });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) return void message.error(data.message || "平台信息保存失败，请稍后重试");
-      setLogoChanged(false); setLoginBackgroundChanged(false); setCourseCoverChanged(false); setLessonCoverChanged(false);
+      setLogoChanged(false); setLoginBackgroundChanged(false);
       void loadSchedulerStatus();
-      Modal.success({ title: "温馨提示", content: data.message || "系统参数已保存成功。", okText: "我知道了", centered: true });
+      Modal.success({ title: "温馨提示", content: data.message || "平台信息已保存成功。", okText: "我知道了", centered: true });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") message.warning("保存等待超时，请刷新页面确认保存结果后再试");
       else if (error instanceof Error) message.error(error.message);
     } finally {
       window.clearTimeout(timeoutId);
       setPlatformSaving(false);
+    }
+  };
+
+  const saveTraining = async () => {
+    if (trainingSaving) return;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 60_000);
+    try {
+      const values = await trainingForm.validateFields();
+      setTrainingSaving(true);
+      const imageChanges = {
+        ...(courseCoverChanged && courseCoverDataUrl ? { courseCoverDataUrl } : {}),
+        ...(lessonCoverChanged && lessonCoverDataUrl ? { lessonCoverDataUrl } : {}),
+        removeCourseCover: courseCoverChanged && courseCoverDataUrl === null,
+        removeLessonCover: lessonCoverChanged && lessonCoverDataUrl === null,
+      };
+      const storageValues = {
+        dailyLearningR2StorageId: values.dailyLearningR2StorageId || null,
+        trainingVideoR2StorageId: values.trainingVideoR2StorageId || null,
+        trainingAudioR2StorageId: values.trainingAudioR2StorageId || null,
+        trainingDocumentR2StorageId: values.trainingDocumentR2StorageId || null,
+      };
+      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section: "training", ...storageValues, ...imageChanges }), signal: controller.signal });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return void message.error(data.message || "课程培训配置保存失败，请稍后重试");
+      setCourseCoverChanged(false); setLessonCoverChanged(false);
+      Modal.success({ title: "温馨提示", content: data.message || "课程培训配置已保存成功。", okText: "我知道了", centered: true });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") message.warning("保存等待超时，请刷新页面确认保存结果后再试");
+      else if (error instanceof Error) message.error(error.message);
+    } finally {
+      window.clearTimeout(timeoutId);
+      setTrainingSaving(false);
+    }
+  };
+
+  const saveAiApi = async () => {
+    if (aiApiSaving) return;
+    try {
+      const values = await aiApiForm.validateFields();
+      setAiApiSaving(true);
+      const endpoints = aiServiceOptions.map(service => ({ service: service.value, url: values.endpoints?.[service.value]?.trim() || "" }));
+      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section: "aiApi", endpoints }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return void message.error(data.message || "Ai API配置保存失败，请稍后重试");
+      Modal.success({ title: "温馨提示", content: data.message || "Ai API配置已保存成功。", okText: "我知道了", centered: true });
+    } catch (error) {
+      if (error instanceof Error) message.error(error.message);
+    } finally {
+      setAiApiSaving(false);
+    }
+  };
+
+  const testAiApi = async () => {
+    if (aiApiTesting) return;
+    try {
+      const values = await aiApiForm.validateFields();
+      const endpoints = aiServiceOptions.map(service => ({ service: service.value, url: values.endpoints?.[service.value]?.trim() || "" }));
+      const missingServices = endpoints.filter(endpoint => !endpoint.url).map(endpoint => `【${endpoint.service}】`);
+      if (missingServices.length) {
+        Modal.warning({ title: "温馨提示", content: `请先填写${missingServices.join("、")}接口，再进行接口测试。`, okText: "我知道了", centered: true });
+        return;
+      }
+      setAiApiTesting(true);
+      setAiApiTestDialog({ open: true, phase: "testing", message: "系统正在提交内置测试内容并等待各项服务返回分析结果，首次加载模型可能需要较长时间。", results: [] });
+      const response = await fetch("/api/settings/ai-api/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoints }) });
+      const data = await response.json().catch(() => ({})) as { success?: boolean; message?: string; results?: AiApiTestResult[] };
+      const success = response.ok && data.success === true;
+      setAiApiTestDialog({
+        open: true,
+        phase: success ? "success" : "error",
+        message: data.message || (success ? "全部Ai API接口均连接正常，配置有效，可正常使用。" : "Ai API接口测试失败，请检查配置后重试。"),
+        results: Array.isArray(data.results) ? data.results : [],
+      });
+    } catch (error) {
+      if (error instanceof Error) setAiApiTestDialog({ open: true, phase: "error", message: "Ai API接口测试失败，请检查网络连接后重试。", results: [] });
+    } finally {
+      setAiApiTesting(false);
     }
   };
 
@@ -200,7 +284,7 @@ export function SystemParameters({ initialPlatform, r2StorageOptions }: { initia
 
   return <>
     <Card title="平台信息" className="system-parameter-card" style={{ marginBottom: 16 }} extra={<Button type="primary" loading={platformSaving} onClick={() => void savePlatform()}>保存</Button>}>
-      <Form form={platformForm} layout="vertical" initialValues={{ platformName: initialPlatform.platformName, leadPcLoginTags: initialPlatform.leadPcLoginTags, leadH5LoginTags: initialPlatform.leadH5LoginTags, storeH5LoginTags: initialPlatform.storeH5LoginTags, automaticTaskExecutionTime: initialPlatform.automaticTaskExecutionTime, defaultTaskDeadlineDayOffset: initialPlatform.defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime: initialPlatform.defaultTaskDeadlineTime, dailyLearningR2StorageId: initialPlatform.dailyLearningR2StorageId, trainingVideoR2StorageId: initialPlatform.trainingVideoR2StorageId, trainingAudioR2StorageId: initialPlatform.trainingAudioR2StorageId, trainingDocumentR2StorageId: initialPlatform.trainingDocumentR2StorageId }}>
+      <Form form={platformForm} layout="vertical" initialValues={{ platformName: initialPlatform.platformName, leadPcLoginTags: initialPlatform.leadPcLoginTags, leadH5LoginTags: initialPlatform.leadH5LoginTags, storeH5LoginTags: initialPlatform.storeH5LoginTags, automaticTaskExecutionTime: initialPlatform.automaticTaskExecutionTime, defaultTaskDeadlineDayOffset: initialPlatform.defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime: initialPlatform.defaultTaskDeadlineTime }}>
         <div className="platform-parameter-grid">
           <Form.Item label="平台名称" name="platformName" rules={[{ required: true, whitespace: true, message: "请输入平台名称" }, { max: 30, message: "平台名称不能超过30个字符" }]} extra="将显示在运营端登录页“欢迎登录”下方及登录后的页面左上角">
             <Input maxLength={30} showCount placeholder="请输入平台名称" />
@@ -216,48 +300,13 @@ export function SystemParameters({ initialPlatform, r2StorageOptions }: { initia
           </Form.Item>
           <Form.Item className="platform-background-item" label="登录页背景图片" extra="建议尺寸：1920×1080像素（16:9）；支持PNG、JPG、JPEG，文件不超过5MB。系统会根据显示区域自动缩放并居中裁切。">
             <div className="platform-background-editor">
-              <div className="platform-background-preview">{loginBackgroundDataUrl ? <img src={loginBackgroundDataUrl} alt="登录页背景图片预览" /> : <span>暂无背景图片</span>}</div>
+              <div className="platform-background-preview">{loginBackgroundDataUrl ? <img src={loginBackgroundDataUrl} alt="登录页背景图片预览" loading="lazy" decoding="async" /> : <span>暂无背景图片</span>}</div>
               <Space wrap>
                 <Upload accept=".png,.jpg,.jpeg,image/png,image/jpeg" showUploadList={false} beforeUpload={beforeBackgroundUpload}><Button icon={<UploadOutlined />}>选择图片</Button></Upload>
                 {loginBackgroundDataUrl && <Button onClick={() => { setLoginBackgroundDataUrl(null); setLoginBackgroundChanged(true); }}>恢复默认背景</Button>}
               </Space>
             </div>
           </Form.Item>
-          <Form.Item label="课程封面图片" extra="建议尺寸：1280×720像素（16:9）；支持PNG、JPG、JPEG、WEBP，文件不超过5MB。">
-            <div className="platform-cover-editor">
-              <div className="platform-cover-preview">{courseCoverDataUrl ? <img src={courseCoverDataUrl} alt="课程封面图片预览" /> : <span>暂无课程封面</span>}</div>
-              <Space wrap>
-                <Upload accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" showUploadList={false} beforeUpload={beforeCourseCoverUpload}><Button icon={<UploadOutlined />}>选择图片</Button></Upload>
-                {courseCoverDataUrl && <Button onClick={() => { setCourseCoverDataUrl(null); setCourseCoverChanged(true); }}>恢复默认封面</Button>}
-              </Space>
-            </div>
-          </Form.Item>
-          <Form.Item label="课时封面图片" extra="建议尺寸：1280×720像素（16:9）；支持PNG、JPG、JPEG、WEBP，文件不超过5MB。">
-            <div className="platform-cover-editor">
-              <div className="platform-cover-preview">{lessonCoverDataUrl ? <img src={lessonCoverDataUrl} alt="课时封面图片预览" /> : <span>暂无课时封面</span>}</div>
-              <Space wrap>
-                <Upload accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" showUploadList={false} beforeUpload={beforeLessonCoverUpload}><Button icon={<UploadOutlined />}>选择图片</Button></Upload>
-                {lessonCoverDataUrl && <Button onClick={() => { setLessonCoverDataUrl(null); setLessonCoverChanged(true); }}>恢复默认封面</Button>}
-              </Space>
-            </div>
-          </Form.Item>
-          <Form.Item label="《每日学习》R2存储空间" name="dailyLearningR2StorageId" extra="选项读取自《R2存储空间》中处于“已启用”状态的记录；暂不配置时可保持为空。">
-            <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
-          </Form.Item>
-          <section className="platform-training-storage-settings">
-            <div className="platform-login-addresses-heading"><strong>培训资料R2存储空间</strong><span>不同类型的培训课件可分别选择存储空间</span></div>
-            <div className="platform-r2-storage-grid">
-              <Form.Item label="课件视频" name="trainingVideoR2StorageId">
-                <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
-              </Form.Item>
-              <Form.Item label="课件音频" name="trainingAudioR2StorageId">
-                <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
-              </Form.Item>
-              <Form.Item label="课件文档（含Word、PPT等）" name="trainingDocumentR2StorageId">
-                <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
-              </Form.Item>
-            </div>
-          </section>
           <section className="platform-login-addresses">
             <div className="platform-login-addresses-heading"><strong>登录地址</strong><span>地址随当前访问域名自动生成，仅展示，不支持编辑</span></div>
             <div className="platform-login-address-list">
@@ -289,7 +338,49 @@ export function SystemParameters({ initialPlatform, r2StorageOptions }: { initia
       </Form>
     </Card>
 
-    <Card title="品牌工作日小时" className="system-parameter-card" extra={<Button type="primary" icon={<PlusOutlined />} disabled={Boolean(loadError)} onClick={openCreate}>新增</Button>}>
+    <Card title="课程培训" className="system-parameter-card" style={{ marginBottom: 16 }} extra={<Button type="primary" loading={trainingSaving} onClick={() => void saveTraining()}>保存</Button>}>
+      <Form form={trainingForm} layout="vertical" initialValues={{ dailyLearningR2StorageId: initialPlatform.dailyLearningR2StorageId, trainingVideoR2StorageId: initialPlatform.trainingVideoR2StorageId, trainingAudioR2StorageId: initialPlatform.trainingAudioR2StorageId, trainingDocumentR2StorageId: initialPlatform.trainingDocumentR2StorageId }}>
+        <div className="platform-parameter-grid">
+          <Form.Item label="课程封面图片" extra="建议尺寸：1280×720像素（16:9）；支持PNG、JPG、JPEG、WEBP，文件不超过5MB。">
+            <div className="platform-cover-editor">
+              <div className="platform-cover-preview">{courseCoverDataUrl ? <img src={courseCoverDataUrl} alt="课程封面图片预览" loading="lazy" decoding="async" /> : <span>暂无课程封面</span>}</div>
+              <Space wrap>
+                <Upload accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" showUploadList={false} beforeUpload={beforeCourseCoverUpload}><Button icon={<UploadOutlined />}>选择图片</Button></Upload>
+                {courseCoverDataUrl && <Button onClick={() => { setCourseCoverDataUrl(null); setCourseCoverChanged(true); }}>恢复默认封面</Button>}
+              </Space>
+            </div>
+          </Form.Item>
+          <Form.Item label="课时封面图片" extra="建议尺寸：1280×720像素（16:9）；支持PNG、JPG、JPEG、WEBP，文件不超过5MB。">
+            <div className="platform-cover-editor">
+              <div className="platform-cover-preview">{lessonCoverDataUrl ? <img src={lessonCoverDataUrl} alt="课时封面图片预览" loading="lazy" decoding="async" /> : <span>暂无课时封面</span>}</div>
+              <Space wrap>
+                <Upload accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" showUploadList={false} beforeUpload={beforeLessonCoverUpload}><Button icon={<UploadOutlined />}>选择图片</Button></Upload>
+                {lessonCoverDataUrl && <Button onClick={() => { setLessonCoverDataUrl(null); setLessonCoverChanged(true); }}>恢复默认封面</Button>}
+              </Space>
+            </div>
+          </Form.Item>
+          <Form.Item label="《每日学习》R2存储空间" name="dailyLearningR2StorageId" extra="选项读取自《R2存储空间》中处于“已启用”状态的记录；暂不配置时可保持为空。">
+            <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
+          </Form.Item>
+          <section className="platform-training-storage-settings">
+            <div className="platform-login-addresses-heading"><strong>培训资料R2存储空间</strong><span>不同类型的培训课件可分别选择存储空间</span></div>
+            <div className="platform-r2-storage-grid">
+              <Form.Item label="课件视频" name="trainingVideoR2StorageId">
+                <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
+              </Form.Item>
+              <Form.Item label="课件音频" name="trainingAudioR2StorageId">
+                <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
+              </Form.Item>
+              <Form.Item label="课件文档（含Word、PPT等）" name="trainingDocumentR2StorageId">
+                <Select allowClear showSearch optionFilterProp="label" placeholder="请选择" options={r2StorageOptions} notFoundContent="暂无已启用的R2存储空间" />
+              </Form.Item>
+            </div>
+          </section>
+        </div>
+      </Form>
+    </Card>
+
+    <Card title="品牌工作日小时" className="system-parameter-card" style={{ marginBottom: 16 }} extra={<Button type="primary" icon={<PlusOutlined />} disabled={Boolean(loadError)} onClick={openCreate}>新增</Button>}>
       {loadError ? <Alert type="error" showIcon message={loadError} action={<Button size="small" onClick={() => void loadBrandHours()}>重新加载</Button>} /> : <Table<BrandDayHour>
         rowKey="brand"
         columns={[{ title: "品牌", dataIndex: "brand" }, { title: "工作日小时（小时/日）", dataIndex: "workdayHours", render: value => Number(value).toFixed(Number.isInteger(value) ? 0 : 1) }]}
@@ -299,6 +390,46 @@ export function SystemParameters({ initialPlatform, r2StorageOptions }: { initia
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无品牌工作日小时配置" /> }}
       />}
     </Card>
+
+    <Card title="Ai API" className="system-parameter-card" extra={<Space><Button loading={aiApiTesting} disabled={aiApiSaving || aiServiceLoadError || !aiServiceOptions.length} onClick={() => void testAiApi()}>接口测试</Button><Button type="primary" loading={aiApiSaving} disabled={aiApiTesting || aiServiceLoadError || !aiServiceOptions.length} onClick={() => void saveAiApi()}>保存</Button></Space>}>
+      <Form form={aiApiForm} layout="vertical" disabled={aiApiTesting} initialValues={{ endpoints: initialPlatform.aiApiEndpoints }}>
+        <div className="platform-ai-api-grid">
+          {aiServiceLoadError
+            ? <Alert type="error" showIcon message="Ai服务字典读取失败" description="请检查《数据字典》中的Ai服务（Ai_Service）记录是否存在、已启用且枚举值文件可正常读取。" />
+            : !aiServiceOptions.length
+              ? <Alert type="warning" showIcon message="Ai服务字典暂无枚举值" description="请先在《数据字典》的Ai服务（Ai_Service）记录中添加枚举值。" />
+              : aiServiceOptions.map(service => {
+                const lowerName = service.label.toLowerCase();
+                const path = service.label.includes("图片") || lowerName.includes("image") ? "image" : service.label.includes("视频") || lowerName.includes("video") ? "video" : service.label.includes("文字") || service.label.includes("文本") || lowerName.includes("text") ? "text" : "";
+                const example = path ? `例如：http://127.0.0.1:8000/api/v1/analyze/${path}` : `请填写【${service.label}】服务的完整接口地址`;
+                return <Form.Item key={service.value} label={`【${service.label}】接口`} name={["endpoints", service.value]} rules={[{ max: 500, message: `【${service.label}】接口不能超过500个字符` }, { type: "url", message: "请输入以http://或https://开头的有效接口地址" }]} extra={example}>
+                  <Input allowClear maxLength={500} placeholder={example} />
+                </Form.Item>;
+              })}
+        </div>
+      </Form>
+    </Card>
+
+    <Modal
+      title="温馨提示"
+      open={aiApiTestDialog.open}
+      centered
+      closable={aiApiTestDialog.phase !== "testing"}
+      maskClosable={aiApiTestDialog.phase !== "testing"}
+      keyboard={aiApiTestDialog.phase !== "testing"}
+      onCancel={() => { if (aiApiTestDialog.phase !== "testing") setAiApiTestDialog(dialog => ({ ...dialog, open: false })); }}
+      footer={aiApiTestDialog.phase === "testing" ? null : <Button type="primary" onClick={() => setAiApiTestDialog(dialog => ({ ...dialog, open: false }))}>我知道了</Button>}
+      destroyOnHidden
+    >
+      {aiApiTestDialog.phase === "testing"
+        ? <Result icon={<LoadingOutlined spin />} title={`正在测试${aiServiceOptions.length}个Ai API接口`} subTitle={aiApiTestDialog.message} />
+        : <>
+          <Result status={aiApiTestDialog.phase === "success" ? "success" : "error"} title={aiApiTestDialog.phase === "success" ? "Ai API接口连接正常" : "Ai API接口测试未通过"} subTitle={aiApiTestDialog.message} />
+          {aiApiTestDialog.results.length > 0 && <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            {aiApiTestDialog.results.map(result => <Alert key={result.service} showIcon type={result.ok ? "success" : "error"} message={`${result.label}：${result.ok ? "正常" : "异常"}`} description={`${result.message}（耗时 ${(result.elapsedMilliseconds / 1000).toFixed(1)} 秒）`} />)}
+          </Space>}
+        </>}
+    </Modal>
 
     <Modal title="新增品牌工作日小时" open={modalOpen} onCancel={() => setModalOpen(false)} maskClosable={false} destroyOnHidden footer={<Space><Button onClick={() => setModalOpen(false)}>取消</Button><Button type="primary" loading={saving} onClick={() => void saveBrandHour()}>保存</Button></Space>}>
       <Form form={brandHourForm} layout="vertical" style={{ paddingTop: 8 }}>

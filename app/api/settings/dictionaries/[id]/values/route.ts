@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireApiSession } from "@/lib/auth";
 import { canDictionary } from "@/lib/dictionary-permissions";
@@ -66,6 +67,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       throw error;
     }
     await log(session.userId, "枚举值编辑", "成功", `数据字典：${dictionary.recordNo}；修改前：${oldValues.join("|") || "（空）"}；修改后：${nextValues.join("|") || "（空）"}`);
+    if ([dictionary.code, dictionary.fileName.replace(/\.json$/i, "")].some(value => value.toLowerCase() === "ai_service")) revalidatePath("/lead_pc/settings/parameters");
     return NextResponse.json({ message: "枚举值保存成功", values: nextValues });
   } catch (error) {
     const message = error instanceof DictionaryConfigError ? error.message : "枚举值保存失败，请稍后重试";

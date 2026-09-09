@@ -12,6 +12,8 @@ export type SubmitItem = {
   description: string;
   required: boolean;
   weight: number;
+  aiAnalysisType: string | null;
+  aiAnalysisPrompt: string | null;
 };
 
 export class TaskConfigError extends Error {}
@@ -40,18 +42,38 @@ function parseComponent(value: string, lineNumber: number): Pick<SubmitItem, "co
   throw new TaskConfigError(`第${lineNumber}行提交组件不受支持`);
 }
 
-export function parseSubmitContent(value: string) {
+export function parseSubmitContent(value: string, aiAnalysisTypes: readonly string[] = []) {
   const items: SubmitItem[] = [];
   const normalizedLines: string[] = [];
+  const allowedAiAnalysisTypes = new Set(aiAnalysisTypes.map(item => item.trim()).filter(Boolean));
+  const logicalLines: { line: string; lineNumber: number }[] = [];
   value.replace(/\r\n/g, "\n").split("\n").forEach((originalLine, index) => {
-    const lineNumber = index + 1;
     const line = originalLine.trim().replace(/,+\s*$/, "");
     if (!line) return;
+    if (!/[｜|]/.test(line)) {
+      const previous = logicalLines.at(-1);
+      const previousFields = previous?.line.split(/[｜|]/).map(field => field.trim()) || [];
+      if (previous && previousFields.length === 7 && previousFields[5] && previousFields[6]) {
+        previous.line = `${previous.line} ${line}`;
+        return;
+      }
+    }
+    logicalLines.push({ line, lineNumber: index + 1 });
+  });
+  logicalLines.forEach(({ line, lineNumber }) => {
     const fields = line.split(/[｜|]/).map(field => field.trim());
-    if (fields.length !== 5 || fields.some(field => !field)) {
-      throw new TaskConfigError(`第${lineNumber}行提交内容格式错误，应包含：任务项名称、提交组件、提示说明、必填属性、完成率权重。`);
+    if ((fields.length !== 5 && fields.length !== 7) || fields.slice(0, 5).some(field => !field)) {
+      throw new TaskConfigError(`第${lineNumber}行提交内容格式错误，应包含：任务项名称、提交组件、提示说明、必填属性、完成率权重、Ai分析类型、Ai分析提示词。`);
     }
     const [name, componentText, description, requiredText, weightText] = fields;
+    const aiAnalysisType = fields.length === 7 && fields[5] ? fields[5] : null;
+    const aiAnalysisPrompt = fields.length === 7 && fields[6] ? fields[6] : null;
+    if (Boolean(aiAnalysisType) !== Boolean(aiAnalysisPrompt)) {
+      throw new TaskConfigError(`第${lineNumber}行“Ai分析类型”和“Ai分析提示词”必须同时填写或同时留空`);
+    }
+    if (aiAnalysisType && !allowedAiAnalysisTypes.has(aiAnalysisType)) {
+      throw new TaskConfigError(`第${lineNumber}行Ai分析类型“${aiAnalysisType}”不在已启用的“Ai服务”数据字典中`);
+    }
     const component = parseComponent(componentText, lineNumber);
     if (requiredText !== "必填" && requiredText !== "选填") {
       throw new TaskConfigError(`第${lineNumber}行必填属性只能填写“必填”或“选填”`);
@@ -59,8 +81,8 @@ export function parseSubmitContent(value: string) {
     if (!/^\d+$/.test(weightText) || Number(weightText) <= 0) {
       throw new TaskConfigError(`第${lineNumber}行完成率权重必须为大于0的整数`);
     }
-    items.push({ name, description, required: requiredText === "必填", weight: Number(weightText), ...component });
-    normalizedLines.push([name, componentText, description, requiredText, weightText].join("|"));
+    items.push({ name, description, required: requiredText === "必填", weight: Number(weightText), aiAnalysisType, aiAnalysisPrompt, ...component });
+    normalizedLines.push([name, componentText, description, requiredText, weightText, aiAnalysisType || "", aiAnalysisPrompt || ""].join("|"));
   });
   return { items, normalizedContent: normalizedLines.join("\n") };
 }

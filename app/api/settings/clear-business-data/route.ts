@@ -21,13 +21,22 @@ export async function POST(request: Request) {
     const deletedTables: { key: string; label: string; count: number }[] = [];
     const recordDeleted = (key: string, label: string, count: number) => deletedTables.push({ key, label, count });
     const clearStores = targets.includes("contracts") || targets.includes("stores");
-    const clearTaskRecords = clearStores || targets.includes("tasks");
+    const clearAllTaskRecords = targets.includes("taskSettings") || targets.includes("taskRecords");
+    const clearTaskRecords = clearStores || clearAllTaskRecords;
     const clearPersonnel = clearStores || targets.includes("personnel");
-    const clearReviews = clearStores || targets.includes("storeReviews");
-    const clearResearchRecords = clearStores || targets.includes("researchRecords");
+    const clearAssessmentSettings = targets.includes("assessmentSettings");
+    const clearReviews = clearStores || clearAssessmentSettings || targets.includes("storeReviews");
+    const clearResearchTemplates = targets.includes("researchTemplates");
+    const clearResearchRecords = clearStores || clearResearchTemplates || targets.includes("researchRecords");
+    const clearActualRevenue = clearStores || targets.includes("actualRevenue");
+    const clearRevenueTargets = clearActualRevenue || targets.includes("revenueTargets");
+    const clearDailyLearningSettings = targets.includes("dailyLearningSettings");
+    const clearDailyLearningRecords = clearDailyLearningSettings || targets.includes("dailyLearningRecords");
+    const clearCourseSettings = targets.includes("courseSettings");
+    const clearCourseRecords = clearCourseSettings || targets.includes("courseRecords");
 
     if (clearTaskRecords) {
-      const taskRecordWhere = targets.includes("tasks") ? {} : { storeId: { not: null } };
+      const taskRecordWhere = clearAllTaskRecords ? {} : { storeId: { not: null } };
       const taskRecordIds = (await tx.taskRecord.findMany({ where: taskRecordWhere, select: { id: true } })).map(row => row.id);
       if (taskRecordIds.length) {
         const submissionIds = (await tx.taskSubmission.findMany({ where: { taskRecordId: { in: taskRecordIds } }, select: { id: true } })).map(row => row.id);
@@ -42,17 +51,42 @@ export async function POST(request: Request) {
         recordDeleted("taskAttachments", "任务附件记录", 0);
         recordDeleted("taskRecords", "任务执行记录", 0);
       }
+      if (clearAllTaskRecords) {
+        recordDeleted("taskSchedulerRuns", "任务调度记录", (await tx.taskSchedulerRun.deleteMany()).count);
+        await tx.taskSubmissionSequence.deleteMany();
+      }
     }
 
+    if (clearRevenueTargets) {
+      recordDeleted("storeDailyTargets", "每日目标营业额", (await tx.storeDailyTarget.deleteMany()).count);
+      recordDeleted("storeMonthlyTargets", "月度目标营业额", (await tx.storeMonthlyTarget.deleteMany()).count);
+      await tx.storeMonthlyTargetSequence.deleteMany();
+      if (!clearActualRevenue) await tx.actualRevenueMonthly.updateMany({ data: { dailyTargetStatus: "NOT_GENERATED" } });
+    }
+    if (clearActualRevenue) {
+      recordDeleted("actualRevenueDaily", "每日实际营业额", (await tx.actualRevenueDaily.deleteMany()).count);
+      recordDeleted("actualRevenueMonthly", "月度实际营业额", (await tx.actualRevenueMonthly.deleteMany()).count);
+      await tx.actualRevenueSequence.deleteMany();
+    }
     if (clearReviews) {
-      recordDeleted("leadH5ReviewItems", "门店稽核评分明细", (await tx.leadH5ReviewItem.deleteMany()).count);
-      recordDeleted("leadH5Reviews", "门店稽核评分记录", (await tx.leadH5Review.deleteMany()).count);
+      recordDeleted("leadH5ReviewPhotos", "门店评分照片记录", (await tx.leadH5ReviewPhoto.deleteMany()).count);
+      recordDeleted("leadH5ReviewItems", "门店稽核及信用评分明细", (await tx.leadH5ReviewItem.deleteMany()).count);
+      recordDeleted("leadH5Reviews", "门店稽核及信用评分记录", (await tx.leadH5Review.deleteMany()).count);
       recordDeleted("assessmentRecords", "历史考核结果", (await tx.assessmentRecord.deleteMany()).count);
       await tx.leadH5ReviewSequence.deleteMany();
+    }
+    if (clearAssessmentSettings) {
+      recordDeleted("assessmentBrandScopes", "考核适用品牌", (await tx.assessmentBrandScope.deleteMany()).count);
+      await tx.r2StorageReference.deleteMany({ where: { businessType: "ASSESSMENT_PHOTO_STORAGE" } });
+      recordDeleted("assessments", "考核表格", (await tx.assessment.deleteMany()).count);
     }
     if (clearResearchRecords) {
       recordDeleted("researchTemplateRecords", "巡店调研记录", (await tx.researchTemplateRecord.deleteMany()).count);
       await tx.leadH5ResearchSequence.deleteMany();
+    }
+    if (clearResearchTemplates) {
+      recordDeleted("researchTemplateBrands", "调研模版适用品牌", (await tx.researchTemplateBrand.deleteMany()).count);
+      recordDeleted("researchTemplates", "调研模版", (await tx.researchTemplate.deleteMany()).count);
     }
     if (clearPersonnel) {
       recordDeleted("salaryHistory", "薪资调整记录", (await tx.salaryHistory.deleteMany()).count);
@@ -60,18 +94,37 @@ export async function POST(request: Request) {
       recordDeleted("personnel", "人员档案", (await tx.personnel.deleteMany()).count);
       await tx.personnelSequence.deleteMany();
     }
-    if (targets.includes("tasks")) {
+    if (targets.includes("taskSettings")) {
       await tx.r2StorageReference.deleteMany({ where: { businessType: "TASK" } });
       recordDeleted("taskBrands", "任务适用品牌关联", (await tx.taskBrand.deleteMany()).count);
       recordDeleted("tasks", "任务设置", (await tx.task.deleteMany()).count);
-      recordDeleted("taskSchedulerRuns", "任务调度记录", (await tx.taskSchedulerRun.deleteMany()).count);
-      await tx.taskSubmissionSequence.deleteMany();
     }
-    if (targets.includes("dailyLearning")) {
+    if (clearDailyLearningRecords) {
       recordDeleted("dailyLearningProgress", "每日学习完成记录", (await tx.dailyLearningProgress.deleteMany()).count);
+    }
+    if (clearDailyLearningSettings) {
       recordDeleted("dailyLearningAssignees", "每日学习分配记录", (await tx.dailyLearningAssignee.deleteMany()).count);
       recordDeleted("dailyLearningPlans", "每日学习计划", (await tx.dailyLearningPlan.deleteMany()).count);
       await tx.dailyLearningSequence.deleteMany();
+    }
+    if (clearCourseRecords) {
+      recordDeleted("courseLessonProgress", "课时学习进度", (await tx.courseLessonProgress.deleteMany()).count);
+      recordDeleted("courseLearningProgress", "课程学习进度", (await tx.courseLearningProgress.deleteMany()).count);
+      recordDeleted("courseLessonVisits", "课程访问记录", (await tx.courseLessonVisit.deleteMany()).count);
+      recordDeleted("courseAssignments", "课程分配明细", (await tx.courseAssignment.deleteMany()).count);
+      recordDeleted("courseAssignmentUserScopes", "课程分配用户范围", (await tx.courseAssignmentUserScope.deleteMany()).count);
+      recordDeleted("courseAssignmentUsers", "课程分配用户快照", (await tx.courseAssignmentUser.deleteMany()).count);
+      recordDeleted("courseAssignmentCourses", "课程分配课程快照", (await tx.courseAssignmentCourse.deleteMany()).count);
+      recordDeleted("courseAssignmentBatches", "课程分配记录", (await tx.courseAssignmentBatch.deleteMany()).count);
+      await tx.courseAssignmentSequence.deleteMany();
+    }
+    if (clearCourseSettings) {
+      recordDeleted("courseBrands", "课程适用品牌关联", (await tx.courseBrand.deleteMany()).count);
+      recordDeleted("courseLessons", "课程课时", (await tx.courseLesson.deleteMany()).count);
+      recordDeleted("courses", "课程记录", (await tx.course.deleteMany()).count);
+      recordDeleted("courseDrafts", "课程草稿", (await tx.courseDraft.deleteMany()).count);
+      await tx.courseLessonSequence.deleteMany();
+      await tx.courseSequence.deleteMany();
     }
     if (targets.includes("notifications")) {
       recordDeleted("meetingParticipants", "会议参会及签到记录", (await tx.meetingParticipant.deleteMany()).count);
@@ -100,7 +153,7 @@ export async function POST(request: Request) {
       page: "清空业务数据",
       action: "清空",
       result: "成功",
-      detail: `已清空：${targets.map(target => businessDataTargetLabels[target]).join("、")}；涉及 ${deletedTables.length} 张业务表，共 ${totalCount} 条记录`,
+      detail: `已清空：${targets.map(target => businessDataTargetLabels[target]).join("、")}；涉及 ${deletedTables.length} 张数据表，共 ${totalCount} 条记录`,
       request,
     });
     return deletedTables;

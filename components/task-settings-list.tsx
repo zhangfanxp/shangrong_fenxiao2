@@ -10,6 +10,7 @@ import { TaskPreviewModal } from "@/components/task-preview-modal";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 
 type Option = { id: string; name: string; status?: string };
+type AiServiceOption = { label: string; value: string };
 type TaskRow = { id: string; recordNo: string; title: string; type: string; status: string; configFileName: string; createdAt: string; updatedAt: string; description?: string; includeCompletionRate: boolean; executionDays?: string[]; weeklyExecutionDay?: string | null; monthlyExecutionDay?: string | null; deadlineDayOffset: 0 | 1; deadlineTime: string; configVersion: number; executorRole?: Option | null; r2Storage?: Option | null; brands: { brand: Option }[]; createdBy?: { realName: string } | null };
 type FormValues = { title: string; type: string; executorRoleId: string; r2StorageId: string; brandIds: string[]; executionDays: string[]; weeklyExecutionDay?: string | null; monthlyExecutionDay?: string | null; deadlineDayOffset: 0 | 1; deadlineTime: string; includeCompletionRate: boolean; configFileBase: string; submitContent: string; status: string };
 type TaskUpdateResult = { date: string; total: number; created: number; covered: number; notGenerated: number; overdue: number; ignoredTasks: number };
@@ -17,16 +18,41 @@ const taskTypes = [{ value: "DAILY", label: "日任务" }, { value: "WEEKLY", la
 const typeName: Record<string, string> = Object.fromEntries(taskTypes.map(item => [item.value, item.label]));
 const days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 const monthlyDays = [...Array.from({ length: 28 }, (_, index) => ({ value: String(index + 1), label: `${index + 1}日` })), { value: "LAST_DAY", label: "月末（当月最后一天）" }];
-const example = "仪容仪表｜[附件]照片｜请拍照或从相册选择照片｜必填｜1\n现场水印｜[附件]拍照｜请现场拍照｜必填｜1\n营业目标｜[输入框]金额｜请填写今日的目标营业额｜必填｜1\n岗位分配｜[下拉选框]已完成,未完成｜今日岗位分配工作是否已完成｜必填｜1";
-const formatExample = "门店环境｜[附件]照片｜请拍照或从相册选择照片｜必填｜1\n现场水印｜[附件]拍照｜请现场拍照｜必填｜1\n培训记录｜[附件]视频｜请录像或从相册选择视频｜选填｜1\n现场操作｜[附件]录像｜请现场拍摄操作视频｜必填｜2\n巡检文件｜[附件]文档｜请上传巡检文档｜选填｜1\n营业目标｜[输入框]金额｜请填写今日目标营业额｜必填｜1\n来客人数｜[输入框]数量｜请填写今日来客人数｜必填｜1\n检查结果｜[下拉选框]合格,不合格｜请选择检查结果｜必填｜1";
+const example = "餐厅【桌面】【摆放】｜[附件]拍照｜请拍摄桌面摆放情况｜必填｜1｜图片分析｜请分析图片中的物料是否齐全、摆放整齐且干净整洁，请回答“合格”或“不合格”，不合格时请说明理由。\n营业目标｜[输入框]金额｜请填写今日的目标营业额｜必填｜1｜｜";
+const formatExample = "门店环境｜[附件]照片｜请拍照或从相册选择照片｜必填｜1｜图片分析｜请分析门店环境是否干净整洁，请回答“合格”或“不合格”，不合格时请说明理由。\n现场水印｜[附件]拍照｜请现场拍照｜必填｜1｜｜\n培训记录｜[附件]视频｜请录像或从相册选择视频｜选填｜1｜视频分析｜请分析视频中的培训流程是否完整，不完整时请说明缺少的环节。\n现场操作｜[附件]录像｜请现场拍摄操作视频｜必填｜2｜｜\n巡检文件｜[附件]文档｜请上传巡检文档｜选填｜1｜｜\n营业目标｜[输入框]金额｜请填写今日目标营业额｜必填｜1｜｜\n来客人数｜[输入框]数量｜请填写今日来客人数｜必填｜1｜｜\n检查结果｜[下拉选框]合格,不合格｜请选择检查结果｜必填｜1｜｜";
+const attachmentFormats = [
+  { syntax: "[附件]照片", description: "现场拍照或从相册选择照片，单张最大10MB。" },
+  { syntax: "[附件]拍照", description: "仅调用相机现场拍照，不提供相册照片选择，单张最大10MB。" },
+  { syntax: "[附件]视频", description: "现场拍摄或从相册选择视频；建议60–90秒，系统自动压缩，单个最大100MB。" },
+  { syntax: "[附件]录像", description: "仅调用摄像头现场拍摄视频；建议60–90秒，系统自动压缩，单个最大100MB。" },
+  { syntax: "[附件]文档", description: "上传PDF、Word、Excel、PPT、TXT或CSV文档，单个最大20MB。" },
+] as const;
+const otherFormats = [
+  { syntax: "[输入框]金额", description: "输入非负金额，最多保留2位小数。" },
+  { syntax: "[输入框]数量", description: "输入非负整数数量。" },
+  { syntax: "[下拉选框]选项1,选项2", description: "使用半角逗号分隔选项，至少配置一个有效选项。" },
+] as const;
 
 function formatTime(value: string) { return new Date(value).toLocaleString("zh-CN", { hour12: false }); }
-function parsePreview(value = "") { return value.split("\n").map((line, index) => ({ fields: line.trim().replace(/,+$/, "").split(/[｜|]/).map(part => part.trim()), index })).filter(item => item.fields.some(Boolean)); }
+function parsePreview(value = "") {
+  const items: { fields: string[]; index: number }[] = [];
+  value.replace(/\r\n/g, "\n").split("\n").forEach((rawLine, index) => {
+    const line = rawLine.trim().replace(/,+$/, "");
+    if (!line) return;
+    const previous = items.at(-1);
+    if (!/[｜|]/.test(line) && previous?.fields.length === 7 && previous.fields[5] && previous.fields[6]) {
+      previous.fields[6] = `${previous.fields[6]} ${line}`;
+      return;
+    }
+    items.push({ fields: line.split(/[｜|]/).map(part => part.trim()), index });
+  });
+  return items;
+}
 
 export function TaskSettingsList() {
   const [rows, setRows] = useState<TaskRow[]>([]); const [total, setTotal] = useState(0); const [loading, setLoading] = useState(true); const [error, setError] = useState(false);
   const [filters, setFilters] = useState({ keyword: "", type: "" }); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10);
-  const [roles, setRoles] = useState<Option[]>([]); const [brands, setBrands] = useState<Option[]>([]); const [r2Storages, setR2Storages] = useState<Option[]>([]); const [optionError, setOptionError] = useState(false);
+  const [roles, setRoles] = useState<Option[]>([]); const [brands, setBrands] = useState<Option[]>([]); const [r2Storages, setR2Storages] = useState<Option[]>([]); const [aiServiceOptions, setAiServiceOptions] = useState<AiServiceOption[]>([]); const [aiServiceLoadError, setAiServiceLoadError] = useState(false); const [optionError, setOptionError] = useState(false);
   const [taskDefaults, setTaskDefaults] = useState<{ deadlineDayOffset: 0 | 1; deadlineTime: string }>({ deadlineDayOffset: 0, deadlineTime: "23:59" });
   const [mode, setMode] = useState<"create" | "edit" | "view" | null>(null); const [current, setCurrent] = useState<TaskRow | null>(null); const [saving, setSaving] = useState(false); const [dirty, setDirty] = useState(false); const [form] = Form.useForm<FormValues>();
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
@@ -35,8 +61,9 @@ export function TaskSettingsList() {
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [preview, setPreview] = useState<{ taskId: string; config: unknown } | null>(null);
   const [formatHelpOpen, setFormatHelpOpen] = useState(false);
+  const [saveResult, setSaveResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const load = async (nextPage = page, nextPageSize = pageSize, nextFilters = filters) => { setLoading(true); setError(false); try { const query = new URLSearchParams({ ...nextFilters, page: String(nextPage), pageSize: String(nextPageSize) }); const response = await fetch(`/api/tasks/settings?${query}`); if (!response.ok) throw new Error(); const data = await response.json(); setRows(data.rows); setTotal(data.total); } catch { setError(true); } finally { setLoading(false); } };
-  const loadOptions = async () => { try { const response = await fetch("/api/tasks/settings/options"); if (!response.ok) throw new Error(); const data = await response.json(); setRoles(data.roles); setBrands(data.brands); setR2Storages(data.r2Storages); if (data.taskDefaults) setTaskDefaults(data.taskDefaults); } catch { setOptionError(true); } };
+  const loadOptions = async () => { try { const response = await fetch("/api/tasks/settings/options"); if (!response.ok) throw new Error(); const data = await response.json(); setRoles(data.roles); setBrands(data.brands); setR2Storages(data.r2Storages); setAiServiceOptions(data.aiServiceOptions || []); setAiServiceLoadError(Boolean(data.aiServiceLoadError)); if (data.taskDefaults) setTaskDefaults(data.taskDefaults); } catch { setOptionError(true); setAiServiceLoadError(true); } };
   useEffect(() => { void load(1, 10, { keyword: "", type: "" }); void loadOptions(); }, []);
   const resetForm = () => { form.resetFields(); form.setFieldsValue({ brandIds: [], executionDays: [], weeklyExecutionDay: null, monthlyExecutionDay: null, deadlineDayOffset: taskDefaults.deadlineDayOffset, deadlineTime: taskDefaults.deadlineTime, includeCompletionRate: true, status: "ENABLED", submitContent: "" }); setDirty(false); };
   const openCreate = () => { resetForm(); setCurrent(null); setMode("create"); };
@@ -44,7 +71,23 @@ export function TaskSettingsList() {
   const openPreview = async (row: TaskRow) => { try { const response = await fetch(`/api/tasks/settings/${row.id}`); const data = await response.json(); if (!response.ok) { message.error(data.message || "任务配置文件加载失败，请联系系统管理员"); return; } setPreview({ taskId: row.id, config: data.config }); } catch { message.error("任务配置文件加载失败，请联系系统管理员"); } };
   const dismissTaskModal = () => { setCloseConfirmOpen(false); setMode(null); setCurrent(null); setDirty(false); };
   const close = () => { if (dirty && mode !== "view") { setCloseConfirmOpen(true); return; } dismissTaskModal(); };
-  const submit = async () => { try { const values = await form.validateFields(); setSaving(true); const url = mode === "create" ? "/api/tasks/settings" : `/api/tasks/settings/${current?.id}`; const payload = mode === "create" ? values : { ...values, updatedAt: current?.updatedAt }; const response = await fetch(url, { method: mode === "create" ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); const data = await response.json(); if (!response.ok) { message.error(data.message || "保存失败，请稍后重试"); return; } message.success(mode === "create" ? "任务新增成功" : "任务保存成功"); setMode(null); setDirty(false); await load(1, pageSize, filters); setPage(1); } finally { setSaving(false); } };
+  const submit = async () => {
+    let values: FormValues;
+    try { values = await form.validateFields(); } catch { return; }
+    try {
+      setSaving(true); setSaveResult(null);
+      const creating = mode === "create";
+      const url = creating ? "/api/tasks/settings" : `/api/tasks/settings/${current?.id}`;
+      const payload = creating ? values : { ...values, updatedAt: current?.updatedAt };
+      const response = await fetch(url, { method: creating ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setSaveResult({ type: "error", message: data.message || "保存失败，请稍后重试" }); return; }
+      setMode(null); setDirty(false); setSaveResult({ type: "success", message: creating ? "任务新增成功。" : "任务保存成功。" });
+      await load(1, pageSize, filters); setPage(1);
+    } catch (reason) {
+      setSaveResult({ type: "error", message: reason instanceof Error ? reason.message : "保存失败，请检查网络后重试" });
+    } finally { setSaving(false); }
+  };
   const changeStatus = (row: TaskRow) => { const enabling = row.status === "DISABLED"; Modal.confirm({ title: `确认${enabling ? "启用" : "禁用"}任务？`, content: enabling ? "启用后，系统将按照当前任务配置重新参与后续任务生成。" : "禁用后，该任务设置将不再生成新的任务，已经产生的历史任务不受影响。", okText: `确认${enabling ? "启用" : "禁用"}`, cancelText: "取消", onOk: async () => { const response = await fetch(`/api/tasks/settings/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", status: enabling ? "ENABLED" : "DISABLED", updatedAt: row.updatedAt }) }); const data = await response.json(); if (!response.ok) { message.error(data.message || "操作失败"); return Promise.reject(new Error()); } if (!enabling) setSelectedTaskIds(ids => ids.filter(id => id !== row.id)); message.success(data.message); await load(); } }); };
   const remove = (row: TaskRow) => { Modal.confirm({ title: "确认删除任务设置？", content: "删除后该任务设置将不再使用，请确认是否继续。", okText: "确认删除", okButtonProps: { danger: true }, cancelText: "取消", onOk: async () => { const response = await fetch(`/api/tasks/settings/${row.id}`, { method: "DELETE" }); const data = await response.json(); if (!response.ok) { message.error(data.message || "删除失败"); return Promise.reject(new Error()); } setSelectedTaskIds(ids => ids.filter(id => id !== row.id)); message.success(data.message); await load(); } }); };
   const updateTasks = async () => { if (updatingTasks || !selectedTaskIds.length) return; setUpdatingTasks(true); try { const response = await fetch("/api/tasks/instances/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taskIds: selectedTaskIds }) }); const data = await response.json(); if (!response.ok) { message.error(data.message || "任务更新失败，请稍后重试"); return; } setUpdateResult(data as TaskUpdateResult); setSelectedTaskIds([]); } catch { message.error("任务更新失败，请检查网络后重试"); } finally { setUpdatingTasks(false); } };
@@ -53,6 +96,7 @@ export function TaskSettingsList() {
   return <>
     <Card style={{ marginBottom: 16 }}><Space wrap><Input placeholder="请输入任务名称" style={{ width: 240 }} value={filters.keyword} onChange={event => setFilters({ ...filters, keyword: event.target.value })} onPressEnter={() => { setPage(1); void load(1); }} /><Select style={{ width: 140 }} value={filters.type} options={[{ value: "", label: "全部" }, ...taskTypes]} onChange={type => setFilters({ ...filters, type })} /><Button onClick={() => { const next = { keyword: "", type: "" }; setFilters(next); setPage(1); void load(1, pageSize, next); }}>重置</Button><Button type="primary" onClick={() => { setPage(1); void load(1); }}>筛选</Button></Space></Card>
     {optionError && <Alert style={{ marginBottom: 16 }} type="warning" showIcon message="执行人角色、品牌或R2存储空间数据加载失败，请稍后重试" />}
+    {!optionError && aiServiceLoadError && <Alert style={{ marginBottom: 16 }} type="warning" showIcon message="Ai服务字典读取失败" description="不使用Ai分析的任务项仍可保存；如需配置Ai分析，请先检查《设置》/《数据字典》中的“Ai服务”记录。" />}
     <Card extra={<Space><Button icon={<SyncOutlined />} loading={updatingTasks} disabled={updatingTasks || !selectedTaskIds.length} onClick={() => void updateTasks()}>{updatingTasks ? "更新中..." : selectedTaskIds.length ? `更新任务（${selectedTaskIds.length}）` : "更新任务"}</Button><Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button></Space>}>
       {error ? <Alert type="error" showIcon message="任务数据加载失败，请稍后重试" action={<Button size="small" onClick={() => void load()}>重新加载</Button>} /> : <DataTable rowKey="id" columns={columns} dataSource={rows} loading={loading} rowSelection={{ selectedRowKeys: selectedTaskIds, preserveSelectedRowKeys: true, onChange: keys => setSelectedTaskIds(keys.map(String)), getCheckboxProps: row => ({ disabled: row.status !== "ENABLED", name: row.title }) }} pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: count => `共 ${count} 条`, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize); void load(nextPage, nextSize); } }} />}
     </Card>
@@ -66,28 +110,26 @@ export function TaskSettingsList() {
           if (type === "MONTHLY") return <Form.Item label="每月执行日" name="monthlyExecutionDay" rules={[{ required: true, message: "请选择月任务执行日期" }]}><Select style={{ width: 280 }} placeholder="请选择" options={monthlyDays} /></Form.Item>;
           return <Alert type="info" showIcon message="临时任务不参与定时自动生成，可通过人工更新任务触发。" />;
         }}</Form.Item><div className="task-form-grid" style={{ marginTop: 16 }}><Form.Item label="任务截止日期" name="deadlineDayOffset" rules={[{ required: true, message: "请选择任务截止日期" }]}><Select options={[{ value: 0, label: "当日" }, { value: 1, label: "次日" }]} /></Form.Item><Form.Item label="任务截止时间" name="deadlineTime" rules={[{ required: true, message: "请选择任务截止时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的任务截止时间" }]}><Input type="time" step={60} /></Form.Item><Form.Item label="参与核算完成率" name="includeCompletionRate"><Select options={[{ value: true, label: "参与" }, { value: false, label: "不参与" }]} /></Form.Item></div>
-        <h3 className="task-form-heading">任务内容</h3><div className="task-submit-content-heading"><label htmlFor="submitContent"><span>*</span>提交内容</label><Button type="link" size="small" onClick={() => setFormatHelpOpen(true)}>格式说明</Button></div><Form.Item name="submitContent" rules={[{ required: true, message: "请输入提交内容" }]} extra="每行格式：任务项名称｜提交组件｜提示说明｜必填/选填｜权重；兼容全角和半角竖线。"><Input.TextArea id="submitContent" rows={9} placeholder={example} className="task-content-input" /></Form.Item><Collapse size="small" items={[{ key: "help", label: "查看配置格式与示例", children: <pre className="task-example">{example}</pre> }, { key: "preview", label: `配置预览（${contentPreview.length} 项）`, children: contentPreview.length ? <Descriptions size="small" column={1}>{contentPreview.map(item => <Descriptions.Item key={item.index} label={`${item.index + 1}. ${item.fields[0] || "格式待完善"}`}><Space wrap>{item.fields[1] && <Tag>{item.fields[1]}</Tag>}{item.fields[3] && <Tag color={item.fields[3] === "必填" ? "blue" : "default"}>{item.fields[3]}</Tag>}{item.fields[4] && <Tag>权重：{item.fields[4]}</Tag>}<span>{item.fields[2]}</span></Space></Descriptions.Item>)}</Descriptions> : "请输入提交内容后预览" }]} />
+        <h3 className="task-form-heading">任务内容</h3><div className="task-submit-content-heading"><label htmlFor="submitContent"><span>*</span>提交内容</label><Button type="link" size="small" onClick={() => setFormatHelpOpen(true)}>格式说明</Button></div><Form.Item name="submitContent" rules={[{ required: true, message: "请输入提交内容" }]} extra="每行格式：任务项名称｜提交组件｜提示说明｜必填/选填｜权重｜Ai分析类型｜Ai分析提示词；兼容全角和半角竖线，最后两项同时留空表示不进行Ai分析。"><Input.TextArea id="submitContent" rows={9} placeholder={example} className="task-content-input" /></Form.Item><Collapse size="small" items={[{ key: "help", label: "查看配置格式与示例", children: <div className="task-format-summary"><p>新格式共7个字段；原有5字段任务模板仍可继续编辑和保存。</p><Descriptions bordered size="small" column={1}>{[...attachmentFormats, ...otherFormats].map(item => <Descriptions.Item key={item.syntax} label={item.syntax}>{item.description}</Descriptions.Item>)}</Descriptions><h4>可用的Ai分析类型</h4>{aiServiceLoadError ? <Alert type="warning" showIcon message="Ai服务字典暂时无法读取" /> : aiServiceOptions.length ? <Space wrap>{aiServiceOptions.map(item => <Tag color="purple" key={item.value}>{item.label}</Tag>)}</Space> : <Alert type="info" showIcon message="Ai服务字典暂无枚举值" />}<h4>完整示例（每行一个任务项）</h4><pre className="task-example">{formatExample}</pre><small>第4项只能填写“必填”或“选填”；第5项为大于0的整数权重；第6、7项必须同时填写或同时留空。</small></div> }, { key: "preview", label: `配置预览（${contentPreview.length} 项）`, children: contentPreview.length ? <Descriptions size="small" column={1}>{contentPreview.map(item => <Descriptions.Item key={item.index} label={`${item.index + 1}. ${item.fields[0] || "格式待完善"}`}><Space wrap>{item.fields[1] && <Tag>{item.fields[1]}</Tag>}{item.fields[3] && <Tag color={item.fields[3] === "必填" ? "blue" : "default"}>{item.fields[3]}</Tag>}{item.fields[4] && <Tag>权重：{item.fields[4]}</Tag>}{item.fields[5] && <Tag color="purple">Ai分析：{item.fields[5]}</Tag>}<span>{item.fields[2]}</span>{item.fields[6] && <span className="task-ai-prompt-preview">Ai提示词：{item.fields[6]}</span>}</Space></Descriptions.Item>)}</Descriptions> : "请输入提交内容后预览" }]} />
         <h3 className="task-form-heading">状态</h3><Form.Item label="任务状态" name="status" rules={[{ required: true, message: "请选择任务状态" }]}><Select style={{ width: 180 }} options={[{ value: "ENABLED", label: "启用" }, { value: "DISABLED", label: "禁用" }]} /></Form.Item>
       </Form>
+    </Modal>
+    <Modal title="温馨提示" open={Boolean(saveResult)} centered closable={false} maskClosable={false} footer={<Button type="primary" onClick={() => setSaveResult(null)}>我知道了</Button>}>
+      {saveResult && <Alert showIcon type={saveResult.type} message={saveResult.type === "success" ? "保存成功" : "保存失败"} description={saveResult.message} />}
     </Modal>
     <UnsavedChangesModal open={closeConfirmOpen} title="确认关闭？" content="当前任务配置尚未保存，关闭后修改内容将丢失，是否继续？" onKeep={() => setCloseConfirmOpen(false)} onDiscard={dismissTaskModal} />
     <Modal title="提交内容格式规范说明" open={formatHelpOpen} width={820} footer={<Button type="primary" onClick={() => setFormatHelpOpen(false)}>我知道了</Button>} onCancel={() => setFormatHelpOpen(false)}>
       <div className="task-format-help">
-        <Alert type="info" showIcon message="每个任务项单独占一行，共包含5个字段；字段之间使用全角“｜”或半角“|”分隔。" />
-        <h4>每行格式</h4><pre>任务项名称｜提交组件｜提示说明｜必填/选填｜完成率权重</pre>
+        <Alert type="info" showIcon message="每个任务项单独占一行；新格式包含7个字段，原有5字段格式继续兼容。字段之间使用全角“｜”或半角“|”分隔。" />
+        <h4>每行格式</h4><pre>任务项名称｜提交组件｜提示说明｜必填/选填｜完成率权重｜Ai分析类型｜Ai分析提示词</pre>
         <Descriptions title="[附件] 后支持的规范内容" bordered size="small" column={1}>
-          <Descriptions.Item label="[附件]照片">允许门店用户现场拍照，或从相册选择照片。</Descriptions.Item>
-          <Descriptions.Item label="[附件]拍照">仅允许门店用户调用相机现场拍照，不提供相册照片选择。</Descriptions.Item>
-          <Descriptions.Item label="[附件]视频">允许门店用户现场拍摄视频，或从相册选择视频。</Descriptions.Item>
-          <Descriptions.Item label="[附件]录像">仅允许门店用户调用摄像头现场拍摄视频，不提供相册视频选择。</Descriptions.Item>
-          <Descriptions.Item label="[附件]文档">允许上传 PDF、Word、Excel、PPT、TXT、CSV 文档。</Descriptions.Item>
+          {attachmentFormats.map(item => <Descriptions.Item key={item.syntax} label={item.syntax}>{item.description}</Descriptions.Item>)}
         </Descriptions>
         <Descriptions title="其他提交组件" bordered size="small" column={1}>
-          <Descriptions.Item label="[输入框]金额">输入非负金额，最多保留2位小数。</Descriptions.Item>
-          <Descriptions.Item label="[输入框]数量">输入非负数量。</Descriptions.Item>
-          <Descriptions.Item label="[下拉选框]选项1,选项2">使用半角逗号分隔选项，至少配置一个有效选项。</Descriptions.Item>
+          {otherFormats.map(item => <Descriptions.Item key={item.syntax} label={item.syntax}>{item.description}</Descriptions.Item>)}
         </Descriptions>
-        <h4>填写规则</h4><ul><li>必填属性只能填写“必填”或“选填”。</li><li>完成率权重必须填写大于0的整数。</li><li>每行不能缺少字段，也不要在字段内容中使用竖线。</li></ul>
+        <h4>Ai分析类型（读取自“Ai服务”数据字典）</h4>{aiServiceLoadError ? <Alert type="warning" showIcon message="Ai服务字典暂时无法读取，请检查数据字典配置" /> : aiServiceOptions.length ? <Space wrap>{aiServiceOptions.map(item => <Tag color="purple" key={item.value}>{item.label}</Tag>)}</Space> : <Alert type="info" showIcon message="Ai服务字典暂无枚举值" />}
+        <h4>填写规则</h4><ul><li>必填属性只能填写“必填”或“选填”。</li><li>完成率权重必须填写大于0的整数。</li><li>Ai分析类型和Ai分析提示词必须同时填写或同时留空；同时留空表示当前任务项不进行Ai分析。</li><li>Ai分析类型必须填写上方“Ai服务”数据字典中的有效枚举值。</li><li>Ai分析提示词可以换行续写；续写行不能包含竖线，保存后系统会自动合并为空格。</li><li>每行不能缺少前5个字段，也不要在字段内容中使用竖线。</li></ul>
         <h4>完整示例</h4><pre>{formatExample}</pre>
       </div>
     </Modal>

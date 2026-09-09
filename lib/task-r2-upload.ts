@@ -1,6 +1,7 @@
 import { DeleteObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getEnabledR2Config, getR2ConfigForCleanup, R2ConfigError } from "@/lib/r2-config-service";
+import { taskAttachmentMaxBytes, taskAttachmentMaxMb } from "@/lib/task-attachment-rules";
 
 export type IncomingTaskFile = { name: string; type: string; size: number; dataUrl: string };
 export type UploadedTaskFile = { name: string; type: string; size: number; objectKey: string; bucketName: string; r2StorageId: string };
@@ -16,8 +17,8 @@ function decodeFile(file: IncomingTaskFile, dataType: "photo" | "video" | "docum
   if (dataType === "video" && !mimeType.startsWith("video/")) throw new TaskAttachmentError(`附件“${file.name}”必须为视频`);
   if (dataType === "document" && !mimeType.startsWith("application/") && !mimeType.startsWith("text/")) throw new TaskAttachmentError(`附件“${file.name}”必须为文档`);
   const body = Buffer.from(match[2].replace(/[\r\n]/g, ""), "base64");
-  const maxBytes = (dataType === "photo" ? 10 : 20) * 1024 * 1024;
-  if (!body.length || body.length > maxBytes) throw new TaskAttachmentError(`附件“${file.name}”大小不符合要求`);
+  const maxBytes = taskAttachmentMaxBytes(dataType);
+  if (!body.length || body.length > maxBytes) throw new TaskAttachmentError(`附件“${file.name}”不能超过${taskAttachmentMaxMb(dataType)}MB`);
   return { body, mimeType };
 }
 
@@ -41,8 +42,8 @@ function validateBinaryFile(file: { name: string; type: string; size: number; bo
   if (dataType === "photo" && !mimeType.startsWith("image/")) throw new TaskAttachmentError(`附件“${file.name}”必须为照片`);
   if (dataType === "video" && !mimeType.startsWith("video/")) throw new TaskAttachmentError(`附件“${file.name}”必须为视频`);
   if (dataType === "document" && !mimeType.startsWith("application/") && !mimeType.startsWith("text/")) throw new TaskAttachmentError(`附件“${file.name}”必须为文档`);
-  const maxBytes = (dataType === "photo" ? 10 : 20) * 1024 * 1024;
-  if (!file.body.length || file.body.length !== file.size || file.body.length > maxBytes) throw new TaskAttachmentError(`附件“${file.name}”大小不符合要求`);
+  const maxBytes = taskAttachmentMaxBytes(dataType);
+  if (!file.body.length || file.body.length !== file.size || file.body.length > maxBytes) throw new TaskAttachmentError(`附件“${file.name}”不能超过${taskAttachmentMaxMb(dataType)}MB`);
   return mimeType;
 }
 
@@ -52,8 +53,8 @@ export function validateStoreTaskFileMetadata(file: { name: string; type: string
   if (dataType === "photo" && !mimeType.startsWith("image/")) throw new TaskAttachmentError(`附件“${name}”必须为照片`);
   if (dataType === "video" && !mimeType.startsWith("video/")) throw new TaskAttachmentError(`附件“${name}”必须为视频`);
   if (dataType === "document" && !mimeType.startsWith("application/") && !mimeType.startsWith("text/")) throw new TaskAttachmentError(`附件“${name}”必须为文档`);
-  const maxBytes = (dataType === "photo" ? 10 : 20) * 1024 * 1024;
-  if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > maxBytes) throw new TaskAttachmentError(`附件“${name}”大小不符合要求`);
+  const maxBytes = taskAttachmentMaxBytes(dataType);
+  if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > maxBytes) throw new TaskAttachmentError(`附件“${name}”不能超过${taskAttachmentMaxMb(dataType)}MB`);
   return { name, mimeType, size: file.size };
 }
 

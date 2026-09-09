@@ -161,6 +161,7 @@ model User {
   assignedTaskRecords       TaskRecord[]             @relation("TaskRecordAssignee")
   taskSubmissions           TaskSubmission[]         @relation("TaskSubmissionUser")
   taskAttachments           TaskAttachment[]         @relation("TaskAttachmentUploader")
+  analyzedTaskAiRecords     TaskAiAnalysis[]         @relation("TaskAiAnalysisOperator")
   createdNotifications      Notification[]           @relation("NotificationCreator")
   notificationRecipients    NotificationRecipient[]  @relation("NotificationRecipientUser")
   createdMeetings           Meeting[]                @relation("MeetingCreator")
@@ -393,7 +394,12 @@ model Store {
   formalOpenDate        DateTime?
   managerUserId         String?                  @db.VarChar(191)
   managerName           String?
+  chefUserId            String?                  @db.VarChar(191)
   chefName              String?
+  douyinLaikeName       String?                  @db.VarChar(50)
+  kuaishouName          String?                  @db.VarChar(50)
+  meituanManagerName    String?                  @db.VarChar(50)
+  meituanBusinessName   String?                  @db.VarChar(50)
   ownerName             String?
   ownerPhone            String?
   ownerIdNumber         String?
@@ -627,8 +633,9 @@ model Personnel {
   hireDate              DateTime
   positionLevel         String               @db.VarChar(50)
   organization          String               @db.VarChar(30)
-  storeId               String
-  store                 Store                @relation(fields: [storeId], references: [id])
+  department            String?              @db.VarChar(50)
+  storeId               String?
+  store                 Store?               @relation(fields: [storeId], references: [id])
   resignationDate       DateTime?
   resignationReason     String?              @db.VarChar(200)
   contractSignDate      DateTime
@@ -767,6 +774,7 @@ model TaskRecord {
   configSnapshot           Json?
   submission               Json?
   formalSubmission         TaskSubmission?
+  aiAnalysis               TaskAiAnalysis?
   attachments              TaskAttachment[]
   createdAt                DateTime         @default(now())
 
@@ -827,25 +835,100 @@ model TaskSubmissionSequence {
 }
 
 model TaskSubmissionItem {
-  id                  String         @id @default(cuid())
-  submissionId        String
-  submission          TaskSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  itemName            String         @db.VarChar(100)
-  componentType       String         @db.VarChar(20)
-  dataType            String?        @db.VarChar(20)
-  description         String         @db.Text
-  required            Boolean
-  weight              Int
-  value               String?        @db.Text
-  attachmentObjectKey String?        @db.VarChar(512)
-  attachmentName      String?        @db.VarChar(255)
-  attachmentMimeType  String?        @db.VarChar(100)
-  r2StorageId         String?        @db.VarChar(191)
-  sortOrder           Int
-  submittedAt         DateTime       @default(now())
+  id                             String         @id @default(cuid())
+  submissionId                   String
+  submission                     TaskSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  itemName                       String         @db.VarChar(100)
+  componentType                  String         @db.VarChar(20)
+  dataType                       String?        @db.VarChar(20)
+  description                    String         @db.Text
+  required                       Boolean
+  weight                         Int
+  value                          String?        @db.Text
+  attachmentObjectKey            String?        @db.VarChar(512)
+  attachmentName                 String?        @db.VarChar(255)
+  attachmentMimeType             String?        @db.VarChar(100)
+  r2StorageId                    String?        @db.VarChar(191)
+  aiAnalysisTypeSnapshot         String?        @db.VarChar(200)
+  aiAnalysisPromptSnapshot       String?        @db.Text
+  aiAnalysisStatus               String?        @db.VarChar(20)
+  aiAnalysisResult               String?        @db.LongText
+  aiUnqualifiedReasonDescription String?        @db.LongText
+  aiAnalysisFailureReason        String?        @db.Text
+  aiAnalyzedAt                   DateTime?
+  aiAnalyzedByUserId             String?        @db.VarChar(191)
+  aiAnalyzedByName               String?        @db.VarChar(50)
+  sortOrder                      Int
+  submittedAt                    DateTime       @default(now())
 
   @@unique([submissionId, sortOrder])
   @@index([submissionId])
+  @@index([aiAnalysisStatus, aiAnalyzedAt])
+}
+
+model TaskAiAnalysis {
+  id                       String               @id @default(cuid())
+  recordNo                 String               @unique @db.VarChar(12)
+  taskRecordId             String               @unique
+  taskRecord               TaskRecord           @relation(fields: [taskRecordId], references: [id], onDelete: Cascade)
+  taskRecordNo             String               @db.VarChar(14)
+  taskSettingId            String               @db.VarChar(191)
+  taskNameSnapshot         String               @db.VarChar(100)
+  brandIdSnapshot          String?              @db.VarChar(191)
+  brandCodeSnapshot        String?              @db.VarChar(50)
+  brandNameSnapshot        String               @db.VarChar(100)
+  storeIdSnapshot          String               @db.VarChar(191)
+  storeNameSnapshot        String               @db.VarChar(100)
+  executorUserIdSnapshot   String?              @db.VarChar(191)
+  executorUsernameSnapshot String?              @db.VarChar(50)
+  executorNameSnapshot     String               @db.VarChar(50)
+  executorRoleSnapshot     String?              @db.VarChar(50)
+  taskExecutionDate        DateTime             @db.Date
+  taskSubmittedAt          DateTime
+  taskItemCount            Int
+  analysisTypeSummary      String               @db.VarChar(500)
+  analysisResultSummary    String               @db.LongText
+  analyzedByUserId         String?
+  analyzedBy               User?                @relation("TaskAiAnalysisOperator", fields: [analyzedByUserId], references: [id], onDelete: SetNull)
+  analyzedByName           String               @db.VarChar(50)
+  analyzedAt               DateTime             @default(now())
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  items                    TaskAiAnalysisItem[]
+
+  @@index([brandIdSnapshot, storeIdSnapshot])
+  @@index([taskSettingId])
+  @@index([taskExecutionDate])
+  @@index([analyzedAt, id])
+  @@index([executorNameSnapshot])
+  @@index([analyzedByUserId])
+}
+
+model TaskAiAnalysisItem {
+  id                       String         @id @default(cuid())
+  analysisId               String
+  analysis                 TaskAiAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  taskItemIdSnapshot       String         @db.VarChar(191)
+  taskItemNameSnapshot     String         @db.VarChar(100)
+  hintSnapshot             String?        @db.Text
+  analysisTypeCodeSnapshot String         @db.VarChar(200)
+  analysisTypeNameSnapshot String         @db.VarChar(200)
+  analysisPromptSnapshot   String         @db.Text
+  analysisResult           String         @db.LongText
+  isQualified              Boolean?
+  unqualifiedReason        String?        @db.LongText
+  analyzedAt               DateTime
+  sortOrder                Int
+  createdAt                DateTime       @default(now())
+
+  @@unique([analysisId, sortOrder])
+  @@index([analysisId])
+}
+
+model TaskAiAnalysisSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
 }
 
 model TaskAttachment {
@@ -1458,14 +1541,14 @@ model DatabaseBackupFile {
 /// Records one-time database changes applied by the local deployment assistant.
 /// Future deploy migrations must use a stable id and immutable checksum.
 model DeploymentMigration {
-  id          String   @id @db.VarChar(100)
-  checksum    String   @db.VarChar(64)
-  appVersion  String   @db.VarChar(30)
-  description String?  @db.VarChar(200)
-  status      String   @default("SUCCESS") @db.VarChar(20)
-  startedAt   DateTime @default(now())
+  id          String    @id @db.VarChar(100)
+  checksum    String    @db.VarChar(64)
+  appVersion  String    @db.VarChar(30)
+  description String?   @db.VarChar(200)
+  status      String    @default("SUCCESS") @db.VarChar(20)
+  startedAt   DateTime  @default(now())
   appliedAt   DateTime?
-  error       String?  @db.Text
+  error       String?   @db.Text
 
   @@index([status, startedAt])
 }

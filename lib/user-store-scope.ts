@@ -3,7 +3,7 @@ export type UserScopeStore = { id: string; name: string; brandId: string; brand:
 type UserWithStoreScope = {
   leadH5BrandIds: unknown;
   leadH5StoreIds: unknown;
-  personnelProfile?: { status: string; deletedAt: Date | null; store: UserScopeStore } | null;
+  personnelProfile?: { status: string; deletedAt: Date | null; store: UserScopeStore | null } | null;
 };
 
 export function jsonIdArray(value: unknown) {
@@ -13,7 +13,7 @@ export function jsonIdArray(value: unknown) {
 export function resolveUserStores(user: UserWithStoreScope, configuredStoreById: Map<string, UserScopeStore>, requiredBrandIds?: readonly string[]) {
   const stores = new Map<string, UserScopeStore>();
   const profile = user.personnelProfile;
-  if (profile && profile.status === "ACTIVE" && !profile.deletedAt) stores.set(profile.store.id, profile.store);
+  if (profile?.store && profile.status === "ACTIVE" && !profile.deletedAt) stores.set(profile.store.id, profile.store);
   for (const storeId of jsonIdArray(user.leadH5StoreIds)) {
     const store = configuredStoreById.get(storeId);
     if (store) stores.set(store.id, store);

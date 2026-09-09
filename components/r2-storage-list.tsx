@@ -1,7 +1,7 @@
 "use client";
 
-import { DeleteOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Empty, Form, Input, InputNumber, message, Modal, Select, Space, Tooltip } from "antd";
+import { DeleteOutlined, EyeOutlined, LoadingOutlined, PlusOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Empty, Form, Input, InputNumber, message, Modal, Result, Select, Space, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
@@ -20,6 +20,7 @@ type FormValues = {
   name: string; accountId: string; accessKeyId?: string; secretAccessKey?: string; bucketName: string;
   endpoint: string; signedUrlExpireSeconds: number; status: "ENABLED" | "DISABLED";
 };
+type TestDialog = { open: boolean; phase: "testing" | "success" | "error"; message: string };
 
 function formatTime(value: string) { return dayjs(value).format("YYYY-MM-DD HH:mm:ss"); }
 
@@ -31,6 +32,7 @@ export function R2StorageList({ permissions }: { permissions: string[] }) {
   const [mode, setMode] = useState<"create" | "edit" | "view" | null>(null); const [current, setCurrent] = useState<R2Row | null>(null);
   const [saving, setSaving] = useState(false); const [actionId, setActionId] = useState(""); const [dirty, setDirty] = useState(false); const [form] = Form.useForm<FormValues>();
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [testDialog, setTestDialog] = useState<TestDialog>({ open: false, phase: "testing", message: "" });
 
   const load = async (nextPage = page, nextPageSize = pageSize, filters = applied) => {
     setLoading(true); setErrorMessage("");
@@ -103,14 +105,19 @@ export function R2StorageList({ permissions }: { permissions: string[] }) {
   };
 
   const testStorage = async (row: R2Row) => {
-    const messageKey = `r2-test-${row.id}`; setActionId(row.id); message.loading({ key: messageKey, content: "正在上传R2测试文件...", duration: 0 });
+    setActionId(row.id);
+    setTestDialog({ open: true, phase: "testing", message: "正在写入并读取测试文件，请稍候。" });
     try {
       const response = await fetch(`/api/r2-storage/${row.id}/test`, { method: "POST" });
-      const data = await response.json();
-      if (!response.ok) { message.error({ key: messageKey, content: data.message || "R2测试失败，请检查配置后重试" }); return; }
-      message.destroy(messageKey);
-      Modal.success({ title: "温馨提示", content: "R2 存储桶连接正常，数据已成功写入并读取。配置有效，可正常使用。", okText: "我知道了", centered: true });
-    } catch { message.error({ key: messageKey, content: "R2测试失败，请稍后重试" }); }
+      const data = await response.json().catch(() => ({ message: "" }));
+      if (!response.ok) {
+        setTestDialog({ open: true, phase: "error", message: data.message || "R2 存储桶测试失败，请检查配置后重试。" });
+        return;
+      }
+      setTestDialog({ open: true, phase: "success", message: "R2 存储桶连接正常，数据已成功写入并读取。配置有效，可正常使用。" });
+    } catch {
+      setTestDialog({ open: true, phase: "error", message: "R2 存储桶测试失败，请检查网络连接后重试。" });
+    }
     finally { setActionId(""); }
   };
 
@@ -187,6 +194,21 @@ export function R2StorageList({ permissions }: { permissions: string[] }) {
           <Form.Item label="创建时间"><Input disabled value={current?.createdAt ? formatTime(current.createdAt) : undefined} placeholder="保存后自动生成" /></Form.Item>
         </div>
       </Form>
+    </Modal>
+    <Modal
+      title="温馨提示"
+      open={testDialog.open}
+      centered
+      closable={testDialog.phase !== "testing"}
+      maskClosable={testDialog.phase !== "testing"}
+      keyboard={testDialog.phase !== "testing"}
+      onCancel={() => { if (testDialog.phase !== "testing") setTestDialog(currentDialog => ({ ...currentDialog, open: false })); }}
+      footer={testDialog.phase === "testing" ? null : <Button type="primary" onClick={() => setTestDialog(currentDialog => ({ ...currentDialog, open: false }))}>我知道了</Button>}
+      destroyOnHidden
+    >
+      {testDialog.phase === "testing"
+        ? <Result icon={<LoadingOutlined spin />} title="正在测试R2存储桶连接" subTitle={testDialog.message} />
+        : <Result status={testDialog.phase === "success" ? "success" : "error"} title={testDialog.phase === "success" ? testDialog.message : "R2 存储桶测试失败"} subTitle={testDialog.phase === "error" ? testDialog.message : undefined} />}
     </Modal>
     <UnsavedChangesModal open={discardOpen} title="当前R2配置尚未保存" onKeep={() => setDiscardOpen(false)} onDiscard={() => { setDiscardOpen(false); setMode(null); setDirty(false); }} />
   </>;

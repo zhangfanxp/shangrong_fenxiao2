@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
+import { synchronizeStoreLeadership } from "@/lib/store-leadership";
 
 const roleSchema = z.object({
   name: z.string().trim().min(1, "请输入角色名称").max(30, "角色名称不能超过30个字符"),
@@ -51,7 +52,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     action = "编辑"; data = { name: parsed.data.name, code: parsed.data.code, permissions: parsed.data.permissions, status: parsed.data.status };
   }
   try {
-    const result = await db.role.updateMany({ where: { id, updatedAt: role.updatedAt }, data });
+    const result = await db.$transaction(async transaction => {
+      const updated = await transaction.role.updateMany({ where: { id, updatedAt: role.updatedAt }, data });
+      if (updated.count) await synchronizeStoreLeadership(undefined, transaction);
+      return updated;
+    });
     if (!result.count) return NextResponse.json({ message: "角色已被其他用户修改，请刷新后重新操作。" }, { status: 409 });
     await writeOperationLog({ userId: session.userId, username: session.username, page: "角色管理", action, result: "成功", detail: `${action}角色：${role.name}`, request });
     return NextResponse.json({ message: `角色${action}成功` });

@@ -13,6 +13,8 @@ export type StoreTaskItem = {
   description: string;
   required: boolean;
   weight: number;
+  aiAnalysisType?: string | null;
+  aiAnalysisPrompt?: string | null;
 };
 
 export type StoreTaskSnapshot = {
@@ -36,6 +38,9 @@ export function isStoreTaskSnapshot(value: unknown): value is StoreTaskSnapshot 
   return typeof candidate.taskName === "string" && Array.isArray(candidate.submitItems) && candidate.submitItems.every(item =>
     item && typeof item.name === "string" && ["attachment", "input", "select"].includes(item.component)
       && (item.captureOnly === undefined || typeof item.captureOnly === "boolean")
+      && (item.aiAnalysisType === undefined || item.aiAnalysisType === null || typeof item.aiAnalysisType === "string")
+      && (item.aiAnalysisPrompt === undefined || item.aiAnalysisPrompt === null || typeof item.aiAnalysisPrompt === "string")
+      && Boolean(item.aiAnalysisType) === Boolean(item.aiAnalysisPrompt)
       && typeof item.description === "string" && typeof item.required === "boolean" && Number.isInteger(item.weight));
 }
 

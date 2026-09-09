@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
+import { synchronizeStoreLeadership } from "@/lib/store-leadership";
 import { normalizeUserTags } from "@/lib/user-tags";
 
 const phone = z.string().trim().regex(/^1\d{10}$/, "请输入11位手机号码").optional().or(z.literal(""));
@@ -56,7 +57,12 @@ export async function POST(request: Request) {
   if (!role) return NextResponse.json({ message: "所选角色不存在或已禁用，请重新选择" }, { status: 400 });
   try {
     const scope = await validateDataScope(parsed.data.leadH5BrandIds, parsed.data.leadH5StoreIds);
-    const user = await db.user.create({ data: { username: parsed.data.username, realName: parsed.data.realName, phone: parsed.data.phone || null, tags: normalizeUserTags(parsed.data.tags), leadH5BrandIds: scope.brandIds ?? Prisma.DbNull, leadH5StoreIds: scope.storeIds ?? Prisma.DbNull, type: UserType.CUSTOM, roleId: role.id, status: parsed.data.status, passwordHash: await bcrypt.hash(parsed.data.password, 12), createdByUserId: session.userId }, select: publicUser });
+    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+    const user = await db.$transaction(async transaction => {
+      const created = await transaction.user.create({ data: { username: parsed.data.username, realName: parsed.data.realName, phone: parsed.data.phone || null, tags: normalizeUserTags(parsed.data.tags), leadH5BrandIds: scope.brandIds ?? Prisma.DbNull, leadH5StoreIds: scope.storeIds ?? Prisma.DbNull, type: UserType.CUSTOM, roleId: role.id, status: parsed.data.status, passwordHash, createdByUserId: session.userId }, select: publicUser });
+      await synchronizeStoreLeadership(scope.storeIds || [], transaction);
+      return created;
+    });
     await writeOperationLog({ userId: session.userId, username: session.username, page: "用户列表", action: "新增", result: "成功", detail: `新增用户：${user.realName}（${user.username}）`, request });
     return NextResponse.json(user, { status: 201 });
   } catch (error) {

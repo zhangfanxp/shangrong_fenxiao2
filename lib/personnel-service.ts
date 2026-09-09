@@ -29,20 +29,25 @@ export function resolveWorkdayHours(input: number | null | undefined, configured
 export function toDate(value: string) { return new Date(`${value}T00:00:00.000`); }
 
 export async function validatePersonnelRelations(data: PersonnelInput, editingId?: string) {
-  const [store, positions, socialSecurityStatuses, platformUser] = await Promise.all([
-    db.store.findUnique({ where: { id: data.storeId }, include: { brand: { select: { name: true } } } }),
+  const [store, departments, positions, socialSecurityStatuses, platformUser] = await Promise.all([
+    data.storeId ? db.store.findUnique({ where: { id: data.storeId }, include: { brand: { select: { name: true } } } }) : null,
+    getBusinessDictionaryOptions("DEPARTMENT"),
     getBusinessDictionaryOptions("POSITION_LEVEL"),
     getBusinessDictionaryOptions("SOCIAL_SECURITY_STATUS"),
     data.platformUserId ? db.user.findUnique({ where: { id: data.platformUserId }, include: { personnelProfile: { select: { id: true } } } }) : null,
   ]);
-  if (!store || store.operationStatus === "CLOSED") throw new Error("所选门店不存在或已关闭");
-  if (data.organization !== "总部" && store.brand.name !== data.organization) throw new Error("人员归属与所选门店品牌不一致");
+  if (data.organization === "总部") {
+    if (!departments.some(option => option.value === data.department || option.label === data.department)) throw new Error("所选总部部门不存在或已禁用");
+  } else {
+    if (!store || store.operationStatus === "CLOSED") throw new Error("所选门店不存在或已关闭");
+    if (store.brand.name !== data.organization) throw new Error("人员归属与所选门店品牌不一致");
+  }
   const position = positions.find(option => option.value === data.positionLevel || option.label === data.positionLevel);
   if (!position) throw new Error("所属岗位星级不存在或已禁用");
   if (!socialSecurityStatuses.some(option => option.value === data.socialSecurity)) throw new Error("社保情况不存在或已禁用");
   if (data.platformUserId && (!platformUser || platformUser.status !== RecordStatus.ENABLED)) throw new Error("所选平台用户不存在或已禁用");
   if (platformUser?.personnelProfile && platformUser.personnelProfile.id !== editingId) throw new Error("该平台用户已绑定其他人员档案");
-  const configuredWorkdayHours = await getConfiguredWorkdayHours(store.brand.name);
+  const configuredWorkdayHours = store ? await getConfiguredWorkdayHours(store.brand.name) : undefined;
   // The brand parameter supplies the form default; an explicit user value takes precedence.
   return { positionLevel: position.label, workdayHours: resolveWorkdayHours(data.workdayHours, configuredWorkdayHours) };
 }
@@ -57,7 +62,7 @@ export async function nextPersonnelRecordNo(tx: Prisma.TransactionClient) {
 export function personnelData(data: PersonnelInput, normalizedPosition: string, workdayHours: number | null) {
   return {
     name: data.name, phone: data.phone, idNumber: data.idNumber, birthday: data.birthday || null,
-    hireDate: toDate(data.hireDate), positionLevel: normalizedPosition, organization: data.organization, storeId: data.storeId,
+    hireDate: toDate(data.hireDate), positionLevel: normalizedPosition, organization: data.organization, department: data.organization === "总部" ? data.department : null, storeId: data.organization === "总部" ? null : data.storeId,
     contractSignDate: toDate(data.contractSignDate), contractYears: data.contractYears ?? null, contractExpiryDate: toDate(data.contractExpiryDate),
     homeAddress: data.homeAddress, currentAddress: data.currentAddress, supplementaryMaterial: data.supplementaryMaterial || null,
     baseSalary: new Prisma.Decimal(data.baseSalary), laborCost: new Prisma.Decimal(data.laborCost), workdayHours: workdayHours === null ? null : new Prisma.Decimal(workdayHours), socialSecurity: data.socialSecurity, platformAccess: data.platformAccess || null,

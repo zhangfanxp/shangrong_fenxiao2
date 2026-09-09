@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { writeOperationLog, writeOperationLogWithTransaction } from "@/lib/operation-log";
 import { createTaskAttachmentReadUrl } from "@/lib/task-r2-upload";
 import { canTaskRecord, formatTaskRecordDateTime, taskRecordDataScope } from "@/lib/task-records";
-import { taskTypeLabel } from "@/lib/store-h5-tasks";
+import { isStoreTaskSnapshot, taskTypeLabel } from "@/lib/store-h5-tasks";
 
 class MissingTaskRecordError extends Error {}
 
@@ -22,22 +22,34 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!row) return NextResponse.json({ message: "该任务记录已不存在或无权查看" }, { status: 404 });
     if (row.status !== TaskRecordStatus.COMPLETED) return NextResponse.json({ message: "当前任务尚未提交，暂无任务详情" }, { status: 409 });
     if (!row.formalSubmission) return NextResponse.json({ message: "已完成任务提交明细异常缺失，请联系系统管理员" }, { status: 500 });
-    const items = await Promise.all(row.formalSubmission.items.map(async item => ({
-      id: item.id,
-      itemName: item.itemName,
-      componentType: item.componentType,
-      dataType: item.dataType,
-      description: item.description,
-      required: item.required,
-      weight: item.weight,
-      value: item.value,
-      attachmentName: item.attachmentName,
-      attachmentMimeType: item.attachmentMimeType,
-      attachmentUrl: item.attachmentObjectKey && item.r2StorageId
-        ? await createTaskAttachmentReadUrl({ r2StorageId: item.r2StorageId, objectKey: item.attachmentObjectKey }).catch(() => null)
-        : null,
-      sortOrder: item.sortOrder,
-    })));
+    const snapshot = isStoreTaskSnapshot(row.formalSubmission.configSnapshot) ? row.formalSubmission.configSnapshot : null;
+    const items = await Promise.all(row.formalSubmission.items.map(async item => {
+      const snapshotItem = snapshot?.submitItems[item.sortOrder];
+      return {
+        id: item.id,
+        itemName: item.itemName,
+        componentType: item.componentType,
+        dataType: item.dataType,
+        description: item.description,
+        required: item.required,
+        weight: item.weight,
+        value: item.value,
+        attachmentName: item.attachmentName,
+        attachmentMimeType: item.attachmentMimeType,
+        attachmentUrl: item.attachmentObjectKey && item.r2StorageId
+          ? await createTaskAttachmentReadUrl({ r2StorageId: item.r2StorageId, objectKey: item.attachmentObjectKey }).catch(() => null)
+          : null,
+        aiAnalysisType: item.aiAnalysisTypeSnapshot || snapshotItem?.aiAnalysisType || null,
+        aiAnalysisPrompt: item.aiAnalysisPromptSnapshot || snapshotItem?.aiAnalysisPrompt || null,
+        aiAnalysisStatus: item.aiAnalysisStatus,
+        aiAnalysisResult: item.aiAnalysisResult,
+        aiUnqualifiedReasonDescription: item.aiUnqualifiedReasonDescription,
+        aiAnalysisFailureReason: item.aiAnalysisFailureReason,
+        aiAnalyzedAt: formatTaskRecordDateTime(item.aiAnalyzedAt),
+        aiAnalyzedByName: item.aiAnalyzedByName,
+        sortOrder: item.sortOrder,
+      };
+    }));
     await writeOperationLog({ userId: session.userId, username: session.username, page: "任务记录", action: "查看", result: "成功", detail: `记录编号：${row.formalSubmission.recordNo || "历史记录未编号"}；任务实例ID：${row.id}`, request }).catch(() => undefined);
     return NextResponse.json({
       id: row.id,
@@ -68,7 +80,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   try {
     const scope = await taskRecordDataScope(session);
     await db.$transaction(async tx => {
-      const current = await tx.taskRecord.findFirst({ where: { AND: [{ id }, scope] }, include: { formalSubmission: { select: { id: true, recordNo: true, submittedAt: true } } } });
+      const current = await tx.taskRecord.findFirst({ where: { AND: [{ id }, scope] }, include: { formalSubmission: { select: { id: true, recordNo: true, submittedAt: true } }, aiAnalysis: { select: { recordNo: true } } } });
       if (!current) throw new MissingTaskRecordError();
       if (current.formalSubmission) {
         await tx.taskSubmissionItem.deleteMany({ where: { submissionId: current.formalSubmission.id } });
@@ -83,7 +95,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         page: "任务记录",
         action: "删除",
         result: "成功",
-        detail: `原任务实例ID：${current.id}；原记录编号：${current.formalSubmission?.recordNo || "-"}；任务名称：${current.taskNameSnapshot || "-"}；任务类型：${taskTypeLabel(current.taskType)}；执行用户ID：${current.assignedUserId || "-"}；执行人：${current.assignedUserNameSnapshot || "-"}；原任务状态：${current.status === TaskRecordStatus.COMPLETED ? "已完成" : current.status === TaskRecordStatus.OVERDUE ? "已逾期" : "待完成"}；参与完成率：${current.includeCompletionRate !== false ? "参与" : "不参与"}；原任务创建时间：${formatTaskRecordDateTime(current.triggeredAt)}；原任务提交时间：${formatTaskRecordDateTime(current.formalSubmission?.submittedAt || current.completedAt)}；R2附件对象保留`,
+        detail: `原任务实例ID：${current.id}；原记录编号：${current.formalSubmission?.recordNo || "-"}；同步删除智能分析记录：${current.aiAnalysis?.recordNo || "-"}；任务名称：${current.taskNameSnapshot || "-"}；任务类型：${taskTypeLabel(current.taskType)}；执行用户ID：${current.assignedUserId || "-"}；执行人：${current.assignedUserNameSnapshot || "-"}；原任务状态：${current.status === TaskRecordStatus.COMPLETED ? "已完成" : current.status === TaskRecordStatus.OVERDUE ? "已逾期" : "待完成"}；参与完成率：${current.includeCompletionRate !== false ? "参与" : "不参与"}；原任务创建时间：${formatTaskRecordDateTime(current.triggeredAt)}；原任务提交时间：${formatTaskRecordDateTime(current.formalSubmission?.submittedAt || current.completedAt)}；R2附件对象保留`,
         request,
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5_000, timeout: 30_000 });

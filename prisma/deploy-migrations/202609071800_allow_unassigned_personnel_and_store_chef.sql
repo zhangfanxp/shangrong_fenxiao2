@@ -1,0 +1,5 @@
+ALTER TABLE `Store`
+  ADD COLUMN `chefUserId` VARCHAR(191) NULL AFTER `managerName`;
+
+ALTER TABLE `Personnel`
+  MODIFY COLUMN `storeId` VARCHAR(191) NULL;

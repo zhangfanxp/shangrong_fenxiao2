@@ -20,14 +20,43 @@ export type PlatformConfig = {
   trainingVideoR2StorageId: string | null;
   trainingAudioR2StorageId: string | null;
   trainingDocumentR2StorageId: string | null;
+  aiApiEndpoints: Record<string, string>;
+};
+
+export type PlatformAssetName = "logo" | "login-background" | "course-cover" | "lesson-cover";
+
+export type PlatformSettings = Omit<PlatformConfig, "logoDataUrl" | "loginBackgroundDataUrl" | "courseCoverDataUrl" | "lessonCoverDataUrl">;
+
+export type PlatformAssetUrls = {
+  logo: string | null;
+  loginBackground: string | null;
+  courseCover: string | null;
+  lessonCover: string | null;
 };
 
 const targetPath = () => path.join(process.cwd(), "config", "platform.config.json");
-const DEFAULT_PLATFORM_CONFIG: PlatformConfig = { platformName: DEFAULT_PLATFORM_NAME, logoDataUrl: null, loginBackgroundDataUrl: null, courseCoverDataUrl: null, lessonCoverDataUrl: null, leadPcLoginTags: "", leadH5LoginTags: "", storeH5LoginTags: "", automaticTaskExecutionTime: "05:30", defaultTaskDeadlineDayOffset: 0, defaultTaskDeadlineTime: "23:59", dailyLearningR2StorageId: null, trainingVideoR2StorageId: null, trainingAudioR2StorageId: null, trainingDocumentR2StorageId: null };
+const DEFAULT_PLATFORM_CONFIG: PlatformConfig = { platformName: DEFAULT_PLATFORM_NAME, logoDataUrl: null, loginBackgroundDataUrl: null, courseCoverDataUrl: null, lessonCoverDataUrl: null, leadPcLoginTags: "", leadH5LoginTags: "", storeH5LoginTags: "", automaticTaskExecutionTime: "05:30", defaultTaskDeadlineDayOffset: 0, defaultTaskDeadlineTime: "23:59", dailyLearningR2StorageId: null, trainingVideoR2StorageId: null, trainingAudioR2StorageId: null, trainingDocumentR2StorageId: null, aiApiEndpoints: {} };
 let platformConfigCache: { mtimeMs: number; size: number; value: PlatformConfig } | null = null;
 
 export function platformAssetVersion(value: string) {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
+
+export function platformAssetUrl(asset: PlatformAssetName, value: string | null) {
+  return value ? `/api/settings/platform-assets/${asset}?v=${platformAssetVersion(value)}` : null;
+}
+
+export function splitPlatformConfig(config: PlatformConfig): { settings: PlatformSettings; assetUrls: PlatformAssetUrls } {
+  const { logoDataUrl, loginBackgroundDataUrl, courseCoverDataUrl, lessonCoverDataUrl, ...settings } = config;
+  return {
+    settings,
+    assetUrls: {
+      logo: platformAssetUrl("logo", logoDataUrl),
+      loginBackground: platformAssetUrl("login-background", loginBackgroundDataUrl),
+      courseCover: platformAssetUrl("course-cover", courseCoverDataUrl),
+      lessonCover: platformAssetUrl("lesson-cover", lessonCoverDataUrl),
+    },
+  };
 }
 
 export function normalizeLoginTags(value?: unknown) {
@@ -46,7 +75,7 @@ export async function getPlatformConfig(): Promise<PlatformConfig> {
   try {
     const file = await stat(targetPath());
     if (platformConfigCache?.mtimeMs === file.mtimeMs && platformConfigCache.size === file.size) return platformConfigCache.value;
-    const value = JSON.parse(await readFile(targetPath(), "utf8")) as { platformName?: unknown; logoDataUrl?: unknown; loginBackgroundDataUrl?: unknown; courseCoverDataUrl?: unknown; lessonCoverDataUrl?: unknown; leadPcLoginTags?: unknown; leadH5LoginTags?: unknown; storeH5LoginTags?: unknown; automaticTaskExecutionTime?: unknown; defaultTaskDeadlineDayOffset?: unknown; defaultTaskDeadlineTime?: unknown; dailyLearningR2StorageId?: unknown; trainingVideoR2StorageId?: unknown; trainingAudioR2StorageId?: unknown; trainingDocumentR2StorageId?: unknown };
+    const value = JSON.parse(await readFile(targetPath(), "utf8")) as { platformName?: unknown; logoDataUrl?: unknown; loginBackgroundDataUrl?: unknown; courseCoverDataUrl?: unknown; lessonCoverDataUrl?: unknown; leadPcLoginTags?: unknown; leadH5LoginTags?: unknown; storeH5LoginTags?: unknown; automaticTaskExecutionTime?: unknown; defaultTaskDeadlineDayOffset?: unknown; defaultTaskDeadlineTime?: unknown; dailyLearningR2StorageId?: unknown; trainingVideoR2StorageId?: unknown; trainingAudioR2StorageId?: unknown; trainingDocumentR2StorageId?: unknown; aiApiEndpoints?: unknown; imageAnalysisApiUrl?: unknown; videoAnalysisApiUrl?: unknown };
     const platformName = typeof value.platformName === "string" && value.platformName.trim() ? value.platformName.trim() : DEFAULT_PLATFORM_NAME;
     const logoDataUrl = typeof value.logoDataUrl === "string" && value.logoDataUrl.startsWith("data:image/") ? value.logoDataUrl : null;
     const loginBackgroundDataUrl = typeof value.loginBackgroundDataUrl === "string" && value.loginBackgroundDataUrl.startsWith("data:image/") ? value.loginBackgroundDataUrl : null;
@@ -59,7 +88,14 @@ export async function getPlatformConfig(): Promise<PlatformConfig> {
     const trainingVideoR2StorageId = typeof value.trainingVideoR2StorageId === "string" && value.trainingVideoR2StorageId.trim() ? value.trainingVideoR2StorageId.trim() : null;
     const trainingAudioR2StorageId = typeof value.trainingAudioR2StorageId === "string" && value.trainingAudioR2StorageId.trim() ? value.trainingAudioR2StorageId.trim() : null;
     const trainingDocumentR2StorageId = typeof value.trainingDocumentR2StorageId === "string" && value.trainingDocumentR2StorageId.trim() ? value.trainingDocumentR2StorageId.trim() : null;
-    const config = { platformName, logoDataUrl, loginBackgroundDataUrl, courseCoverDataUrl, lessonCoverDataUrl, leadPcLoginTags: normalizeLoginTags(value.leadPcLoginTags), leadH5LoginTags: normalizeLoginTags(value.leadH5LoginTags), storeH5LoginTags: normalizeLoginTags(value.storeH5LoginTags), automaticTaskExecutionTime, defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime, dailyLearningR2StorageId, trainingVideoR2StorageId, trainingAudioR2StorageId, trainingDocumentR2StorageId };
+    const aiApiEndpoints = Object.fromEntries(
+      value.aiApiEndpoints && typeof value.aiApiEndpoints === "object" && !Array.isArray(value.aiApiEndpoints)
+        ? Object.entries(value.aiApiEndpoints).flatMap(([service, endpoint]) => typeof endpoint === "string" && service.trim() ? [[service.trim(), endpoint.trim()]] : [])
+        : [],
+    );
+    if (!("图片分析" in aiApiEndpoints) && typeof value.imageAnalysisApiUrl === "string") aiApiEndpoints["图片分析"] = value.imageAnalysisApiUrl.trim();
+    if (!("视频分析" in aiApiEndpoints) && typeof value.videoAnalysisApiUrl === "string") aiApiEndpoints["视频分析"] = value.videoAnalysisApiUrl.trim();
+    const config = { platformName, logoDataUrl, loginBackgroundDataUrl, courseCoverDataUrl, lessonCoverDataUrl, leadPcLoginTags: normalizeLoginTags(value.leadPcLoginTags), leadH5LoginTags: normalizeLoginTags(value.leadH5LoginTags), storeH5LoginTags: normalizeLoginTags(value.storeH5LoginTags), automaticTaskExecutionTime, defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime, dailyLearningR2StorageId, trainingVideoR2StorageId, trainingAudioR2StorageId, trainingDocumentR2StorageId, aiApiEndpoints };
     platformConfigCache = { mtimeMs: file.mtimeMs, size: file.size, value: config };
     return config;
   } catch {

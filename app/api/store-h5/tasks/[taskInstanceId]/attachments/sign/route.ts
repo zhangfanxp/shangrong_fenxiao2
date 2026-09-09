@@ -5,12 +5,13 @@ import { getStoreH5Session } from "@/lib/store-h5-auth";
 import { dateKeyAsDbDate, isStoreTaskSnapshot, shanghaiDateKey } from "@/lib/store-h5-tasks";
 import { createStoreH5UploadToken } from "@/lib/store-h5-upload-token";
 import { createStoreTaskDirectUpload, TaskAttachmentError } from "@/lib/task-r2-upload";
+import { TASK_VIDEO_MAX_BYTES } from "@/lib/task-attachment-rules";
 
 const inputSchema = z.object({
   itemIndex: z.number().int().min(0),
   name: z.string().trim().min(1).max(255),
   type: z.string().trim().min(1).max(100),
-  size: z.number().int().positive().max(20 * 1024 * 1024),
+  size: z.number().int().positive().max(TASK_VIDEO_MAX_BYTES, "任务视频不能超过100MB"),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ taskInstanceId: string }> }) {
