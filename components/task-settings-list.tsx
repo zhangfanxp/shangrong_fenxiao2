@@ -18,8 +18,8 @@ const taskTypes = [{ value: "DAILY", label: "日任务" }, { value: "WEEKLY", la
 const typeName: Record<string, string> = Object.fromEntries(taskTypes.map(item => [item.value, item.label]));
 const days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 const monthlyDays = [...Array.from({ length: 28 }, (_, index) => ({ value: String(index + 1), label: `${index + 1}日` })), { value: "LAST_DAY", label: "月末（当月最后一天）" }];
-const example = "餐厅【桌面】【摆放】｜[附件]拍照｜请拍摄桌面摆放情况｜必填｜1｜图片分析｜请分析图片中的物料是否齐全、摆放整齐且干净整洁，请回答“合格”或“不合格”，不合格时请说明理由。\n营业目标｜[输入框]金额｜请填写今日的目标营业额｜必填｜1｜｜";
-const formatExample = "门店环境｜[附件]照片｜请拍照或从相册选择照片｜必填｜1｜图片分析｜请分析门店环境是否干净整洁，请回答“合格”或“不合格”，不合格时请说明理由。\n现场水印｜[附件]拍照｜请现场拍照｜必填｜1｜｜\n培训记录｜[附件]视频｜请录像或从相册选择视频｜选填｜1｜视频分析｜请分析视频中的培训流程是否完整，不完整时请说明缺少的环节。\n现场操作｜[附件]录像｜请现场拍摄操作视频｜必填｜2｜｜\n巡检文件｜[附件]文档｜请上传巡检文档｜选填｜1｜｜\n营业目标｜[输入框]金额｜请填写今日目标营业额｜必填｜1｜｜\n来客人数｜[输入框]数量｜请填写今日来客人数｜必填｜1｜｜\n检查结果｜[下拉选框]合格,不合格｜请选择检查结果｜必填｜1｜｜";
+const example = "餐厅【桌面】【摆放】｜[附件]拍照｜请拍摄桌面摆放情况｜必填｜1｜图片分析｜请分析图片中的物料是否齐全、摆放整齐且干净整洁，请回答“合格”或“不合格”，不合格时请说明理由。\n营业目标｜[输入框]金额｜请填写今日的目标营业额｜必填｜1｜｜\n交接说明｜[输入框]文字｜请填写需要交接的事项｜选填｜1｜｜";
+const formatExample = "门店环境｜[附件]照片｜请拍照或从相册选择照片｜必填｜1｜图片分析｜请分析门店环境是否干净整洁，请回答“合格”或“不合格”，不合格时请说明理由。\n现场水印｜[附件]拍照｜请现场拍照｜必填｜1｜｜\n培训记录｜[附件]视频｜请录像或从相册选择视频｜选填｜1｜视频分析｜请分析视频中的培训流程是否完整，不完整时请说明缺少的环节。\n现场操作｜[附件]录像｜请现场拍摄操作视频｜必填｜2｜｜\n巡检文件｜[附件]文档｜请上传巡检文档｜选填｜1｜｜\n营业目标｜[输入框]金额｜请填写今日目标营业额｜必填｜1｜｜\n来客人数｜[输入框]数量｜请填写今日来客人数｜必填｜1｜｜\n交接说明｜[输入框]文字｜请填写需要交接的事项｜选填｜1｜｜\n检查结果｜[下拉选框]合格,不合格｜请选择检查结果｜必填｜1｜｜";
 const attachmentFormats = [
   { syntax: "[附件]照片", description: "现场拍照或从相册选择照片，单张最大10MB。" },
   { syntax: "[附件]拍照", description: "仅调用相机现场拍照，不提供相册照片选择，单张最大10MB。" },
@@ -29,7 +29,8 @@ const attachmentFormats = [
 ] as const;
 const otherFormats = [
   { syntax: "[输入框]金额", description: "输入非负金额，最多保留2位小数。" },
-  { syntax: "[输入框]数量", description: "输入非负整数数量。" },
+  { syntax: "[输入框]数量 / [输入框]数字", description: "输入非负整数数量，两种写法均支持。" },
+  { syntax: "[输入框]文字", description: "输入普通文字，支持多行填写。" },
   { syntax: "[下拉选框]选项1,选项2", description: "使用半角逗号分隔选项，至少配置一个有效选项。" },
 ] as const;
 
@@ -110,7 +111,7 @@ export function TaskSettingsList() {
           if (type === "MONTHLY") return <Form.Item label="每月执行日" name="monthlyExecutionDay" rules={[{ required: true, message: "请选择月任务执行日期" }]}><Select style={{ width: 280 }} placeholder="请选择" options={monthlyDays} /></Form.Item>;
           return <Alert type="info" showIcon message="临时任务不参与定时自动生成，可通过人工更新任务触发。" />;
         }}</Form.Item><div className="task-form-grid" style={{ marginTop: 16 }}><Form.Item label="任务截止日期" name="deadlineDayOffset" rules={[{ required: true, message: "请选择任务截止日期" }]}><Select options={[{ value: 0, label: "当日" }, { value: 1, label: "次日" }]} /></Form.Item><Form.Item label="任务截止时间" name="deadlineTime" rules={[{ required: true, message: "请选择任务截止时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的任务截止时间" }]}><Input type="time" step={60} /></Form.Item><Form.Item label="参与核算完成率" name="includeCompletionRate"><Select options={[{ value: true, label: "参与" }, { value: false, label: "不参与" }]} /></Form.Item></div>
-        <h3 className="task-form-heading">任务内容</h3><div className="task-submit-content-heading"><label htmlFor="submitContent"><span>*</span>提交内容</label><Button type="link" size="small" onClick={() => setFormatHelpOpen(true)}>格式说明</Button></div><Form.Item name="submitContent" rules={[{ required: true, message: "请输入提交内容" }]} extra="每行格式：任务项名称｜提交组件｜提示说明｜必填/选填｜权重｜Ai分析类型｜Ai分析提示词；兼容全角和半角竖线，最后两项同时留空表示不进行Ai分析。"><Input.TextArea id="submitContent" rows={9} placeholder={example} className="task-content-input" /></Form.Item><Collapse size="small" items={[{ key: "help", label: "查看配置格式与示例", children: <div className="task-format-summary"><p>新格式共7个字段；原有5字段任务模板仍可继续编辑和保存。</p><Descriptions bordered size="small" column={1}>{[...attachmentFormats, ...otherFormats].map(item => <Descriptions.Item key={item.syntax} label={item.syntax}>{item.description}</Descriptions.Item>)}</Descriptions><h4>可用的Ai分析类型</h4>{aiServiceLoadError ? <Alert type="warning" showIcon message="Ai服务字典暂时无法读取" /> : aiServiceOptions.length ? <Space wrap>{aiServiceOptions.map(item => <Tag color="purple" key={item.value}>{item.label}</Tag>)}</Space> : <Alert type="info" showIcon message="Ai服务字典暂无枚举值" />}<h4>完整示例（每行一个任务项）</h4><pre className="task-example">{formatExample}</pre><small>第4项只能填写“必填”或“选填”；第5项为大于0的整数权重；第6、7项必须同时填写或同时留空。</small></div> }, { key: "preview", label: `配置预览（${contentPreview.length} 项）`, children: contentPreview.length ? <Descriptions size="small" column={1}>{contentPreview.map(item => <Descriptions.Item key={item.index} label={`${item.index + 1}. ${item.fields[0] || "格式待完善"}`}><Space wrap>{item.fields[1] && <Tag>{item.fields[1]}</Tag>}{item.fields[3] && <Tag color={item.fields[3] === "必填" ? "blue" : "default"}>{item.fields[3]}</Tag>}{item.fields[4] && <Tag>权重：{item.fields[4]}</Tag>}{item.fields[5] && <Tag color="purple">Ai分析：{item.fields[5]}</Tag>}<span>{item.fields[2]}</span>{item.fields[6] && <span className="task-ai-prompt-preview">Ai提示词：{item.fields[6]}</span>}</Space></Descriptions.Item>)}</Descriptions> : "请输入提交内容后预览" }]} />
+        <h3 className="task-form-heading">任务内容</h3><div className="task-submit-content-heading"><label htmlFor="submitContent"><span>*</span>提交内容</label><Button type="link" size="small" onClick={() => setFormatHelpOpen(true)}>格式说明</Button></div><Form.Item name="submitContent" rules={[{ required: true, message: "请输入提交内容" }]} extra="每行格式：任务项名称｜提交组件｜提示说明｜必填/选填｜提交数量｜Ai分析类型｜Ai分析提示词；附件的提交数量表示最多可上传几个，非附件组件填写1。"><Input.TextArea id="submitContent" rows={9} placeholder={example} className="task-content-input" /></Form.Item><Collapse size="small" items={[{ key: "help", label: "查看配置格式与示例", children: <div className="task-format-summary"><p>新格式共7个字段；原有5字段任务模板仍可继续编辑和保存。</p><Descriptions bordered size="small" column={1}>{[...attachmentFormats, ...otherFormats].map(item => <Descriptions.Item key={item.syntax} label={item.syntax}>{item.description}</Descriptions.Item>)}</Descriptions><h4>可用的Ai分析类型</h4>{aiServiceLoadError ? <Alert type="warning" showIcon message="Ai服务字典暂时无法读取" /> : aiServiceOptions.length ? <Space wrap>{aiServiceOptions.map(item => <Tag color="purple" key={item.value}>{item.label}</Tag>)}</Space> : <Alert type="info" showIcon message="Ai服务字典暂无枚举值" />}<h4>完整示例（每行一个任务项）</h4><pre className="task-example">{formatExample}</pre><small>第4项只能填写“必填”或“选填”；第5项是附件允许上传的最大数量，必须为大于0的整数，非附件组件请填写1；第6、7项必须同时填写或同时留空。</small></div> }, { key: "preview", label: `配置预览（${contentPreview.length} 项）`, children: contentPreview.length ? <Descriptions size="small" column={1}>{contentPreview.map(item => <Descriptions.Item key={item.index} label={`${item.index + 1}. ${item.fields[0] || "格式待完善"}`}><Space wrap>{item.fields[1] && <Tag>{item.fields[1]}</Tag>}{item.fields[3] && <Tag color={item.fields[3] === "必填" ? "blue" : "default"}>{item.fields[3]}</Tag>}{item.fields[4] && <Tag>提交数量：{item.fields[4]}</Tag>}{item.fields[5] && <Tag color="purple">Ai分析：{item.fields[5]}</Tag>}<span>{item.fields[2]}</span>{item.fields[6] && <span className="task-ai-prompt-preview">Ai提示词：{item.fields[6]}</span>}</Space></Descriptions.Item>)}</Descriptions> : "请输入提交内容后预览" }]} />
         <h3 className="task-form-heading">状态</h3><Form.Item label="任务状态" name="status" rules={[{ required: true, message: "请选择任务状态" }]}><Select style={{ width: 180 }} options={[{ value: "ENABLED", label: "启用" }, { value: "DISABLED", label: "禁用" }]} /></Form.Item>
       </Form>
     </Modal>
@@ -121,7 +122,7 @@ export function TaskSettingsList() {
     <Modal title="提交内容格式规范说明" open={formatHelpOpen} width={820} footer={<Button type="primary" onClick={() => setFormatHelpOpen(false)}>我知道了</Button>} onCancel={() => setFormatHelpOpen(false)}>
       <div className="task-format-help">
         <Alert type="info" showIcon message="每个任务项单独占一行；新格式包含7个字段，原有5字段格式继续兼容。字段之间使用全角“｜”或半角“|”分隔。" />
-        <h4>每行格式</h4><pre>任务项名称｜提交组件｜提示说明｜必填/选填｜完成率权重｜Ai分析类型｜Ai分析提示词</pre>
+        <h4>每行格式</h4><pre>任务项名称｜提交组件｜提示说明｜必填/选填｜提交数量｜Ai分析类型｜Ai分析提示词</pre>
         <Descriptions title="[附件] 后支持的规范内容" bordered size="small" column={1}>
           {attachmentFormats.map(item => <Descriptions.Item key={item.syntax} label={item.syntax}>{item.description}</Descriptions.Item>)}
         </Descriptions>
@@ -129,7 +130,7 @@ export function TaskSettingsList() {
           {otherFormats.map(item => <Descriptions.Item key={item.syntax} label={item.syntax}>{item.description}</Descriptions.Item>)}
         </Descriptions>
         <h4>Ai分析类型（读取自“Ai服务”数据字典）</h4>{aiServiceLoadError ? <Alert type="warning" showIcon message="Ai服务字典暂时无法读取，请检查数据字典配置" /> : aiServiceOptions.length ? <Space wrap>{aiServiceOptions.map(item => <Tag color="purple" key={item.value}>{item.label}</Tag>)}</Space> : <Alert type="info" showIcon message="Ai服务字典暂无枚举值" />}
-        <h4>填写规则</h4><ul><li>必填属性只能填写“必填”或“选填”。</li><li>完成率权重必须填写大于0的整数。</li><li>Ai分析类型和Ai分析提示词必须同时填写或同时留空；同时留空表示当前任务项不进行Ai分析。</li><li>Ai分析类型必须填写上方“Ai服务”数据字典中的有效枚举值。</li><li>Ai分析提示词可以换行续写；续写行不能包含竖线，保存后系统会自动合并为空格。</li><li>每行不能缺少前5个字段，也不要在字段内容中使用竖线。</li></ul>
+        <h4>填写规则</h4><ul><li>必填属性只能填写“必填”或“选填”。</li><li>第5项“提交数量”必须填写大于0的整数；附件组件表示允许上传的最大附件数，必填附件最少上传1个，非附件组件请填写1。</li><li>Ai分析类型和Ai分析提示词必须同时填写或同时留空；同时留空表示当前任务项不进行Ai分析。</li><li>Ai分析类型必须填写上方“Ai服务”数据字典中的有效枚举值。</li><li>Ai分析提示词可以换行续写；续写行不能包含竖线，保存后系统会自动合并为空格。</li><li>每行不能缺少前5个字段，也不要在字段内容中使用竖线。</li></ul>
         <h4>完整示例</h4><pre>{formatExample}</pre>
       </div>
     </Modal>

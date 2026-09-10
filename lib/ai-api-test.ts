@@ -1,9 +1,15 @@
 const VIDEO_TEST_FILE_BASE64 = "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";
 
+import { aiModelLabel, aiModelSupportsService, aiServiceKind, type AiModelId } from "@/lib/ai-model-adapters";
+
+const IMAGE_TEST_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
 type AiApiTestKind = "image" | "video" | "text" | "generic";
 
 export type AiApiTestResult = {
   service: string;
+  model: AiModelId;
+  modelLabel: string;
   label: string;
   ok: boolean;
   message: string;
@@ -49,7 +55,7 @@ function remoteErrorMessage(payload: unknown) {
   return candidate.trim().slice(0, 300);
 }
 
-async function analyzeResponse(response: Response, kind: AiApiTestKind) {
+async function responseJson(response: Response) {
   const responseText = await response.text();
   let payload: unknown;
   try {
@@ -57,12 +63,15 @@ async function analyzeResponse(response: Response, kind: AiApiTestKind) {
   } catch {
     throw new Error(response.ok ? "接口未返回有效的 JSON 数据" : `接口返回 HTTP ${response.status}`);
   }
-
   if (!response.ok) {
     const detail = remoteErrorMessage(payload);
     throw new Error(`接口返回 HTTP ${response.status}${detail ? `：${detail}` : ""}`);
   }
+  return payload;
+}
 
+async function analyzeMageResponse(response: Response, kind: AiApiTestKind) {
+  const payload = await responseJson(response);
   if (!payload || typeof payload !== "object") throw new Error("接口响应格式不正确");
   const result = payload as { success?: unknown; media_type?: unknown; result?: unknown };
   if (result.success !== true) throw new Error("接口响应未标记为成功");
@@ -73,23 +82,52 @@ async function analyzeResponse(response: Response, kind: AiApiTestKind) {
   if (typeof result.result !== "string" || !result.result.trim()) throw new Error("接口调用成功，但分析结果为空");
 }
 
-function serviceTestKind(service: string): AiApiTestKind {
-  const normalized = service.toLowerCase();
-  if (service.includes("图片") || normalized.includes("image")) return "image";
-  if (service.includes("视频") || normalized.includes("video")) return "video";
-  if (service.includes("文字") || service.includes("文本") || normalized.includes("text")) return "text";
-  return "generic";
+async function analyzeQwenResponse(response: Response) {
+  const payload = await responseJson(response);
+  if (!payload || typeof payload !== "object") throw new Error("接口响应格式不正确");
+  const result = payload as { ok?: unknown; answer?: unknown };
+  if (result.ok !== true) throw new Error("接口响应未标记为成功");
+  if (typeof result.answer !== "string" || !result.answer.trim()) throw new Error("接口调用成功，但分析结果为空");
 }
 
-export async function testAiAnalysisApi(service: string, endpoint: string): Promise<AiApiTestResult> {
-  const kind = serviceTestKind(service);
+function qwenHealthUrl(endpoint: string) {
+  const url = new URL(endpoint);
+  const healthPath = url.pathname.replace(/\/v1\/analyze\/?$/, "/health");
+  if (healthPath === url.pathname) throw new Error("Qwen3 VL接口地址应以/v1/analyze结尾");
+  url.pathname = healthPath;
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
+async function checkQwenHealth(endpoint: string) {
+  const response = await fetch(qwenHealthUrl(endpoint), { cache: "no-store", signal: AbortSignal.timeout(15_000) });
+  const payload = await responseJson(response);
+  if (!payload || typeof payload !== "object") throw new Error("健康检查响应格式不正确");
+  const health = payload as { status?: unknown; model_loaded?: unknown };
+  if (health.status !== "ok" || health.model_loaded !== true) throw new Error("Qwen3 VL模型尚未加载完成");
+}
+
+export async function testAiAnalysisApi(service: string, model: AiModelId, endpoint: string): Promise<AiApiTestResult> {
+  const kind = aiServiceKind(service);
   const label = `【${service}】接口`;
+  const modelLabel = aiModelLabel(model);
   const startedAt = performance.now();
 
   try {
+    if (!aiModelSupportsService(model, service)) throw new Error(`${modelLabel}暂不支持${service}`);
     let body: BodyInit;
     let headers: HeadersInit | undefined;
-    if (kind === "image" || kind === "video") {
+    if (model === "QWEN3_VL") {
+      await checkQwenHealth(endpoint);
+      const formData = new FormData();
+      formData.append("image", new Blob([Buffer.from(IMAGE_TEST_PNG_BASE64, "base64")], { type: "image/png" }), "ai-api-test.png");
+      formData.append("prompt", "请简短描述这张测试图片。");
+      formData.append("max_tokens", "128");
+      formData.append("temperature", "0");
+      formData.append("max_image_dimension", "256");
+      body = formData;
+    } else if (kind === "image" || kind === "video") {
       const formData = new FormData();
       const isImage = kind === "image";
       const fileBytes = isImage ? createImageTestFile() : Buffer.from(VIDEO_TEST_FILE_BASE64, "base64");
@@ -116,8 +154,9 @@ export async function testAiAnalysisApi(service: string, endpoint: string): Prom
       });
     }
     const response = await fetch(endpoint, { method: "POST", headers, body, cache: "no-store", signal: AbortSignal.timeout(TEST_TIMEOUT_MILLISECONDS) });
-    await analyzeResponse(response, kind);
-    return { service, label, ok: true, message: `${label}连接正常，已成功返回分析结果。`, elapsedMilliseconds: Math.round(performance.now() - startedAt) };
+    if (model === "QWEN3_VL") await analyzeQwenResponse(response);
+    else await analyzeMageResponse(response, kind);
+    return { service, model, modelLabel, label, ok: true, message: `${label}连接正常，已成功返回分析结果。`, elapsedMilliseconds: Math.round(performance.now() - startedAt) };
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
     const connectionFailed = error instanceof TypeError && error.message === "fetch failed";
@@ -126,6 +165,6 @@ export async function testAiAnalysisApi(service: string, endpoint: string): Prom
       : connectionFailed
         ? "无法连接接口，请确认地址、端口和模型服务运行状态"
         : error instanceof Error ? error.message : "无法连接接口";
-    return { service, label, ok: false, message: detail, elapsedMilliseconds: Math.round(performance.now() - startedAt) };
+    return { service, model, modelLabel, label, ok: false, message: detail, elapsedMilliseconds: Math.round(performance.now() - startedAt) };
   }
 }

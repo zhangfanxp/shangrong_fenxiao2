@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     const clearAllTaskRecords = targets.includes("taskSettings") || targets.includes("taskRecords");
     const clearTaskRecords = clearStores || clearAllTaskRecords;
     const clearPersonnel = clearStores || targets.includes("personnel");
+    const clearItemRequisitions = clearPersonnel || targets.includes("workwearInventory") || targets.includes("itemRequisitions");
     const clearAssessmentSettings = targets.includes("assessmentSettings");
     const clearReviews = clearStores || clearAssessmentSettings || targets.includes("storeReviews");
     const clearResearchTemplates = targets.includes("researchTemplates");
@@ -88,11 +89,22 @@ export async function POST(request: Request) {
       recordDeleted("researchTemplateBrands", "调研模版适用品牌", (await tx.researchTemplateBrand.deleteMany()).count);
       recordDeleted("researchTemplates", "调研模版", (await tx.researchTemplate.deleteMany()).count);
     }
+    if (clearItemRequisitions) {
+      recordDeleted("itemRequisitionReturns", "物品返还记录", (await tx.itemRequisitionReturn.deleteMany()).count);
+      recordDeleted("itemRequisitions", "领用记录", (await tx.itemRequisition.deleteMany()).count);
+      await tx.itemRequisitionSequence.deleteMany();
+    }
     if (clearPersonnel) {
       recordDeleted("salaryHistory", "薪资调整记录", (await tx.salaryHistory.deleteMany()).count);
       recordDeleted("positionHistory", "岗位调动记录", (await tx.positionHistory.deleteMany()).count);
       recordDeleted("personnel", "人员档案", (await tx.personnel.deleteMany()).count);
       await tx.personnelSequence.deleteMany();
+    }
+    if (targets.includes("workwearInventory")) {
+      recordDeleted("inventoryTransactions", "库存流水", (await tx.inventoryTransaction.deleteMany()).count);
+      recordDeleted("inventoryItems", "物品档案", (await tx.inventoryItem.deleteMany()).count);
+      await tx.inventoryTransactionSequence.deleteMany();
+      await tx.inventoryItemSequence.deleteMany();
     }
     if (targets.includes("taskSettings")) {
       await tx.r2StorageReference.deleteMany({ where: { businessType: "TASK" } });

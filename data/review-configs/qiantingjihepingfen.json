@@ -5,21 +5,20 @@
   "scoreMode": "CUSTOM_SCORE",
   "scoreModeLabel": "允许自定义得分",
   "applicableBrands": [
-    "奋小二",
-    "蚝家伙",
-    "禾穆婆"
+    "奋小二"
   ],
   "photoStorage": {
     "id": "cmt0xbey80005tncek1xtase8",
     "name": "R2-test"
   },
   "photoAttachmentLimit": 3,
-  "configVersion": 6,
-  "totalScore": 37,
+  "detailFormat": "AUDIT",
+  "configVersion": 8,
+  "totalScore": 100,
   "statistics": {
-    "sectionCount": 2,
-    "subsectionCount": 4,
-    "itemCount": 12
+    "sectionCount": 5,
+    "subsectionCount": 9,
+    "itemCount": 76
   },
   "sections": [
     {
@@ -30,56 +29,50 @@
           "items": [
             {
               "id": "item_1",
-              "description": "服装：着工装、符合门店着装要求",
+              "description": "仪表：保持良好个人卫生、不蓬头垢面；服装：着工装、符合门店着装要求，工装整洁无油、无异味",
               "maxScore": 1,
               "supportsPhoto": true
             },
             {
               "id": "item_2",
-              "description": "仪表：保持良好个人卫生、着装整洁、不蓬头垢面",
+              "description": "仪容：不留长指甲，不涂指甲油，不佩戴规定外的个性首饰，仪态：礼貌待客、积极热情，面带微笑",
               "maxScore": 1,
               "supportsPhoto": true
             },
             {
               "id": "item_3",
-              "description": "清洁：工装干净整洁无污渍、油渍、异味",
+              "description": "装备：员工佩戴耳机和二维码物料一次性围裙手套等物料",
               "maxScore": 1,
-              "supportsPhoto": false
-            },
-            {
-              "id": "item_4",
-              "description": "仪态：礼貌待客、积极热情，面带微笑",
-              "maxScore": 1,
-              "supportsPhoto": false
-            },
-            {
-              "id": "item_7",
-              "description": "当班时间不嬉笑打闹，不大声喧哗；时刻保持乐观心态",
-              "maxScore": 2,
-              "supportsPhoto": false
+              "supportsPhoto": true
             }
           ]
         },
         {
-          "name": "记录与规范",
+          "name": "纪律与规范",
           "items": [
             {
-              "id": "item_5",
+              "id": "item_4",
               "description": "出勤：按时打卡、上下班。不得无故迟到、早退、脱岗、矿工",
-              "maxScore": 2,
-              "supportsPhoto": false
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_5",
+              "description": "服从岗位安排，工作时间不擅自离岗换岗、不顶撞上级",
+              "maxScore": 1,
+              "supportsPhoto": true
             },
             {
               "id": "item_6",
-              "description": "服从岗位安排，工作时间不擅自离岗换岗、不顶撞上级",
-              "maxScore": 2,
-              "supportsPhoto": false
+              "description": "当班时间员工之间不嬉笑打闹，不大声喧哗；时刻保持乐观心态",
+              "maxScore": 1,
+              "supportsPhoto": true
             },
             {
-              "id": "item_8",
+              "id": "item_7",
               "description": "不与就餐顾客争吵，冷静处理顾客投诉事件",
-              "maxScore": 1,
-              "supportsPhoto": false
+              "maxScore": 2,
+              "supportsPhoto": true
             }
           ]
         }
@@ -92,16 +85,111 @@
           "name": "餐具",
           "items": [
             {
+              "id": "item_8",
+              "description": "客用一次性餐具包装完整、无破损、无油渍、在使用效期以内，未先进先出使用",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
               "id": "item_9",
-              "description": "客用一次性餐具包装完整、无破损、无油渍",
-              "maxScore": 5,
-              "supportsPhoto": false
+              "description": "前厅使用餐具、卡式炉、调料盒、三面台卡、餐巾纸盒等干净无污染",
+              "maxScore": 1,
+              "supportsPhoto": true
             },
             {
               "id": "item_10",
-              "description": "客用一次性餐具独立包装保证在使用效期以内，不得过期或未先进先出使用",
+              "description": "前厅展柜及小料台用具工具干净整洁，定位准确",
               "maxScore": 1,
-              "supportsPhoto": false
+              "supportsPhoto": true
+            }
+          ]
+        },
+        {
+          "name": "自助区域",
+          "items": [
+            {
+              "id": "item_11",
+              "description": "自助涮菜展示柜开启灯光，干净整洁、无水渍、无油渍，冰箱结霜小于1厘米",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_12",
+              "description": "自助涮菜区域种类齐全，蔬菜类不少于4种，冻货类不少于4种，提供免费水果和小菜各不少于2种",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_13",
+              "description": "餐前所有菜品补充充足、新鲜、无黄叶、、丰满，泡水菜品，水干净无污染",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_14",
+              "description": "自助小料台备货充足，台面干净整洁无水、无油。餐前冰箱内备货充足，无缺货、断货情况、",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_15",
+              "description": "餐中菜品缺量及时添加，补充菜品时间不得超过10分钟",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_16",
+              "description": "冰箱内备货所有食材加盖或封膜储藏",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_17",
+              "description": "蒜泥按要求泡醋，醋桶保持干净整洁，葱、香菜新鲜无黄叶",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_18",
+              "description": "小料餐中及时补货，补货时间不超过10分钟。餐中米饭保证充足，不可断货超过10分钟以上",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_19",
+              "description": "打样小料封保鲜膜，放置再冷藏位置储藏",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_20",
+              "description": "大米保证当天不隔夜使用",
+              "maxScore": 5,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_21",
+              "description": "米饭铲放置再不锈钢料缸内，加冰水混合进行泡制",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_22",
+              "description": "米饭桶干净无多余米粒，餐中及时清洁，清洁时间不得大于10分钟",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_23",
+              "description": "消毒柜开启，所有餐具保证消毒干净，无油、无水、无污染",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_24",
+              "description": "开水器干净表面无水渍、油渍",
+              "maxScore": 1,
+              "supportsPhoto": true
             }
           ]
         },
@@ -109,16 +197,351 @@
           "name": "厅面",
           "items": [
             {
-              "id": "item_11",
-              "description": "提供免费小吃独立包装不少于2种且备货不少于1/2",
-              "maxScore": 10,
-              "supportsPhoto": false
+              "id": "item_25",
+              "description": "提供免费花生、瓜子不少于2种且备货不少于1/2",
+              "maxScore": 1,
+              "supportsPhoto": true
             },
             {
-              "id": "item_12",
-              "description": "收银台酒水柜保持干净整洁，无粉尘、无水渍、无杂物",
-              "maxScore": 10,
-              "supportsPhoto": false
+              "id": "item_26",
+              "description": "免费雪糕冰箱干净整洁无污染，冰箱贴纸无破损。冰糕充足不得少于1/2",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_27",
+              "description": "收银台酒水柜保持干净整洁，无粉尘、无水渍、无杂物、有对应价格签、价格签无破损、无污染",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_28",
+              "description": "餐厅地面干净整洁、无油污、无垃圾、无粉尘",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_29",
+              "description": "餐厅大门完好、无灰层、定期擦拭；门上玻璃无水渍、无油渍、无张贴背胶、灯具是否完整无破损",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_30",
+              "description": "门店各区域玻璃干净整洁，定期擦拭，无水渍、无油渍、无张贴背胶及粉尘",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_31",
+              "description": "桌椅摆放整齐，干净整洁、无油污，无残渣、无明显水渍",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_32",
+              "description": "台面摆放按公司要求统一",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_33",
+              "description": "空调干净整洁，无粉尘、无蜘蛛网",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_34",
+              "description": "出餐窗口干净整洁，收银台橱柜无杂物；无药品、无与门店经营无关的其他物品且物品整齐",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_35",
+              "description": "清洁用具摆放整齐，指定地点存放，清洁用品（化学用品）指定存放专人管理",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_36",
+              "description": "门店收桌严格按标准流程操作",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_37",
+              "description": "洗手间保持干净无异味，无积水、开餐前厕桶内无超量厕纸，做到及时清理",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_38",
+              "description": "垃圾桶干净整洁、无异味，套袋规整",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "职业素养",
+      "children": [
+        {
+          "name": "服务质量",
+          "items": [
+            {
+              "id": "item_39",
+              "description": "迎客接待：（欢迎语：您好，欢迎光临奋小二）要点，所有员工齐声迎宾语。（一呼百应）",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_40",
+              "description": "接待用语：（您好，您一共几位、接过客人手中的物品；请这里落座）",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_41",
+              "description": "点餐用语：（我们提供免费小吃，您先看一下菜单，给您倒点水）",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_42",
+              "description": "建议销售用语：（您好，咱们最近新品上市或XX活动是否参与一下）",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_43",
+              "description": "建议销售用语：小吃烧烤饮品凉菜推荐（可以自行扫码下单）",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_44",
+              "description": "团购推荐：根据客人数量推荐套餐（您好，线上有团购套餐也可以选择下单，建议您选双拼的XXX锅）",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_45",
+              "description": "特殊服务：根据顾客需求提供宝宝椅、头绳、围裙、手套等",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_46",
+              "description": "点餐结束：（您好，产品已经给你核验下单，我们是鲜鸡现炒，大约需要15-20分钟）",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_47",
+              "description": "上餐服务：传菜员核对小票信息，核对产品、桌号、口味，符合标准、确认无误后上餐",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_48",
+              "description": "上餐服务：您好打扰一下您点的XX产品，请慢用；上锅告知顾客先吃肉后涮菜，提醒顾客涮菜区域和米饭免费自取",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_49",
+              "description": "灵魂蘸料：您好，您可以用餐具里面的小碗先盛一下灵魂蘸料甜醋加蒜泥，搭配起来味道会更好吃",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_50",
+              "description": "巡台服务：及时确认顾客菜品是否上齐，主动给顾客加汤，加汤时提醒顾客小心烫",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_51",
+              "description": "巡台服务：及时发现顾客需求，清洁台面，关注顾客火力大小调节",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_52",
+              "description": "餐中服务:顾客需要时，3秒及时回复顾客，您好，稍等马上来",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_53",
+              "description": "餐尾服务：针对团购顾客主动沟通用餐体验给予线上评价",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_54",
+              "description": "送客服务：您好带好您的随身物品请慢走，欢迎下次光临，提供清口糖",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "安全与品质管理",
+      "children": [
+        {
+          "name": "安全管理",
+          "items": [
+            {
+              "id": "item_55",
+              "description": "定期检查消防设施，确保消防设施的正常使用、且定点存放，正确登记消防检查记录表",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_56",
+              "description": "消防栓内和灭火器周边禁止堆放杂物和缺少消防配置工具",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_57",
+              "description": "消防应急灯的是否能够正常使用、门店所有电路是否有外漏、无防护现象",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_58",
+              "description": "前厅所有员工会正确使用消防设备、员工懂得并具备消防四懂四会",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_59",
+              "description": "洗化、消毒物品需独立存放，禁止和食物原料混放",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_60",
+              "description": "门店日常运营是否按时消杀且有消杀记录，门店台账记录完整，无缺项、漏项",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_61",
+              "description": "门店拖地时需使用小心地滑牌",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_62",
+              "description": "食品存放是否有临期食品、未先进先出等现象",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_63",
+              "description": "门店健康证完整，无未持证上岗情况",
+              "maxScore": 2,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "其他检查",
+      "children": [
+        {
+          "name": "检查内容",
+          "items": [
+            {
+              "id": "item_64",
+              "description": "储存库房干净整洁定期检查与整理",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_65",
+              "description": "库房物品无临期、无折损、无霉斑、无混装",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_66",
+              "description": "门店内所有证照齐全且悬挂指定处；证件均在效期内",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_67",
+              "description": "按时开关营业灯光、音响、电视、门头招牌",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_68",
+              "description": "门店清洁使用的抹布无异味、不粘手、正确分色使用",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_69",
+              "description": "门店绿植无黄叶、枯叶",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_70",
+              "description": "点餐单是否干净整洁，监控是否正常运行",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_71",
+              "description": "店内海报、活动展架是否干净整洁；活动内容是否执行",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_72",
+              "description": "门店品牌宣传品带logo物品干净整洁无污染（门帘、画面、吊旗、菜单、立卡）等",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_73",
+              "description": "门店外围清洁干净整洁无堆放杂物、三包区域干净整洁",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_74",
+              "description": "前厅传菜未擦碗边、盘边，未使用托盘",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        },
+        {
+          "name": "线上",
+          "items": [
+            {
+              "id": "item_75",
+              "description": "抖音评分不低于4.6、",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_76",
+              "description": "美团评分不低于4.6、",
+              "maxScore": 2,
+              "supportsPhoto": true
             }
           ]
         }

@@ -1,6 +1,6 @@
 "use client";
 
-import { DownloadOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { DeleteOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined, SearchOutlined, WarningOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, DatePicker, Descriptions, Empty, Form, Image, Input, message, Modal, Select, Skeleton, Space, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType, TableRowSelection } from "antd/es/table/interface";
 import type { Dayjs } from "dayjs";
@@ -84,6 +84,7 @@ export function IntelligentAnalysisList({ permissions }: { permissions: string[]
   const hasAll = permissions.includes("*");
   const canView = hasAll || permissions.includes("intelligent-analysis:view");
   const canExport = hasAll || permissions.includes("intelligent-analysis:export");
+  const canDelete = hasAll || permissions.includes("intelligent-analysis:delete");
   const [form] = Form.useForm<FormValues>();
   const { options: dictionaries, loading: brandsLoading, error: brandsError, reload: reloadBrands } = useBusinessDictionaries(["BRAND"]);
   const [taskOptions, setTaskOptions] = useState<TaskOption[]>([]);
@@ -102,6 +103,8 @@ export function IntelligentAnalysisList({ permissions }: { permissions: string[]
   const [detail, setDetail] = useState<AnalysisDetail>();
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(false);
+  const [deleteRow, setDeleteRow] = useState<AnalysisRow>();
+  const [deleting, setDeleting] = useState(false);
   const listRequestSequence = useRef(0);
 
   const loadTaskOptions = useCallback(async () => {
@@ -215,6 +218,25 @@ export function IntelligentAnalysisList({ permissions }: { permissions: string[]
     } finally { setDetailLoading(false); }
   };
 
+  const performDelete = async () => {
+    if (!deleteRow) return;
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/intelligent-analysis/${deleteRow.id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "智能分析记录删除失败，请稍后重试");
+      message.success(data.message);
+      setSelectedRowKeys(keys => keys.filter(key => String(key) !== deleteRow.id));
+      if (detailId === deleteRow.id) { setDetailId(undefined); setDetail(undefined); }
+      setDeleteRow(undefined);
+      const nextPage = rows.length === 1 && page > 1 ? page - 1 : page;
+      setPage(nextPage);
+      await load(nextPage, pageSize, filters);
+    } catch (reason) {
+      message.error(reason instanceof Error ? reason.message : "智能分析记录删除失败，请稍后重试");
+    } finally { setDeleting(false); }
+  };
+
   const columns: ColumnsType<AnalysisRow> = [
     { title: "记录编号", dataIndex: "recordNo", width: 145, fixed: "left" },
     { title: "任务名称", dataIndex: "taskName", width: 210, ellipsis: { showTitle: false }, render: value => <Tooltip title={value}>{value}</Tooltip> },
@@ -224,7 +246,7 @@ export function IntelligentAnalysisList({ permissions }: { permissions: string[]
     { title: "任务执行人", dataIndex: "executorName", width: 120, ellipsis: true },
     { title: "任务提交时间", dataIndex: "taskSubmittedAt", width: 170 },
     { title: "分析结果", dataIndex: "analysisResultSummary", width: 240 },
-    { title: "操作", key: "actions", width: 80, fixed: "right", render: (_, row) => canView ? <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => void openDetail(row.id)}>查看</Button> : "-" },
+    { title: "操作", key: "actions", width: canView && canDelete ? 128 : 80, fixed: "right", render: (_, row) => <Space size={4} className="table-actions">{canView && <Button type="link" size="small" icon={<EyeOutlined />} disabled={deleting} onClick={() => void openDetail(row.id)}>查看</Button>}{canDelete && <Button type="link" danger size="small" icon={<DeleteOutlined />} disabled={deleting} onClick={() => setDeleteRow(row)}>删除</Button>}{!canView && !canDelete && "-"}</Space> },
   ];
 
   const rowSelection: TableRowSelection<AnalysisRow> = {
@@ -257,8 +279,8 @@ export function IntelligentAnalysisList({ permissions }: { permissions: string[]
       <div className="intelligent-analysis-toolbar">
         <span>已选择 <strong>{selectedRowKeys.length}</strong> 条</span>
         <Space>
-          <Button icon={<ReloadOutlined />} disabled={exporting} onClick={() => void load()}>刷新</Button>
-          {canExport && <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => void exportRows()}>{exporting ? "导出中..." : "批量导出"}</Button>}
+          <Button icon={<ReloadOutlined />} disabled={exporting || deleting} onClick={() => void load()}>刷新</Button>
+          {canExport && <Button icon={<DownloadOutlined />} loading={exporting} disabled={deleting} onClick={() => void exportRows()}>{exporting ? "导出中..." : "批量导出"}</Button>}
         </Space>
       </div>
       {loadError ? <Alert type="error" showIcon message="智能分析记录加载失败，请稍后重试" action={<Button size="small" onClick={() => void load()}>重新加载</Button>} /> : <Table<AnalysisRow>
@@ -304,6 +326,11 @@ export function IntelligentAnalysisList({ permissions }: { permissions: string[]
           </Descriptions>
         </section>)}
       </div>}
+    </Modal>
+
+    <Modal open={!!deleteRow} title={<Space><WarningOutlined style={{ color: "#ff4d4f" }} />温馨提示</Space>} onCancel={() => !deleting && setDeleteRow(undefined)} closable={!deleting} maskClosable={!deleting} keyboard={!deleting} footer={<Space><Button disabled={deleting} onClick={() => setDeleteRow(undefined)}>我再想想</Button><Button danger type="primary" loading={deleting} onClick={() => void performDelete()}>{deleting ? "删除中..." : "我知道了，继续删除"}</Button></Space>}>
+      <Alert type="error" showIcon message="删除操作不可逆" description={deleteRow ? `${deleteRow.recordNo} · ${deleteRow.taskName} · 任务记录 ${deleteRow.taskRecordNo}` : undefined} />
+      <div className="task-record-delete-copy"><p>删除成功后，当前智能分析记录及分析明细将无法恢复。</p><p>关联的任务记录及用户提交内容不会删除，并将恢复为“未进行智能分析”状态；具备任务记录编辑权限的用户可重新执行编辑操作。</p><p>如需再次分析，可返回任务记录列表重新执行智能分析。</p><p>请谨慎操作。</p></div>
     </Modal>
   </>;
 }

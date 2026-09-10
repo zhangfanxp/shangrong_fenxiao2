@@ -29,6 +29,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     if (!isStoreTaskSnapshot(record.configSnapshot)) return NextResponse.json({ message: "任务配置快照异常" }, { status: 500 });
     const item = record.configSnapshot.submitItems[parsed.data.itemIndex];
     if (!item || item.component !== "attachment" || !["photo", "video", "document"].includes(item.dataType || "")) return NextResponse.json({ message: "当前任务项不支持附件上传" }, { status: 400 });
+    const uploadedCount = await db.taskAttachment.count({ where: { taskRecordId: record.id, itemIndex: parsed.data.itemIndex, uploaderUserId: session.userId, consumedAt: null } });
+    if (uploadedCount >= item.weight) return NextResponse.json({ message: `“${item.name}”最多上传${item.weight}个附件` }, { status: 409 });
     const r2StorageId = record.configSnapshot.storageSpace?.id || record.task.r2StorageId;
     if (!r2StorageId) return NextResponse.json({ message: "当前任务未配置可用存储空间" }, { status: 409 });
     const direct = await createStoreTaskDirectUpload({

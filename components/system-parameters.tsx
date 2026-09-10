@@ -4,6 +4,7 @@ import { LoadingOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons
 import { Alert, Button, Card, Empty, Form, Input, InputNumber, message, Modal, Result, Select, Space, Table, Upload } from "antd";
 import type { UploadProps } from "antd";
 import { useEffect, useState } from "react";
+import { AI_MODEL_OPTIONS, aiEndpointExample, aiModelLabel, aiModelSupportsService, normalizeAiServiceApiConfig, type AiModelId, type AiServiceApiConfig } from "@/lib/ai-model-adapters";
 import type { PlatformAssetUrls, PlatformSettings } from "@/lib/platform-config";
 
 type BrandOption = { label: string; value: string };
@@ -11,8 +12,8 @@ type R2StorageOption = { label: string; value: string };
 type BrandDayHour = { brand: string; workdayHours: number };
 type PlatformValues = { platformName: string; leadPcLoginTags: string; leadH5LoginTags: string; storeH5LoginTags: string; automaticTaskExecutionTime: string; defaultTaskDeadlineDayOffset: 0 | 1; defaultTaskDeadlineTime: string };
 type TrainingValues = { dailyLearningR2StorageId: string | null; trainingVideoR2StorageId: string | null; trainingAudioR2StorageId: string | null; trainingDocumentR2StorageId: string | null };
-type AiApiValues = { endpoints: Record<string, string> };
-type AiApiTestResult = { service: string; label: string; ok: boolean; message: string; elapsedMilliseconds: number };
+type AiApiValues = { services: Record<string, AiServiceApiConfig> };
+type AiApiTestResult = { service: string; model: AiModelId; modelLabel: string; label: string; ok: boolean; message: string; elapsedMilliseconds: number };
 type AiApiTestDialog = { open: boolean; phase: "testing" | "success" | "error"; message: string; results: AiApiTestResult[] };
 type BrandHourValues = { brand: string; workdayHours: number };
 type SchedulerStatus = {
@@ -37,6 +38,7 @@ const loginAddresses: Array<{ title: string; path: string; field: "leadPcLoginTa
 ];
 
 export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageOptions, aiServiceOptions, aiServiceLoadError }: { initialPlatform: PlatformSettings; initialAssetUrls: PlatformAssetUrls; r2StorageOptions: R2StorageOption[]; aiServiceOptions: R2StorageOption[]; aiServiceLoadError: boolean }) {
+  const initialAiApiServices = Object.fromEntries(aiServiceOptions.map(service => [service.value, normalizeAiServiceApiConfig(initialPlatform.aiApiServices[service.value], service.value)]));
   const [platformForm] = Form.useForm<PlatformValues>();
   const [trainingForm] = Form.useForm<TrainingValues>();
   const [aiApiForm] = Form.useForm<AiApiValues>();
@@ -205,10 +207,11 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
   const saveAiApi = async () => {
     if (aiApiSaving) return;
     try {
-      const values = await aiApiForm.validateFields();
+      await aiApiForm.validateFields();
       setAiApiSaving(true);
-      const endpoints = aiServiceOptions.map(service => ({ service: service.value, url: values.endpoints?.[service.value]?.trim() || "" }));
-      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section: "aiApi", endpoints }) });
+      const values = aiApiForm.getFieldsValue(true);
+      const services = aiServiceOptions.map(service => ({ service: service.value, ...normalizeAiServiceApiConfig(values.services?.[service.value], service.value) }));
+      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section: "aiApi", services }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) return void message.error(data.message || "Ai API配置保存失败，请稍后重试");
       Modal.success({ title: "温馨提示", content: data.message || "Ai API配置已保存成功。", okText: "我知道了", centered: true });
@@ -219,19 +222,29 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
     }
   };
 
-  const testAiApi = async () => {
+  const testAiApi = async (targetService?: string) => {
     if (aiApiTesting) return;
     try {
-      const values = await aiApiForm.validateFields();
-      const endpoints = aiServiceOptions.map(service => ({ service: service.value, url: values.endpoints?.[service.value]?.trim() || "" }));
-      const missingServices = endpoints.filter(endpoint => !endpoint.url).map(endpoint => `【${endpoint.service}】`);
+      if (targetService) {
+        const current = normalizeAiServiceApiConfig(aiApiForm.getFieldValue(["services", targetService]), targetService);
+        await aiApiForm.validateFields([
+          ["services", targetService, "selectedModel"],
+          ["services", targetService, "endpoints", current.selectedModel],
+        ]);
+      } else {
+        await aiApiForm.validateFields();
+      }
+      const values = aiApiForm.getFieldsValue(true);
+      const services = aiServiceOptions.map(service => ({ service: service.value, ...normalizeAiServiceApiConfig(values.services?.[service.value], service.value) }));
+      const servicesToTest = targetService ? services.filter(service => service.service === targetService) : services;
+      const missingServices = servicesToTest.filter(service => !service.endpoints[service.selectedModel]).map(service => `【${service.service}】`);
       if (missingServices.length) {
         Modal.warning({ title: "温馨提示", content: `请先填写${missingServices.join("、")}接口，再进行接口测试。`, okText: "我知道了", centered: true });
         return;
       }
       setAiApiTesting(true);
-      setAiApiTestDialog({ open: true, phase: "testing", message: "系统正在提交内置测试内容并等待各项服务返回分析结果，首次加载模型可能需要较长时间。", results: [] });
-      const response = await fetch("/api/settings/ai-api/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoints }) });
+      setAiApiTestDialog({ open: true, phase: "testing", message: targetService ? `系统正在测试【${targetService}】接口并等待模型返回结果。` : "系统正在提交内置测试内容并等待各项服务返回分析结果，首次加载模型可能需要较长时间。", results: [] });
+      const response = await fetch("/api/settings/ai-api/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ services, targetService }) });
       const data = await response.json().catch(() => ({})) as { success?: boolean; message?: string; results?: AiApiTestResult[] };
       const success = response.ok && data.success === true;
       setAiApiTestDialog({
@@ -392,20 +405,27 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
     </Card>
 
     <Card title="Ai API" className="system-parameter-card" extra={<Space><Button loading={aiApiTesting} disabled={aiApiSaving || aiServiceLoadError || !aiServiceOptions.length} onClick={() => void testAiApi()}>接口测试</Button><Button type="primary" loading={aiApiSaving} disabled={aiApiTesting || aiServiceLoadError || !aiServiceOptions.length} onClick={() => void saveAiApi()}>保存</Button></Space>}>
-      <Form form={aiApiForm} layout="vertical" disabled={aiApiTesting} initialValues={{ endpoints: initialPlatform.aiApiEndpoints }}>
+      <Form form={aiApiForm} layout="vertical" disabled={aiApiTesting} initialValues={{ services: initialAiApiServices }}>
         <div className="platform-ai-api-grid">
           {aiServiceLoadError
             ? <Alert type="error" showIcon message="Ai服务字典读取失败" description="请检查《数据字典》中的Ai服务（Ai_Service）记录是否存在、已启用且枚举值文件可正常读取。" />
             : !aiServiceOptions.length
               ? <Alert type="warning" showIcon message="Ai服务字典暂无枚举值" description="请先在《数据字典》的Ai服务（Ai_Service）记录中添加枚举值。" />
-              : aiServiceOptions.map(service => {
-                const lowerName = service.label.toLowerCase();
-                const path = service.label.includes("图片") || lowerName.includes("image") ? "image" : service.label.includes("视频") || lowerName.includes("video") ? "video" : service.label.includes("文字") || service.label.includes("文本") || lowerName.includes("text") ? "text" : "";
-                const example = path ? `例如：http://127.0.0.1:8000/api/v1/analyze/${path}` : `请填写【${service.label}】服务的完整接口地址`;
-                return <Form.Item key={service.value} label={`【${service.label}】接口`} name={["endpoints", service.value]} rules={[{ max: 500, message: `【${service.label}】接口不能超过500个字符` }, { type: "url", message: "请输入以http://或https://开头的有效接口地址" }]} extra={example}>
-                  <Input allowClear maxLength={500} placeholder={example} />
-                </Form.Item>;
-              })}
+              : aiServiceOptions.map(service => <section className="platform-ai-service-card" key={service.value}>
+                <div className="platform-ai-service-heading"><strong>【{service.label}】</strong><span>模型与接口独立配置</span></div>
+                <Form.Item label="调用模型" name={["services", service.value, "selectedModel"]} rules={[{ required: true, message: `请选择【${service.label}】调用模型` }]}>
+                  <Select options={AI_MODEL_OPTIONS.map(option => ({ ...option, disabled: !aiModelSupportsService(option.value, service.value), label: !aiModelSupportsService(option.value, service.value) ? `${option.label}（当前服务不支持）` : option.label }))} />
+                </Form.Item>
+                <Form.Item noStyle shouldUpdate={(previous, current) => previous.services?.[service.value]?.selectedModel !== current.services?.[service.value]?.selectedModel}>
+                  {({ getFieldValue }) => {
+                    const selectedModel = (getFieldValue(["services", service.value, "selectedModel"]) || "MAGE_VL") as AiModelId;
+                    const example = aiEndpointExample(selectedModel, service.value);
+                    return <Form.Item label={<Space size={10}><span>{`【${service.label}】接口`}</span><Button size="small" loading={aiApiTesting} disabled={aiApiSaving} onClick={() => void testAiApi(service.value)}>测试此接口</Button></Space>} name={["services", service.value, "endpoints", selectedModel]} rules={[{ max: 500, message: `【${service.label}】接口不能超过500个字符` }, { type: "url", message: "请输入以http://或https://开头的有效接口地址" }]} extra={`当前使用${aiModelLabel(selectedModel)}；切换模型时会保留已填写的接口地址`}>
+                      <Input allowClear maxLength={500} placeholder={example ? `例如：${example}` : `请填写【${service.label}】服务的完整接口地址`} />
+                    </Form.Item>;
+                  }}
+                </Form.Item>
+              </section>)}
         </div>
       </Form>
     </Card>
@@ -422,11 +442,11 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
       destroyOnHidden
     >
       {aiApiTestDialog.phase === "testing"
-        ? <Result icon={<LoadingOutlined spin />} title={`正在测试${aiServiceOptions.length}个Ai API接口`} subTitle={aiApiTestDialog.message} />
+        ? <Result icon={<LoadingOutlined spin />} title="正在测试Ai API接口" subTitle={aiApiTestDialog.message} />
         : <>
           <Result status={aiApiTestDialog.phase === "success" ? "success" : "error"} title={aiApiTestDialog.phase === "success" ? "Ai API接口连接正常" : "Ai API接口测试未通过"} subTitle={aiApiTestDialog.message} />
           {aiApiTestDialog.results.length > 0 && <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            {aiApiTestDialog.results.map(result => <Alert key={result.service} showIcon type={result.ok ? "success" : "error"} message={`${result.label}：${result.ok ? "正常" : "异常"}`} description={`${result.message}（耗时 ${(result.elapsedMilliseconds / 1000).toFixed(1)} 秒）`} />)}
+            {aiApiTestDialog.results.map(result => <Alert key={result.service} showIcon type={result.ok ? "success" : "error"} message={`${result.label} · ${result.modelLabel}：${result.ok ? "正常" : "异常"}`} description={`${result.message}（耗时 ${(result.elapsedMilliseconds / 1000).toFixed(1)} 秒）`} />)}
           </Space>}
         </>}
     </Modal>

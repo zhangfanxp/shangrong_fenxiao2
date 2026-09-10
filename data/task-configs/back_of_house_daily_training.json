@@ -1,0 +1,68 @@
+{
+  "recordNo": "202609090003",
+  "taskName": "后厨标准卡学习",
+  "taskType": "日任务",
+  "executorRole": {
+    "id": "cmtqk83q6000atn8v86gs3awo",
+    "name": "厨师长"
+  },
+  "brands": [
+    {
+      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "name": "奋小二"
+    }
+  ],
+  "storageSpace": {
+    "id": "cmt0xbey80005tncek1xtase8",
+    "name": "R2-test",
+    "bucketName": "videolist"
+  },
+  "executionDays": [
+    "周一",
+    "周二",
+    "周三",
+    "周四"
+  ],
+  "deadlineDayOffset": 0,
+  "deadlineTime": "23:59",
+  "includeCompletionRate": true,
+  "status": "启用",
+  "configVersion": 3,
+  "submitItems": [
+    {
+      "name": "学习主题",
+      "description": "请填写今日训练的主题",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "学习视频",
+      "description": "请上传今日训练的视频",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "video",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "学习图片",
+      "description": "请上传今日训练的照片",
+      "required": false,
+      "weight": 3,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    }
+  ]
+}

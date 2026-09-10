@@ -113,6 +113,29 @@ enum CoursewareType {
   PPT
 }
 
+enum InventoryManageStock {
+  MANAGED
+  UNMANAGED
+}
+
+enum InventoryBusinessType {
+  INITIAL_STOCK
+  PURCHASE_INBOUND
+  EMPLOYEE_REQUISITION
+  REQUISITION_RETURN
+  MANUAL_ADJUSTMENT
+}
+
+enum InventoryDirection {
+  IN
+  OUT
+}
+
+enum ItemRequisitionStatus {
+  NORMAL
+  REVOKED
+}
+
 model Role {
   id            String       @id @default(cuid())
   code          String       @unique
@@ -173,6 +196,12 @@ model User {
   createdCourseAssignments  CourseAssignment[]       @relation("CourseAssignmentCreator")
   createdActualRevenue      ActualRevenueMonthly[]   @relation("ActualRevenueCreator")
   createdMonthlyTargets     StoreMonthlyTarget[]     @relation("MonthlyTargetCreator")
+  createdInventoryItems     InventoryItem[]          @relation("InventoryItemCreator")
+  updatedInventoryItems     InventoryItem[]          @relation("InventoryItemUpdater")
+  inventoryTransactions     InventoryTransaction[]   @relation("InventoryTransactionOperator")
+  createdItemRequisitions   ItemRequisition[]        @relation("ItemRequisitionCreator")
+  updatedItemRequisitions   ItemRequisition[]        @relation("ItemRequisitionUpdater")
+  itemRequisitionReturns    ItemRequisitionReturn[]  @relation("ItemRequisitionReturnOperator")
 
   @@index([createdByUserId])
   @@index([lastLoginAt])
@@ -622,6 +651,146 @@ model PersonnelSequence {
   updatedAt DateTime @updatedAt
 }
 
+model InventoryItemSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model InventoryTransactionSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model ItemRequisitionSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model InventoryItem {
+  id                          String                 @id @default(cuid())
+  recordNo                    String                 @unique @db.VarChar(12)
+  duplicateKey                String                 @unique @db.VarChar(64)
+  itemName                    String                 @db.VarChar(30)
+  itemTypeCode                String                 @db.VarChar(100)
+  itemTypeNameSnapshot        String                 @db.VarChar(100)
+  specification               String?                @db.VarChar(50)
+  unit                        String                 @db.VarChar(5)
+  manageStock                 InventoryManageStock
+  stockQuantity               BigInt?                @db.UnsignedBigInt
+  status                      RecordStatus           @default(ENABLED)
+  requiresReturnOnResignation Boolean                @default(false)
+  remark                      String?                @db.VarChar(200)
+  version                     Int                    @default(1)
+  createdByUserId             String?
+  createdBy                   User?                  @relation("InventoryItemCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByName               String                 @db.VarChar(50)
+  updatedByUserId             String?
+  updatedBy                   User?                  @relation("InventoryItemUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  updatedAt                   DateTime               @updatedAt
+  createdAt                   DateTime               @default(now())
+  transactions                InventoryTransaction[]
+  requisitions                ItemRequisition[]
+
+  @@index([itemName])
+  @@index([itemTypeCode])
+  @@index([status, createdAt])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
+}
+
+model ItemRequisition {
+  id                         String                  @id @default(cuid())
+  requisitionNo              String                  @unique @db.VarChar(12)
+  requestId                  String                  @unique @db.VarChar(36)
+  requisitionedAt            DateTime                @default(now())
+  personnelId                String
+  personnel                  Personnel               @relation(fields: [personnelId], references: [id], onDelete: Restrict)
+  personnelNameSnapshot      String                  @db.VarChar(50)
+  personnelBelongingSnapshot String                  @db.VarChar(50)
+  departmentStoreSnapshot    String?                 @db.VarChar(100)
+  itemId                     String
+  item                       InventoryItem           @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  itemRecordNoSnapshot       String                  @db.VarChar(12)
+  itemNameSnapshot           String                  @db.VarChar(30)
+  itemTypeCodeSnapshot       String                  @db.VarChar(100)
+  itemTypeNameSnapshot       String                  @db.VarChar(100)
+  specificationSnapshot      String?                 @db.VarChar(50)
+  unitSnapshot               String                  @db.VarChar(5)
+  manageStockSnapshot        InventoryManageStock
+  quantity                   Int                     @db.UnsignedInt
+  remark                     String?                 @db.VarChar(100)
+  status                     ItemRequisitionStatus   @default(NORMAL)
+  version                    Int                     @default(1)
+  createdByUserId            String?
+  createdBy                  User?                   @relation("ItemRequisitionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUsername          String                  @db.VarChar(30)
+  createdByNameSnapshot      String                  @db.VarChar(50)
+  updatedByUserId            String?
+  updatedBy                  User?                   @relation("ItemRequisitionUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  updatedByNameSnapshot      String?                 @db.VarChar(50)
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  returns                    ItemRequisitionReturn[]
+
+  @@index([requisitionedAt, id])
+  @@index([personnelId, requisitionedAt])
+  @@index([itemId, requisitionedAt])
+  @@index([itemNameSnapshot])
+  @@index([personnelNameSnapshot])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
+}
+
+model ItemRequisitionReturn {
+  id                       String          @id @default(cuid())
+  requestId                String          @unique @db.VarChar(36)
+  requisitionId            String
+  requisition              ItemRequisition @relation(fields: [requisitionId], references: [id], onDelete: Restrict)
+  quantity                 Int             @db.UnsignedInt
+  operatorUserId           String?
+  operator                 User?           @relation("ItemRequisitionReturnOperator", fields: [operatorUserId], references: [id], onDelete: SetNull)
+  operatorUsernameSnapshot String          @db.VarChar(30)
+  operatorNameSnapshot     String          @db.VarChar(50)
+  returnedAt               DateTime        @default(now())
+  createdAt                DateTime        @default(now())
+
+  @@index([requisitionId, returnedAt])
+  @@index([operatorUserId])
+}
+
+model InventoryTransaction {
+  id                    String                @id @default(cuid())
+  transactionNo         String                @unique @db.VarChar(12)
+  itemId                String
+  item                  InventoryItem         @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  itemRecordNoSnapshot  String                @db.VarChar(12)
+  itemNameSnapshot      String                @db.VarChar(30)
+  itemTypeCodeSnapshot  String                @db.VarChar(100)
+  itemTypeNameSnapshot  String                @db.VarChar(100)
+  specificationSnapshot String?               @db.VarChar(50)
+  unitSnapshot          String                @db.VarChar(5)
+  businessType          InventoryBusinessType
+  direction             InventoryDirection
+  quantity              BigInt                @db.UnsignedBigInt
+  stockBefore           BigInt                @db.UnsignedBigInt
+  stockAfter            BigInt                @db.UnsignedBigInt
+  relatedBusinessId     String?               @db.VarChar(191)
+  operatorUserId        String?
+  operator              User?                 @relation("InventoryTransactionOperator", fields: [operatorUserId], references: [id], onDelete: SetNull)
+  operatorNameSnapshot  String                @db.VarChar(50)
+  operatedAt            DateTime              @default(now())
+  createdAt             DateTime              @default(now())
+
+  @@index([itemId, operatedAt])
+  @@index([businessType, operatedAt])
+  @@index([direction, operatedAt])
+  @@index([operatorUserId])
+  @@index([relatedBusinessId])
+}
+
 model Personnel {
   id                    String               @id @default(cuid())
   recordNo              String               @unique @db.VarChar(12)
@@ -660,6 +829,7 @@ model Personnel {
   updatedAt             DateTime             @updatedAt
   salaryHistory         SalaryHistory[]
   positionHistory       PositionHistory[]
+  itemRequisitions      ItemRequisition[]
 
   @@index([status, deletedAt])
   @@index([hireDate])

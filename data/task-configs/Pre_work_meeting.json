@@ -1,0 +1,71 @@
+{
+  "recordNo": "202609090001",
+  "taskName": "班前会",
+  "taskType": "日任务",
+  "executorRole": {
+    "id": "cmt6jn0cl000ctn6y5ukshkil",
+    "name": "店长"
+  },
+  "brands": [
+    {
+      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "name": "奋小二"
+    }
+  ],
+  "storageSpace": {
+    "id": "cmt0xbey80005tncek1xtase8",
+    "name": "R2-test",
+    "bucketName": "videolist"
+  },
+  "executionDays": [
+    "周一",
+    "周二",
+    "周三",
+    "周四",
+    "周五",
+    "周六",
+    "周日"
+  ],
+  "deadlineDayOffset": 0,
+  "deadlineTime": "19:00",
+  "includeCompletionRate": true,
+  "status": "启用",
+  "configVersion": 3,
+  "submitItems": [
+    {
+      "name": "班前会视频",
+      "description": "请录制并上传班前会视频",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "video",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "班前会照片",
+      "description": "请拍摄班前会全体人员的仪容仪表照片",
+      "required": false,
+      "weight": 2,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "班前会备注",
+      "description": "请输入今日班前会的相关备注文字",
+      "required": false,
+      "weight": 2,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    }
+  ]
+}

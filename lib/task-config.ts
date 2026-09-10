@@ -6,7 +6,7 @@ export const TASK_CONFIG_DIRECTORY = path.join(process.cwd(), "data", "task-conf
 export type SubmitItem = {
   name: string;
   component: "attachment" | "input" | "select";
-  dataType: "photo" | "video" | "document" | "amount" | "quantity" | null;
+  dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null;
   captureOnly?: boolean;
   options: string[];
   description: string;
@@ -33,7 +33,8 @@ function parseComponent(value: string, lineNumber: number): Pick<SubmitItem, "co
   if (value === "[附件]录像") return { component: "attachment", dataType: "video", captureOnly: true, options: [] };
   if (value === "[附件]文档") return { component: "attachment", dataType: "document", captureOnly: false, options: [] };
   if (value === "[输入框]金额") return { component: "input", dataType: "amount", options: [] };
-  if (value === "[输入框]数量") return { component: "input", dataType: "quantity", options: [] };
+  if (value === "[输入框]数量" || value === "[输入框]数字") return { component: "input", dataType: "quantity", options: [] };
+  if (value === "[输入框]文字") return { component: "input", dataType: "text", options: [] };
   if (value.startsWith("[下拉选框]")) {
     const options = value.slice("[下拉选框]".length).split(",").map(item => item.trim()).filter(Boolean);
     if (!options.length) throw new TaskConfigError(`第${lineNumber}行下拉选框未配置选项`);
@@ -63,7 +64,7 @@ export function parseSubmitContent(value: string, aiAnalysisTypes: readonly stri
   logicalLines.forEach(({ line, lineNumber }) => {
     const fields = line.split(/[｜|]/).map(field => field.trim());
     if ((fields.length !== 5 && fields.length !== 7) || fields.slice(0, 5).some(field => !field)) {
-      throw new TaskConfigError(`第${lineNumber}行提交内容格式错误，应包含：任务项名称、提交组件、提示说明、必填属性、完成率权重、Ai分析类型、Ai分析提示词。`);
+      throw new TaskConfigError(`第${lineNumber}行提交内容格式错误，应包含：任务项名称、提交组件、提示说明、必填属性、提交数量、Ai分析类型、Ai分析提示词。`);
     }
     const [name, componentText, description, requiredText, weightText] = fields;
     const aiAnalysisType = fields.length === 7 && fields[5] ? fields[5] : null;
@@ -79,7 +80,7 @@ export function parseSubmitContent(value: string, aiAnalysisTypes: readonly stri
       throw new TaskConfigError(`第${lineNumber}行必填属性只能填写“必填”或“选填”`);
     }
     if (!/^\d+$/.test(weightText) || Number(weightText) <= 0) {
-      throw new TaskConfigError(`第${lineNumber}行完成率权重必须为大于0的整数`);
+      throw new TaskConfigError(`第${lineNumber}行提交数量必须为大于0的整数`);
     }
     items.push({ name, description, required: requiredText === "必填", weight: Number(weightText), aiAnalysisType, aiAnalysisPrompt, ...component });
     normalizedLines.push([name, componentText, description, requiredText, weightText, aiAnalysisType || "", aiAnalysisPrompt || ""].join("|"));

@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { Session } from "@/lib/auth";
 import { formatTaskRecordDateTime, taskRecordDataScope } from "@/lib/task-records";
 
-export type IntelligentAnalysisAction = "query" | "view" | "export";
+export type IntelligentAnalysisAction = "query" | "view" | "export" | "delete";
 
 export type IntelligentAnalysisFilters = {
   brand?: string;

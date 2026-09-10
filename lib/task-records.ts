@@ -2,7 +2,7 @@ import { Prisma, TaskRecordStatus, TaskType } from "@prisma/client";
 import type { Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export type TaskRecordAction = "query" | "view" | "export" | "analyze" | "delete";
+export type TaskRecordAction = "query" | "view" | "edit" | "export" | "analyze" | "delete";
 
 export type TaskRecordFilters = {
   status?: "COMPLETED" | "PENDING" | "OVERDUE";

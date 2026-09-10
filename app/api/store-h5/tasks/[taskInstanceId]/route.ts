@@ -10,7 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ task
   const { taskInstanceId } = await params;
   const record = await db.taskRecord.findFirst({
     where: { id: taskInstanceId, assignedUserId: session.userId, dueDate: { gte: new Date() } },
-    select: { id: true, recordNo: true, taskNameSnapshot: true, taskType: true, storeNameSnapshot: true, brandNameSnapshot: true, executionDate: true, dueDate: true, status: true, configVersion: true, configSnapshot: true },
+    select: { id: true, recordNo: true, taskNameSnapshot: true, taskType: true, storeNameSnapshot: true, brandNameSnapshot: true, executionDate: true, dueDate: true, status: true, configVersion: true, configSnapshot: true, attachments: { where: { uploaderUserId: session.userId, consumedAt: null }, select: { id: true, itemIndex: true, originalName: true }, orderBy: { createdAt: "asc" } } },
   });
   if (!record) return NextResponse.json({ message: "任务不存在或不属于当前用户" }, { status: 404 });
   if (record.status !== "PENDING") return NextResponse.json({ message: "当前任务已经完成，请勿重复提交。" }, { status: 409 });
@@ -21,5 +21,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ task
     taskType: record.taskType, taskTypeLabel: taskTypeLabel(record.taskType), storeName: record.storeNameSnapshot,
     brandName: record.brandNameSnapshot, executionDate: record.executionDate, dueDate: record.dueDate, configVersion: record.configVersion,
     items: record.configSnapshot.submitItems,
+    draftAttachments: record.attachments.map(attachment => ({ id: attachment.id, itemIndex: attachment.itemIndex, name: attachment.originalName })),
   });
 }

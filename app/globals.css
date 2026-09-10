@@ -21,6 +21,57 @@ a { color: inherit; text-decoration: none; }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .page-header h1 { font-size: 22px; line-height: 32px; margin: 0; font-weight: 600; }
 .page-header p { margin: 4px 0 0; color: rgba(0,0,0,.65); font-size: 14px; }
+.workwear-alert, .workwear-filter-card { margin-bottom: 16px; }
+.workwear-filter-card .ant-card-body { padding-bottom: 18px; }
+.workwear-filter-grid { display: grid; grid-template-columns: minmax(220px, 1.3fr) minmax(180px, 1fr) minmax(160px, .8fr) auto; gap: 0 16px; align-items: end; }
+.workwear-filter-grid .ant-form-item { min-width: 0; margin-bottom: 0; }
+.workwear-filter-actions { display: flex; justify-content: flex-end; }
+.workwear-toolbar { display: flex; min-height: 40px; margin-bottom: 16px; align-items: center; justify-content: space-between; gap: 16px; color: rgba(0,0,0,.65); }
+.workwear-toolbar strong { color: #1677ff; }
+.workwear-list-card .ant-table-cell { white-space: nowrap; }
+.workwear-list-card .ant-empty-description small { color: rgba(0,0,0,.45); }
+.workwear-form-modal .ant-modal, .workwear-detail-modal .ant-modal, .workwear-inbound-modal .ant-modal { top: 28px; padding-bottom: 28px; }
+.workwear-form-modal .ant-modal-content, .workwear-detail-modal .ant-modal-content, .workwear-inbound-modal .ant-modal-content { display: flex; max-height: calc(100vh - 56px); overflow: hidden; padding: 0; flex-direction: column; }
+.workwear-form-modal .ant-modal-header, .workwear-detail-modal .ant-modal-header, .workwear-inbound-modal .ant-modal-header { margin: 0; padding: 20px 24px; border-bottom: 1px solid #f0f0f0; }
+.workwear-form-modal .ant-modal-body, .workwear-detail-modal .ant-modal-body, .workwear-inbound-modal .ant-modal-body { overflow-y: auto; padding: 22px 24px 6px; }
+.workwear-form-modal .ant-modal-footer, .workwear-detail-modal .ant-modal-footer, .workwear-inbound-modal .ant-modal-footer { margin: 0; padding: 14px 24px; border-top: 1px solid #f0f0f0; background: #fafafa; }
+.workwear-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
+.workwear-form-span { grid-column: 1 / -1; }
+.workwear-modal-loading { min-height: 280px; display: grid; place-items: center; color: rgba(0,0,0,.45); }
+.workwear-inbound-summary { margin-bottom: 20px; }
+.workwear-inbound-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
+@media (max-width: 1050px) { .workwear-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } .workwear-filter-actions { grid-column: 1 / -1; } }
+@media (max-width: 700px) { .workwear-filter-grid, .workwear-form-grid, .workwear-inbound-form { grid-template-columns: 1fr; } .workwear-filter-actions, .workwear-form-span { grid-column: auto; } .workwear-toolbar { align-items: flex-start; flex-direction: column; } .workwear-form-modal, .workwear-detail-modal, .workwear-inbound-modal { max-width: calc(100vw - 20px); } }
+
+/* 员工领用管理 */
+.requisition-filter-card { margin-bottom: 16px; }
+.requisition-filter-card .ant-card-body { padding-bottom: 18px; }
+.requisition-filter-grid { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)) auto; gap: 0 14px; align-items: end; }
+.requisition-filter-grid .ant-form-item { min-width: 0; margin-bottom: 0; }
+.requisition-filter-grid .ant-picker { width: 100%; }
+.requisition-filter-actions { display: flex; justify-content: flex-end; }
+.requisition-toolbar { display: flex; min-height: 40px; margin-bottom: 16px; align-items: center; justify-content: space-between; gap: 16px; color: rgba(0,0,0,.65); }
+.requisition-toolbar strong { color: #1677ff; }
+.requisition-list-card .ant-table-cell { white-space: nowrap; }
+.requisition-list-card .ant-empty-description small { color: rgba(0,0,0,.45); }
+.requisition-form-modal .ant-modal, .requisition-detail-modal .ant-modal, .requisition-item-modal .ant-modal { top: 28px; padding-bottom: 28px; }
+.requisition-form-modal .ant-modal-content, .requisition-detail-modal .ant-modal-content, .requisition-item-modal .ant-modal-content { display: flex; max-height: calc(100vh - 56px); overflow: hidden; padding: 0; flex-direction: column; }
+.requisition-form-modal .ant-modal-header, .requisition-detail-modal .ant-modal-header, .requisition-item-modal .ant-modal-header { margin: 0; padding: 20px 24px; border-bottom: 1px solid #f0f0f0; }
+.requisition-form-modal .ant-modal-body, .requisition-detail-modal .ant-modal-body, .requisition-item-modal .ant-modal-body { overflow-y: auto; padding: 22px 24px 6px; }
+.requisition-form-modal .ant-modal-footer, .requisition-detail-modal .ant-modal-footer, .requisition-item-modal .ant-modal-footer { margin: 0; padding: 14px 24px; border-top: 1px solid #f0f0f0; background: #fafafa; }
+.requisition-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
+.requisition-form-span { grid-column: 1 / -1; }
+.requisition-item-picker { display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 12px; }
+.requisition-item-picker > span { min-width: 0; overflow: hidden; color: rgba(0,0,0,.45); text-overflow: ellipsis; white-space: nowrap; }
+.requisition-item-picker.selected > span { color: rgba(0,0,0,.88); }
+.requisition-item-layout { display: grid; min-height: 390px; grid-template-columns: 180px minmax(0, 1fr); gap: 20px; }
+.requisition-item-layout aside { padding: 0 16px 16px 0; border-right: 1px solid #f0f0f0; }
+.requisition-item-layout aside > strong { display: block; margin: 0 8px 12px; }
+.requisition-item-layout .ant-tree { background: transparent; }
+.requisition-item-layout section { min-width: 0; }
+.requisition-remark { white-space: pre-wrap; }
+@media (max-width: 1200px) { .requisition-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } .requisition-filter-actions { grid-column: 1 / -1; } }
+@media (max-width: 700px) { .requisition-filter-grid, .requisition-form-grid, .requisition-item-layout { grid-template-columns: 1fr; } .requisition-filter-actions, .requisition-form-span { grid-column: auto; } .requisition-toolbar { align-items: flex-start; flex-direction: column; } .requisition-item-layout aside { padding-right: 0; border-right: 0; border-bottom: 1px solid #f0f0f0; } .requisition-form-modal, .requisition-detail-modal, .requisition-item-modal { max-width: calc(100vw - 20px); } }
 .metric-card { cursor: pointer; transition: border-color .2s, background .2s; }
 .metric-card:hover { border-color: #91caff; background: #fafcff; }
 .metric-label { color: rgba(0,0,0,.65); font-size: 14px; }
@@ -164,6 +215,10 @@ a { color: inherit; text-decoration: none; }
 .platform-scheduler-settings { grid-column: 1 / -1; margin-top: 20px; padding-top: 20px; border-top: 1px solid #f0f0f0; }
 .platform-scheduler-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .platform-ai-api-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
+.platform-ai-service-card { padding: 18px 18px 0; border: 1px solid #f0f0f0; border-radius: 10px; background: #fafafa; }
+.platform-ai-service-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.platform-ai-service-heading strong { font-size: 15px; }
+.platform-ai-service-heading span { color: rgba(0,0,0,.45); font-size: 12px; }
 .personnel-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 14px; align-items: center; }
 .personnel-import-errors { max-height: 180px; overflow: auto; line-height: 1.8; }
 .operation-log-filter-card { margin-bottom: 16px; }
@@ -324,6 +379,9 @@ a { color: inherit; text-decoration: none; }
 .task-record-detail-content > p { margin: 7px 0 12px; color: rgba(0,0,0,.65); line-height: 1.6; }
 .task-record-result { min-height: 28px; color: rgba(0,0,0,.88); font-size: 15px; }
 .task-record-empty-value { color: rgba(0,0,0,.45); }
+.task-record-attachment-list { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 14px; }
+.task-record-attachment { display: grid; min-width: 180px; gap: 6px; }
+.task-record-attachment > small { color: rgba(0,0,0,.45); font-size: 12px; }
 .task-record-image { border-radius: 6px; object-fit: cover; }
 .task-record-video { display: block; width: min(520px, 100%); max-height: 360px; border-radius: 6px; background: #000; }
 .task-record-ai-result { margin-top: 14px; padding: 14px 16px; border: 1px solid #d9d2ff; border-radius: 9px; background: #faf8ff; }
@@ -335,6 +393,14 @@ a { color: inherit; text-decoration: none; }
 .task-record-ai-result > div:not(.task-record-ai-result-heading) > p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: rgba(0,0,0,.88); line-height: 1.65; }
 .task-record-ai-result > .ant-alert { display: flex; }
 .task-record-ai-result > small { display: block; margin-top: 10px; color: rgba(0,0,0,.45); }
+.task-record-edit-tip { margin-bottom: 18px; }
+.task-record-edit-upload { display: flex; margin-top: 14px; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.task-record-edit-upload-status { display: flex; min-width: 0; align-items: center; gap: 7px; color: rgba(0,0,0,.65); }
+.task-record-edit-upload-status > span { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-record-edit-upload-status > small { color: rgba(0,0,0,.45); }
+.task-record-edit-upload-status.uploading { color: #1677ff; }
+.task-record-edit-upload-status.success { color: #389e0d; }
+.task-record-edit-upload-status.error, .task-record-edit-upload-status.error > small { color: #cf1322; }
 .task-ai-analysis-summary > p { margin: 4px 0 16px; color: rgba(0,0,0,.65); }
 .task-ai-analysis-progress { display: flex; min-height: 210px; padding: 26px 20px; align-items: center; justify-content: center; flex-direction: column; text-align: center; }
 .task-ai-analysis-progress strong { margin-top: 20px; color: rgba(0,0,0,.88); font-size: 16px; }

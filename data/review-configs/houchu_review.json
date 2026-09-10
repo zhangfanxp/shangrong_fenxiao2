@@ -5,17 +5,20 @@
   "scoreMode": "CUSTOM_SCORE",
   "scoreModeLabel": "允许自定义得分",
   "applicableBrands": [
-    "奋小二",
-    "蚝家伙",
-    "禾穆婆"
+    "奋小二"
   ],
+  "photoStorage": {
+    "id": "cmt0xbey80005tncek1xtase8",
+    "name": "R2-test"
+  },
   "photoAttachmentLimit": 3,
-  "configVersion": 3,
-  "totalScore": 62,
+  "detailFormat": "AUDIT",
+  "configVersion": 5,
+  "totalScore": 100,
   "statistics": {
-    "sectionCount": 2,
-    "subsectionCount": 7,
-    "itemCount": 12
+    "sectionCount": 6,
+    "subsectionCount": 11,
+    "itemCount": 64
   },
   "sections": [
     {
@@ -26,41 +29,30 @@
           "items": [
             {
               "id": "item_1",
-              "description": "未按公司统一标准要求出餐，私自改变出餐标准的",
+              "description": "所有产品公司统一标准未要求出餐，温度、品相、分量、新鲜度未达标，私自勾兑酱料",
               "maxScore": 5,
               "supportsPhoto": true
             },
             {
               "id": "item_2",
-              "description": "所有产品按标准进行出餐、温度、品相、分量、新鲜度是否达标",
-              "maxScore": 3,
-              "supportsPhoto": false
+              "description": "未使用公司料包私自勾兑的",
+              "maxScore": 5,
+              "supportsPhoto": true
             },
             {
               "id": "item_3",
-              "description": "未使用公司料包私自勾兑的",
-              "maxScore": 5,
+              "description": "出餐所使用盛装器具正确且无破损、油渍、污渍，破损在1cm以下",
+              "maxScore": 4,
               "supportsPhoto": true
             }
           ]
         },
         {
-          "name": "食品储存",
+          "name": "食品存储",
           "items": [
             {
               "id": "item_4",
               "description": "食材原料分类存放摆放整齐、货架离墙隔地10CM以上",
-              "maxScore": 3,
-              "supportsPhoto": false
-            }
-          ]
-        },
-        {
-          "name": "食品效期",
-          "items": [
-            {
-              "id": "item_5",
-              "description": "门店出现未按公司要求售卖时间废弃，仍然继续售卖的情况",
               "maxScore": 5,
               "supportsPhoto": true
             }
@@ -70,10 +62,10 @@
           "name": "人员安全",
           "items": [
             {
-              "id": "item_6",
+              "id": "item_5",
               "description": "后厨人员上岗无健康证的",
               "maxScore": 5,
-              "supportsPhoto": false
+              "supportsPhoto": true
             }
           ]
         },
@@ -81,38 +73,80 @@
           "name": "食品污染",
           "items": [
             {
-              "id": "item_7",
+              "id": "item_6",
               "description": "后厨出现蟑螂、老鼠、蚊子、苍蝇等活体或粪便的",
               "maxScore": 5,
-              "supportsPhoto": false
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_7",
+              "description": "所有药品不得出现在厨房任何角落。出现化学药品未独立存放和食品存在交叉污染情况的",
+              "maxScore": 5,
+              "supportsPhoto": true
             },
             {
               "id": "item_8",
-              "description": "所有药品不得出现在厨房任何角落",
+              "description": "后厨冰箱出现纸箱子、有色塑料袋，有交叉污染情况的",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_9",
+              "description": "出现产品保存条件环境和实际存储条件环境不符情况的",
+              "maxScore": 3,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_10",
+              "description": "工作台面工具，勤整理、勤清洁，保证出餐无异物",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_11",
+              "description": "禁止食品与打扫卫生的工具混放",
+              "maxScore": 2,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_12",
+              "description": "不得使用回收后的瓶子盛装调料品",
               "maxScore": 5,
-              "supportsPhoto": false
+              "supportsPhoto": true
             }
           ]
         }
       ]
     },
     {
-      "name": "纪律规范",
+      "name": "纪律与规范",
       "children": [
         {
           "name": "仪容仪表",
           "items": [
             {
-              "id": "item_9",
-              "description": "服装：着工装、符合门店着装要求",
-              "maxScore": 5,
-              "supportsPhoto": false
+              "id": "item_13",
+              "description": "服装：着工装干净、整洁，符合门店着装要求",
+              "maxScore": 1,
+              "supportsPhoto": true
             },
             {
-              "id": "item_10",
-              "description": "仪表：保持良好个人卫生、着装整洁、不蓬头垢面",
+              "id": "item_14",
+              "description": "仪表：保持良好个人卫生、着装整洁、不蓬头垢面；",
               "maxScore": 1,
-              "supportsPhoto": false
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_15",
+              "description": "仪态：礼貌待客、积极热情，面带微笑",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_16",
+              "description": "仪容：不留长指甲，不涂指甲油，不得佩戴任何首饰饰品",
+              "maxScore": 1,
+              "supportsPhoto": true
             }
           ]
         },
@@ -120,16 +154,337 @@
           "name": "纪律与规范",
           "items": [
             {
-              "id": "item_11",
-              "description": "出勤：按时打卡、上下班。不得无故迟到、早退、脱岗、矿工",
-              "maxScore": 10,
-              "supportsPhoto": false
+              "id": "item_17",
+              "description": "出勤：按时打卡、上下班，不得无故迟到、早退、脱岗、矿工",
+              "maxScore": 1,
+              "supportsPhoto": true
             },
             {
-              "id": "item_12",
+              "id": "item_18",
               "description": "服从岗位安排，工作时间不擅自离岗换岗、不顶撞上级",
-              "maxScore": 10,
-              "supportsPhoto": false
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_19",
+              "description": "当班时间不嬉笑打闹，不大声喧哗，时刻保持乐观积极向上的心态",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_20",
+              "description": "工作期间禁止打电话、玩游戏 、玩手机",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_21",
+              "description": "售卖不进行二次加工辅热等产品时必须佩戴手套操作",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_22",
+              "description": "进入工作区域按照管理要求佩戴口罩、帽子，厨房禁止外人随意进入，特殊情况另说",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_23",
+              "description": "每周制定的员工餐张贴上墙，按员工餐表执行标准",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "卫生清洁",
+      "children": [
+        {
+          "name": "洗碗间",
+          "items": [
+            {
+              "id": "item_24",
+              "description": "餐具清洗：一洗、二清、三消毒标准严格执行",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_25",
+              "description": "洗碗池干净整洁，无异味、无油渍、无污渍",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_26",
+              "description": "消毒柜内外干净，无明显污渍，无异味、无残留物",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        },
+        {
+          "name": "冰箱",
+          "items": [
+            {
+              "id": "item_27",
+              "description": "冰箱、冰柜内物品摆放整齐，做好分类管理并粘贴标识标签",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_28",
+              "description": "冰箱柜内无积水、无异味，按卫生计划定期清理，天然冰厚度不得超过1cm",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_29",
+              "description": "冰箱柜内所有无外包装食物，均需入盒封膜加盖",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_30",
+              "description": "冰箱柜内食物生、熟分层或分柜存放",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_31",
+              "description": "冰箱柜内食品全部有效期、无违禁原料存放",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_32",
+              "description": "冰箱柜设备可以正常使用开启，无胶条破损、无故障",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "厨房",
+      "children": [
+        {
+          "name": "地面、设备管理",
+          "items": [
+            {
+              "id": "item_33",
+              "description": "厨房地面干净整洁、无过多积水，设备物品按指定位置摆放",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_34",
+              "description": "厨房四周墙壁卫生保持干净整洁，无蛛网、无油渍、无灰尘",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_35",
+              "description": "下水道定期清理，无异味无油渍",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_36",
+              "description": "食品操作区食品、物品摆放整齐，干净整洁",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_37",
+              "description": "排烟机罩是否干净完好，罩面、管道表面无明显油垢",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_38",
+              "description": "案台柜子内外干净清洁，摆放规范，无油渍污渍",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_39",
+              "description": "切菜台使用过后及时清洗，保持干净整洁、无残渣，且食品工具不混合",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_40",
+              "description": "工具使用过后及时清洗干净（剪刀、切菜刀等），回到定点存放处",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_41",
+              "description": "菜筐保持清洁，净菜必须离地存放，分类密封定点储存",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_42",
+              "description": "净菜架、毛菜架保持清洁，无灰尘、无水渍、无油渍，每天维护整理",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_43",
+              "description": "菜墩未按标准清理收餐时未立放，表面有污渍，异味",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_44",
+              "description": "菜刀使用后未按标准放入制定位置，刀柜脏，刀具未清洁，表面未擦干",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_45",
+              "description": "洗菜池使用过后及时清洗干净，保持清洁，无异味、无残渣、无油渍",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_46",
+              "description": "砧板使用过后及时清洗干净，保持清洁，定期消毒，无异味、无残渣",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_47",
+              "description": "厨房使用脚踏式翻盖垃圾桶表面保持干净整洁，外部无油渍、无残渣",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_48",
+              "description": "设备及时清洁，做到无明显的油渍、无残渣、无异味",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_49",
+              "description": "厨房闭餐时，或用不到时，微波炉，烤箱，烤炉，炸炉，未关闭",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_50",
+              "description": "微波炉，烤箱，烤炉，炸炉，内部脏，未及时清理",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_51",
+              "description": "厨房清洁用具使用后存放于指定位置，做到无异味、不粘手、无油渍",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_52",
+              "description": "剩余物品原料密封整理适当分类后回收到指定区域进行保存",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_53",
+              "description": "餐中地面保持无油、无水、无残渣",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_54",
+              "description": "毛巾分颜色管理，无破损、油渍、不粘手",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "安全与品质管理",
+      "children": [
+        {
+          "name": "消防安全",
+          "items": [
+            {
+              "id": "item_55",
+              "description": "定期检查消防设施，确保消防设施的正常使用",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_56",
+              "description": "消防栓内禁止堆放杂物和缺少消防配置工具",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_57",
+              "description": "消防应急灯的是否能够正常使用",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_58",
+              "description": "灭火器的压力是否达标，且定点存放",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_59",
+              "description": "员工具备消防四懂四会（懂得岗位火灾的危险性、懂得预防火灾的措施、懂得扑救火灾的方法、懂得疏散逃生的方法，会使用消防器材、会报火警、会扑救初期火灾、会组织疏散逃生）",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_60",
+              "description": "后厨是否会正确使用消防设备",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_61",
+              "description": "门店所有电路是否有外漏、无防护现象",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_62",
+              "description": "门店设备电源是否有安全保护装置；该装置是否能够正常使用",
+              "maxScore": 1,
+              "supportsPhoto": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "库房管理",
+      "children": [
+        {
+          "name": "库房",
+          "items": [
+            {
+              "id": "item_63",
+              "description": "储存库房干净整洁定期检查与整理，物品分类摆放无交叉污染",
+              "maxScore": 1,
+              "supportsPhoto": true
+            },
+            {
+              "id": "item_64",
+              "description": "库房物品无临期、无折损、无霉斑、无混装",
+              "maxScore": 1,
+              "supportsPhoto": true
             }
           ]
         }

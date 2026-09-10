@@ -6,7 +6,7 @@ import { writeOperationLog } from "@/lib/operation-log";
 import { readTaskConfig, TaskConfigError } from "@/lib/task-config";
 import { deleteUploadedTaskFiles, TaskAttachmentError, uploadTaskFiles, type UploadedTaskFile } from "@/lib/task-r2-upload";
 
-type ConfigItem = { name: string; component: "attachment" | "input" | "select"; dataType: "photo" | "video" | "document" | "amount" | "quantity" | null; options: string[]; description: string; required: boolean; weight: number };
+type ConfigItem = { name: string; component: "attachment" | "input" | "select"; dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null; options: string[]; description: string; required: boolean; weight: number };
 type SubmittedFile = { name: string; type: string; size: number; dataUrl: string };
 type SubmittedItem = { name: string; value?: string | number; files?: SubmittedFile[] };
 
@@ -36,18 +36,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (item.component === "attachment") {
         const files = (submitted.files || []).filter(file => typeof file?.dataUrl === "string" && file.dataUrl.startsWith("data:"));
         if (item.required && !files.length) throw new TaskConfigError(`请上传“${item.name}”`);
+        if (files.length > item.weight) throw new TaskConfigError(`“${item.name}”最多上传${item.weight}个附件`);
         const dataType = item.dataType === "photo" || item.dataType === "video" || item.dataType === "document" ? item.dataType : null;
         if (!dataType) throw new TaskConfigError(`“${item.name}”附件类型配置不正确`);
         files.forEach(file => attachmentEntries.push({ itemIndex: index, dataType, file }));
         return { name: item.name, component: item.component, files: [] };
       }
       const value = submitted.value;
-      if (item.required && (value === undefined || value === null || value === "")) throw new TaskConfigError(`请填写“${item.name}”`);
-      if (value !== undefined && value !== null && value !== "") {
-        if (item.component === "input" && (!Number.isFinite(Number(value)) || Number(value) < 0)) throw new TaskConfigError(`“${item.name}”请输入有效数字`);
+      const empty = value === undefined || value === null || String(value).trim() === "";
+      if (item.required && empty) throw new TaskConfigError(`请填写“${item.name}”`);
+      if (!empty) {
+        if (item.component === "input" && item.dataType !== "text" && (!Number.isFinite(Number(value)) || Number(value) < 0)) throw new TaskConfigError(`“${item.name}”请输入有效数字`);
         if (item.component === "select" && !item.options.includes(String(value))) throw new TaskConfigError(`“${item.name}”选项无效，请重新选择`);
       }
-      return { name: item.name, component: item.component, value: item.component === "input" && value !== "" ? Number(value) : value ?? "" };
+      const normalizedValue = empty ? "" : item.component === "input" && item.dataType !== "text" ? Number(value) : typeof value === "string" ? value.trim() : value;
+      return { name: item.name, component: item.component, value: normalizedValue };
     });
     if (attachmentEntries.length) {
       const uploaded = await uploadTaskFiles({ r2StorageId: task.r2StorageId, taskRecordNo: task.recordNo || task.id, entries: attachmentEntries });

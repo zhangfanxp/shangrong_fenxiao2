@@ -2,6 +2,7 @@ import { Prisma, TaskRecordStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiSession } from "@/lib/auth";
+import { normalizeAiServiceApiConfig } from "@/lib/ai-model-adapters";
 import { db } from "@/lib/db";
 import { nextTaskAiAnalysisRecordNo, summarizeAnalysisResults, summarizeNames } from "@/lib/intelligent-analysis";
 import { writeOperationLog, writeOperationLogWithTransaction } from "@/lib/operation-log";
@@ -23,6 +24,11 @@ const analysisRecordSelect = {
   taskNameSnapshot: true,
   assignedRoleNameSnapshot: true,
   status: true,
+  attachments: {
+    where: { consumedAt: { not: null } },
+    select: { itemIndex: true, objectKey: true, originalName: true, mimeType: true, r2StorageId: true },
+    orderBy: { createdAt: "asc" },
+  },
   formalSubmission: {
     select: {
       id: true,
@@ -78,6 +84,7 @@ type AnalysisJob = {
   attachmentName: string | null;
   attachmentMimeType: string | null;
   r2StorageId: string | null;
+  attachments: Array<{ attachmentObjectKey: string; attachmentName: string; attachmentMimeType: string; r2StorageId: string }>;
 };
 
 type CompletedJob = { job: AnalysisJob; output: TaskAiAnalysisOutput };
@@ -124,6 +131,12 @@ function jobsForRecord(row: AnalysisRecord, currentTemplate: StoreTaskSnapshot |
     const service = item.aiAnalysisTypeSnapshot || configuredItem?.aiAnalysisType || "";
     const prompt = item.aiAnalysisPromptSnapshot || configuredItem?.aiAnalysisPrompt || "";
     if (!service && !prompt) continue;
+    const linkedAttachments = row.attachments.filter(attachment => attachment.itemIndex === item.sortOrder).map(attachment => ({
+      attachmentObjectKey: attachment.objectKey,
+      attachmentName: attachment.originalName,
+      attachmentMimeType: attachment.mimeType,
+      r2StorageId: attachment.r2StorageId,
+    }));
     jobs.push({
       itemId: item.id,
       itemName: item.itemName,
@@ -138,6 +151,7 @@ function jobsForRecord(row: AnalysisRecord, currentTemplate: StoreTaskSnapshot |
       attachmentName: item.attachmentName,
       attachmentMimeType: item.attachmentMimeType,
       r2StorageId: item.r2StorageId,
+      attachments: linkedAttachments,
     });
   }
   return { jobs, fallbackToCurrentTemplate };
@@ -194,7 +208,16 @@ export async function POST(request: Request) {
       for (const job of jobs) {
         try {
           if (!job.service || !job.prompt) throw new TaskAiAnalysisError("任务项的AI分析配置快照不完整");
-          const output = await analyzeTaskSubmissionItem({ ...job, endpoint: platform.aiApiEndpoints[job.service] || "" });
+          const apiConfig = normalizeAiServiceApiConfig(platform.aiApiServices[job.service], job.service);
+          const analysisAttachments = job.componentType === "attachment" && job.attachments.length ? job.attachments : [{ attachmentObjectKey: job.attachmentObjectKey, attachmentName: job.attachmentName, attachmentMimeType: job.attachmentMimeType, r2StorageId: job.r2StorageId }];
+          const outputs: TaskAiAnalysisOutput[] = [];
+          for (const attachment of analysisAttachments) {
+            outputs.push(await analyzeTaskSubmissionItem({ ...job, ...attachment, model: apiConfig.selectedModel, endpoint: apiConfig.endpoints[apiConfig.selectedModel] }));
+          }
+          const output = outputs.length === 1 ? outputs[0] : {
+            analysisResult: outputs.map((result, index) => `附件${index + 1}：${result.analysisResult}`).join("\n"),
+            unqualifiedReasonDescription: outputs.map((result, index) => `附件${index + 1}：${result.unqualifiedReasonDescription}`).join("\n"),
+          };
           if (!output.analysisResult.trim()) throw new TaskAiAnalysisError("智能分析结果处理失败，请稍后重试");
           completed.push({ job, output });
         } catch (error) {
@@ -210,8 +233,21 @@ export async function POST(request: Request) {
       try {
         const replacement = await db.$transaction(async tx => {
           await tx.$queryRaw(Prisma.sql`SELECT \`id\` FROM \`TaskRecord\` WHERE \`id\` = ${row.id} FOR UPDATE`);
-          const current = await tx.taskRecord.findUnique({ where: { id: row.id }, select: { status: true, formalSubmission: { select: { id: true } } } });
-          if (!current || current.status !== TaskRecordStatus.COMPLETED || current.formalSubmission?.id !== submission.id) throw new Error("TASK_RECORD_CHANGED");
+          const current = await tx.taskRecord.findUnique({
+            where: { id: row.id },
+            select: {
+              status: true,
+              formalSubmission: {
+                select: {
+                  id: true,
+                  items: { where: { id: { in: completed.map(item => item.job.itemId) } }, select: { id: true, attachmentObjectKey: true } },
+                },
+              },
+            },
+          });
+          const currentAttachments = new Map(current?.formalSubmission?.items.map(item => [item.id, item.attachmentObjectKey]) || []);
+          if (!current || current.status !== TaskRecordStatus.COMPLETED || current.formalSubmission?.id !== submission.id
+            || completed.some(({ job }) => currentAttachments.get(job.itemId) !== job.attachmentObjectKey)) throw new Error("TASK_RECORD_CHANGED");
           const old = await tx.taskAiAnalysis.findUnique({ where: { taskRecordId: row.id }, select: { recordNo: true } });
           const newRecordNo = await nextTaskAiAnalysisRecordNo(tx, analyzedAt);
           if (old) await tx.taskAiAnalysis.delete({ where: { taskRecordId: row.id } });

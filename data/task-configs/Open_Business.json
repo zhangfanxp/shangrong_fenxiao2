@@ -30,7 +30,7 @@
   "deadlineTime": "18:00",
   "includeCompletionRate": true,
   "status": "启用",
-  "configVersion": 8,
+  "configVersion": 9,
   "submitItems": [
     {
       "name": "开市【例会】",
@@ -50,7 +50,7 @@
       "required": true,
       "weight": 1,
       "aiAnalysisType": "图片分析",
-      "aiAnalysisPrompt": "请分析图片，是否满足：“门头无损坏地面，台阶、门前三包干净整洁”。回答：合格 或 不合格 （不合格时请给出明确的理由）",
+      "aiAnalysisPrompt": "请分析图片，是否满足：“门头无损坏；地面、台阶、门前基本干净整洁，无明显杂物，垃圾”。回答：合格 或 不合格 （不合格时请给出明确的理由）",
       "component": "attachment",
       "dataType": "photo",
       "captureOnly": true,
@@ -278,7 +278,7 @@
       "required": true,
       "weight": 1,
       "aiAnalysisType": "图片分析",
-      "aiAnalysisPrompt": "请分析图片，是否满足：“台面干燥光亮，洗手液，皂液器无滴漏，水龙头明亮无水积垢 ，镜面干净无水印”。回答：合格 或 不合格 （不合格时请给出明确的理由）",
+      "aiAnalysisPrompt": "请分析图片，是否满足：“台面干燥光亮，水龙头明亮基本无水积垢 ，镜面干净无水印”。回答：合格 或 不合格 （不合格时请给出明确的理由）",
       "component": "attachment",
       "dataType": "photo",
       "captureOnly": true,

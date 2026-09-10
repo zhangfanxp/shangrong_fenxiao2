@@ -16,7 +16,8 @@ export type BusinessDictionaryCode =
   | "POSITION_LEVEL"
   | "PERSONNEL_STATUS"
   | "SOCIAL_SECURITY_STATUS"
-  | "AI_SERVICE";
+  | "AI_SERVICE"
+  | "ITEM_REQUISITION_TYPE";
 
 export type DictionaryOption = { label: string; value: string };
 
@@ -35,6 +36,7 @@ const aliases: Record<BusinessDictionaryCode, string[]> = {
   PERSONNEL_STATUS: ["PERSONNEL_STATUS", "PERSONNELSTATUS"],
   SOCIAL_SECURITY_STATUS: ["SOCIAL_SECURITY_STATUS"],
   AI_SERVICE: ["Ai_Service", "AI_SERVICE"],
+  ITEM_REQUISITION_TYPE: ["item_requisition_type", "ITEM_REQUISITION_TYPE"],
 };
 
 const protectedValues: Partial<Record<BusinessDictionaryCode, Record<string, string>>> = {

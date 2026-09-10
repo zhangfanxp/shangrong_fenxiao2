@@ -1,0 +1,252 @@
+{
+  "recordNo": "202609090004",
+  "taskName": "收市",
+  "taskType": "日任务",
+  "executorRole": {
+    "id": "cmt6jn0cl000ctn6y5ukshkil",
+    "name": "店长"
+  },
+  "brands": [
+    {
+      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "name": "奋小二"
+    }
+  ],
+  "storageSpace": {
+    "id": "cmt0xbey80005tncek1xtase8",
+    "name": "R2-test",
+    "bucketName": "videolist"
+  },
+  "executionDays": [
+    "周一",
+    "周二",
+    "周三",
+    "周四",
+    "周五",
+    "周六",
+    "周日"
+  ],
+  "deadlineDayOffset": 1,
+  "deadlineTime": "05:00",
+  "includeCompletionRate": true,
+  "status": "启用",
+  "configVersion": 1,
+  "submitItems": [
+    {
+      "name": "【餐厅】大厅",
+      "description": "四壁，玻璃镜面，地面干净，桌椅摆放整齐，服务柜干净整洁无杂物",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【餐厅】包间",
+      "description": "四壁，玻璃镜面，地面干净，桌椅摆放整齐，服务柜干净整洁无杂物",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【餐厅】桌面",
+      "description": "三面立卡、筷子、餐巾纸盒、卡式炉清洁干净，补充物料",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【餐厅】垃圾桶",
+      "description": "干净整洁，垃圾袋套用规范",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【餐厅】收餐桶",
+      "description": "收餐桶物料齐全，毛巾分色这正确且干净整洁，刮板干净，喷壶标签清晰，小红桶",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【收银区】电脑桌酒柜",
+      "description": "电脑关闭，桌面干净整洁。灯光关闭，酒水饮料摆放整齐（先进先出）",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【展柜】整体",
+      "description": "展柜干净整洁，产品按照要求，封膜加盖，分类储存",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【小料台】米饭",
+      "description": "剩余米饭装进保鲜盒，第二天员工餐使用。米饭桶及米饭铲清洁干净",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【小料台】小料",
+      "description": "小料按照要求分类储存，小料台干净整洁，工具清洁消毒干净摆放在小料台上",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【小吃台】小吃",
+      "description": "小吃，干果封膜防止返潮。小吃盘干净无水渍",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【饮品存放】茶壶和大炮筒",
+      "description": "清洁干净的茶壶及大炮筒照片",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【小设备】餐区冷藏柜",
+      "description": "摆放整齐，所有产品封膜加盖，生熟分开不得有纸箱或有色塑料袋，均在效期内",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【小设备】餐区冷冻柜",
+      "description": "摆放整齐，所有产品封膜加盖，生熟分开不得有纸箱或有色塑料袋，均在效期内",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【卫生间】洗手台",
+      "description": "台面干燥光亮，皂液器无滴漏 水龙头明亮无水积垢 ，镜面干净无水印",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【卫生间】厕所间",
+      "description": "地面及垃圾桶干净，内壁无尿垢，无液体残留 无边缘发黄，干净整洁",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【卫生间】卫生工具",
+      "description": "门店所有卫生工具使用后清洁干净，定位码放整齐，清洁消毒干净，工具柜/工具墙",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【毛巾】毛巾清洁",
+      "description": "所有毛巾进行清洗再消毒，84消毒水1：250水配比",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "【夕会】",
+      "description": "总结当天问题不足，制定明天工作计划安排，优秀员工表彰",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    }
+  ]
+}

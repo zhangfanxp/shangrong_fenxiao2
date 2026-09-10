@@ -7,7 +7,7 @@ import { jsonIdArray, resolveUserStores } from "@/lib/user-store-scope";
 export type StoreTaskItem = {
   name: string;
   component: "attachment" | "input" | "select";
-  dataType: "photo" | "video" | "document" | "amount" | "quantity" | null;
+  dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null;
   captureOnly?: boolean;
   options: string[];
   description: string;
@@ -41,7 +41,7 @@ export function isStoreTaskSnapshot(value: unknown): value is StoreTaskSnapshot 
       && (item.aiAnalysisType === undefined || item.aiAnalysisType === null || typeof item.aiAnalysisType === "string")
       && (item.aiAnalysisPrompt === undefined || item.aiAnalysisPrompt === null || typeof item.aiAnalysisPrompt === "string")
       && Boolean(item.aiAnalysisType) === Boolean(item.aiAnalysisPrompt)
-      && typeof item.description === "string" && typeof item.required === "boolean" && Number.isInteger(item.weight));
+      && typeof item.description === "string" && typeof item.required === "boolean" && Number.isInteger(item.weight) && item.weight > 0);
 }
 
 export function shanghaiDateKey(value = new Date()) {

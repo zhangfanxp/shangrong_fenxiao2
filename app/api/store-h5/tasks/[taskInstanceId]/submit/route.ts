@@ -5,13 +5,14 @@ import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { getStoreH5Session } from "@/lib/store-h5-auth";
 import { dateKeyAsDbDate, isStoreTaskSnapshot, shanghaiDateKey } from "@/lib/store-h5-tasks";
+import { deleteTaskDraftFiles } from "@/lib/task-r2-upload";
 import { nextTaskSubmissionRecordNo } from "@/lib/task-records";
 
 const bodySchema = z.object({
   items: z.array(z.object({
     index: z.number().int().min(0),
     value: z.union([z.string(), z.number()]).optional(),
-    attachmentIds: z.array(z.string()).max(1).optional(),
+    attachmentIds: z.array(z.string()).optional(),
   })),
 });
 
@@ -61,17 +62,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       if (item.component === "attachment") {
         const ids = submitted.attachmentIds || [];
         if (item.required && !ids.length) throw new SubmissionError(`请上传“${item.name}”`);
+        if (ids.length > item.weight) throw new SubmissionError(`“${item.name}”最多上传${item.weight}个附件`);
+        if (new Set(ids).size !== ids.length) throw new SubmissionError(`“${item.name}”存在重复附件`);
         if (ids.length) {
-          const attachment = await db.taskAttachment.findFirst({ where: { id: ids[0], taskRecordId: record.id, itemIndex: index, uploaderUserId: session.userId, consumedAt: null } });
-          if (!attachment) throw new SubmissionError(`“${item.name}”附件无效或尚未上传成功`);
-          attachmentIds.push(attachment.id);
-          detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value: null, attachmentObjectKey: attachment.objectKey, attachmentName: attachment.originalName, attachmentMimeType: attachment.mimeType, r2StorageId: attachment.r2StorageId, aiAnalysisTypeSnapshot: item.aiAnalysisType || null, aiAnalysisPromptSnapshot: item.aiAnalysisPrompt || null, sortOrder: index });
+          const uploaded = await db.taskAttachment.findMany({ where: { id: { in: ids }, taskRecordId: record.id, itemIndex: index, uploaderUserId: session.userId, consumedAt: null } });
+          if (uploaded.length !== ids.length) throw new SubmissionError(`“${item.name}”包含无效或尚未上传成功的附件`);
+          const uploadedById = new Map(uploaded.map(attachment => [attachment.id, attachment]));
+          const ordered = ids.map(id => uploadedById.get(id)!);
+          attachmentIds.push(...ids);
+          const first = ordered[0];
+          detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value: null, attachmentObjectKey: first.objectKey, attachmentName: first.originalName, attachmentMimeType: first.mimeType, r2StorageId: first.r2StorageId, aiAnalysisTypeSnapshot: item.aiAnalysisType || null, aiAnalysisPromptSnapshot: item.aiAnalysisPrompt || null, sortOrder: index });
         } else detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value: null, attachmentObjectKey: null, attachmentName: null, attachmentMimeType: null, r2StorageId: null, aiAnalysisTypeSnapshot: item.aiAnalysisType || null, aiAnalysisPromptSnapshot: item.aiAnalysisPrompt || null, sortOrder: index });
         continue;
       }
       if (item.required && valueIsEmpty(submitted.value)) throw new SubmissionError(`请完成“${item.name}”`);
       let value = valueIsEmpty(submitted.value) ? null : String(submitted.value).trim();
-      if (value !== null && item.component === "input") {
+      if (value !== null && item.component === "input" && item.dataType !== "text") {
         if (!/^\d+(?:\.\d+)?$/.test(value) || Number(value) < 0) throw new SubmissionError(`“${item.name}”请输入大于等于0的有效数字`);
         if (item.dataType === "amount" && !/^\d+(?:\.\d{1,2})?$/.test(value)) throw new SubmissionError(`“${item.name}”最多保留2位小数`);
       }
@@ -99,6 +105,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       }
       return created;
     });
+    const unusedDrafts = await db.taskAttachment.findMany({ where: { taskRecordId: record.id, uploaderUserId: session.userId, consumedAt: null }, select: { id: true, r2StorageId: true, objectKey: true } });
+    if (unusedDrafts.length) {
+      await deleteTaskDraftFiles(unusedDrafts)
+        .then(() => db.taskAttachment.deleteMany({ where: { id: { in: unusedDrafts.map(attachment => attachment.id) }, consumedAt: null } }))
+        .catch(() => undefined);
+    }
     await writeOperationLog({ userId: session.userId, username: session.username, client: "门店员工移动端", page: "任务详情", action: "提交", result: "成功", detail: `任务实例：${record.recordNo || record.id}；提交：${submission.id}`, request }).catch(() => undefined);
     return NextResponse.json({ message: "任务提交成功", submissionId: submission.id });
   } catch (error) {

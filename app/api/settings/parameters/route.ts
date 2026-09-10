@@ -4,6 +4,7 @@ import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
+import { AI_MODEL_IDS, aiModelLabel, aiModelSupportsService, type AiServiceApiConfig } from "@/lib/ai-model-adapters";
 import { getPlatformConfig, normalizeLoginTags, platformAssetVersion, savePlatformConfig } from "@/lib/platform-config";
 
 const imagePattern = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
@@ -56,9 +57,13 @@ const apiUrlSchema = z.string().trim().max(500, "接口地址不能超过500个�
 
 const aiApiSchema = z.object({
   section: z.literal("aiApi"),
-  endpoints: z.array(z.object({
+  services: z.array(z.object({
     service: z.string().trim().min(1, "Ai服务名称不能为空").max(200, "Ai服务名称不能超过200个字符"),
-    url: apiUrlSchema,
+    selectedModel: z.enum(AI_MODEL_IDS),
+    endpoints: z.object({
+      MAGE_VL: apiUrlSchema,
+      QWEN3_VL: apiUrlSchema,
+    }),
   })).max(100, "Ai服务接口数量不能超过100个"),
 });
 
@@ -102,14 +107,19 @@ export async function PUT(request: Request) {
 
     if (parsed.data.section === "aiApi") {
       const aiServiceOptions = await getBusinessDictionaryOptions("AI_SERVICE");
-      const requestedEndpoints = new Map(parsed.data.endpoints.map(item => [item.service, item.url]));
+      const requestedServices = new Map(parsed.data.services.map(item => [item.service, item]));
       const activeServices = aiServiceOptions.map(option => option.value);
-      if (requestedEndpoints.size !== parsed.data.endpoints.length || requestedEndpoints.size !== activeServices.length || activeServices.some(service => !requestedEndpoints.has(service))) {
+      if (requestedServices.size !== parsed.data.services.length || requestedServices.size !== activeServices.length || activeServices.some(service => !requestedServices.has(service))) {
         return NextResponse.json({ message: "Ai服务字典已更新，请刷新页面后重新保存" }, { status: 409 });
       }
-      const aiApiEndpoints = Object.fromEntries(activeServices.map(service => [service, requestedEndpoints.get(service) || ""]));
-      await savePlatformConfig({ ...current, aiApiEndpoints });
-      const detail = `更新${activeServices.map(service => `【${service}】`).join("、") || "空"}接口`;
+      const aiApiServices: Record<string, AiServiceApiConfig> = {};
+      for (const service of activeServices) {
+        const requested = requestedServices.get(service)!;
+        if (!aiModelSupportsService(requested.selectedModel, service)) return NextResponse.json({ message: `【${service}】暂不支持${aiModelLabel(requested.selectedModel)}` }, { status: 400 });
+        aiApiServices[service] = { selectedModel: requested.selectedModel, endpoints: requested.endpoints };
+      }
+      await savePlatformConfig({ ...current, aiApiServices });
+      const detail = `更新${activeServices.map(service => `【${service}】：${aiModelLabel(aiApiServices[service].selectedModel)}`).join("；") || "空"}接口`;
       await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "保存Ai API", result: "成功", detail: detail.slice(0, 800), request }).catch(() => undefined);
       return NextResponse.json({ success: true, message: "Ai API配置已保存成功" });
     }

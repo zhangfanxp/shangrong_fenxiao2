@@ -33,27 +33,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       r2StorageId: grant.r2StorageId, objectKey: grant.objectKey,
       expectedSize: grant.size, expectedMimeType: grant.mimeType, etag: parsed.data.etag,
     });
-    let attachment = await db.taskAttachment.findUnique({ where: { objectKey: grant.objectKey } });
+    const attachment = await db.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT \`id\` FROM \`TaskRecord\` WHERE \`id\` = ${record.id} FOR UPDATE`);
+      const existing = await tx.taskAttachment.findUnique({ where: { objectKey: grant.objectKey } });
+      if (existing) return existing;
+      const uploadedCount = await tx.taskAttachment.count({ where: { taskRecordId: record.id, itemIndex: grant.itemIndex, uploaderUserId: session.userId, consumedAt: null } });
+      if (uploadedCount >= item.weight) return null;
+      return tx.taskAttachment.create({ data: {
+        taskRecordId: record.id, itemIndex: grant.itemIndex, uploaderUserId: session.userId,
+        r2StorageId: grant.r2StorageId, objectKey: grant.objectKey, originalName: grant.originalName,
+        mimeType: grant.mimeType, size: grant.size,
+      } });
+    });
     if (!attachment) {
-      try {
-        attachment = await db.taskAttachment.create({ data: {
-          taskRecordId: record.id, itemIndex: grant.itemIndex, uploaderUserId: session.userId,
-          r2StorageId: grant.r2StorageId, objectKey: grant.objectKey, originalName: grant.originalName,
-          mimeType: grant.mimeType, size: grant.size,
-        } });
-      } catch (error) {
-        if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
-        attachment = await db.taskAttachment.findUnique({ where: { objectKey: grant.objectKey } });
-      }
+      await deleteTaskDraftFiles([{ r2StorageId: grant.r2StorageId, objectKey: grant.objectKey }]).catch(() => undefined);
+      return NextResponse.json({ message: `“${item.name}”最多上传${item.weight}个附件` }, { status: 409 });
     }
     if (!attachment || attachment.taskRecordId !== record.id || attachment.uploaderUserId !== session.userId || attachment.itemIndex !== grant.itemIndex) return NextResponse.json({ message: "附件登记冲突，请重新上传" }, { status: 409 });
-    const previous = await db.taskAttachment.findMany({
-      where: { taskRecordId: record.id, itemIndex: grant.itemIndex, uploaderUserId: session.userId, consumedAt: null, id: { not: attachment.id } },
-      select: { id: true, r2StorageId: true, objectKey: true },
-    });
-    if (previous.length) {
-      await deleteTaskDraftFiles(previous).then(() => db.taskAttachment.deleteMany({ where: { id: { in: previous.map(row => row.id) }, consumedAt: null } })).catch(() => undefined);
-    }
     return NextResponse.json({ id: attachment.id, name: attachment.originalName, size: attachment.size, mimeType: attachment.mimeType, status: "success" });
   } catch (error) {
     const message = error instanceof TaskAttachmentError ? error.message : "确认R2附件失败，请重新上传";

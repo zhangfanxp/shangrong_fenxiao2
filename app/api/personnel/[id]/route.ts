@@ -38,8 +38,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   if (!canPersonnel(session, "delete")) return NextResponse.json({ message: "无人员档案删除权限" }, { status: 403 });
-  const { id } = await params; const row = await db.personnel.findFirst({ where: { id, deletedAt: null }, include: { _count: { select: { salaryHistory: true, positionHistory: true } } } });
+  const { id } = await params; const row = await db.personnel.findFirst({ where: { id, deletedAt: null }, include: { _count: { select: { salaryHistory: true, positionHistory: true, itemRequisitions: true } } } });
   if (!row) return NextResponse.json({ message: "人员档案不存在或已删除" }, { status: 404 });
-  if (row._count.salaryHistory || row._count.positionHistory || row.platformUserId) return NextResponse.json({ message: "该人员已有业务历史或平台账号关联，不能删除，请使用离职流程" }, { status: 400 });
+  if (row._count.salaryHistory || row._count.positionHistory || row._count.itemRequisitions || row.platformUserId) return NextResponse.json({ message: "该人员已有业务历史或平台账号关联，不能删除，请使用离职流程" }, { status: 400 });
   await db.personnel.update({ where: { id }, data: { deletedAt: new Date() } }); await personnelLog(session.userId, "删除", "成功", `删除误录人员档案：${row.recordNo}`); return NextResponse.json({ message: "人员档案已删除" });
 }

@@ -1,12 +1,16 @@
 "use client";
 
-import { DeleteOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, WarningOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, DatePicker, Descriptions, Empty, Form, Image, Input, message, Modal, Select, Skeleton, Space, Spin, Table, Tag } from "antd";
+import { DeleteOutlined, DownloadOutlined, EditOutlined, EyeOutlined, LoadingOutlined, ReloadOutlined, RobotOutlined, SearchOutlined, UploadOutlined, WarningOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, DatePicker, Descriptions, Empty, Form, Image, Input, message, Modal, Select, Skeleton, Space, Spin, Table, Tag, Upload } from "antd";
 import type { ColumnsType, TableRowSelection } from "antd/es/table/interface";
+import type { UploadProps } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { optimizeTaskPhoto, putFileWithProgress } from "@/lib/client/store-h5-direct-upload";
+import { optimizeTaskVideo } from "@/lib/client/task-video-compression";
+import { taskAttachmentMaxBytes, taskAttachmentMaxMb } from "@/lib/task-attachment-rules";
 
 type TaskStatus = "COMPLETED" | "PENDING" | "OVERDUE";
 type TaskType = "DAILY" | "WEEKLY" | "MONTHLY" | "TEMPORARY";
@@ -25,18 +29,21 @@ type TaskRecordRow = {
 };
 type Filters = { status: "" | TaskStatus; taskName: string; taskType: "" | TaskType; executorKeyword: string; submitStartDate: string; submitEndDate: string };
 type FormValues = { status?: TaskStatus; taskName?: string; taskType?: TaskType; executorKeyword?: string; submitStartDate?: Dayjs | null; submitEndDate?: Dayjs | null };
+type TaskDetailAttachment = { id: string; name: string; mimeType: string | null; objectKey: string; url: string | null };
 type TaskDetailItem = {
   id: string;
   itemName: string;
   componentType: "attachment" | "input" | "select";
-  dataType: "photo" | "video" | "document" | "amount" | "quantity" | null;
+  dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null;
   description: string;
   required: boolean;
   weight: number;
   value: string | null;
+  attachmentObjectKey: string | null;
   attachmentName: string | null;
   attachmentMimeType: string | null;
   attachmentUrl: string | null;
+  attachments: TaskDetailAttachment[];
   aiAnalysisType: string | null;
   aiAnalysisPrompt: string | null;
   aiAnalysisStatus: "RUNNING" | "SUCCESS" | "FAILED" | null;
@@ -58,7 +65,15 @@ type TaskDetail = {
   submittedAt: string;
   status: "COMPLETED";
   configVersion: number;
+  editable: boolean;
   items: TaskDetailItem[];
+};
+type EditAttachment = {
+  attachmentId?: string;
+  name: string;
+  status: "uploading" | "success" | "error";
+  progress: number;
+  message?: string;
 };
 type AiAnalysisSummary = {
   message: string;
@@ -93,11 +108,12 @@ function responseFileName(response: Response) {
 }
 
 function AttachmentResult({ item }: { item: TaskDetailItem }) {
-  if (!item.attachmentName) return <span className="task-record-empty-value">未提交附件</span>;
-  if (!item.attachmentUrl) return <Alert type="warning" showIcon message={`${item.attachmentName} 暂时无法访问，请稍后重新打开详情`} />;
-  if (item.dataType === "photo") return <Image className="task-record-image" width={180} src={item.attachmentUrl} alt={item.attachmentName} />;
-  if (item.dataType === "video") return <video className="task-record-video" controls preload="metadata" src={item.attachmentUrl}>当前浏览器不支持视频播放</video>;
-  return <Button href={item.attachmentUrl} target="_blank" rel="noreferrer">查看附件：{item.attachmentName}</Button>;
+  const attachments = item.attachments?.length ? item.attachments : item.attachmentName && item.attachmentObjectKey ? [{ id: item.id, name: item.attachmentName, mimeType: item.attachmentMimeType, objectKey: item.attachmentObjectKey, url: item.attachmentUrl }] : [];
+  if (!attachments.length) return <span className="task-record-empty-value">未提交附件</span>;
+  return <div className="task-record-attachment-list">{attachments.map((attachment, index) => <div className="task-record-attachment" key={attachment.id || `${attachment.objectKey}-${index}`}>
+    <small>附件 {index + 1}/{attachments.length}</small>
+    {!attachment.url ? <Alert type="warning" showIcon message={`${attachment.name} 暂时无法访问，请稍后重新打开详情`} /> : item.dataType === "photo" ? <Image className="task-record-image" width={180} src={attachment.url} alt={attachment.name} /> : item.dataType === "video" ? <video className="task-record-video" controls preload="metadata" src={attachment.url}>当前浏览器不支持视频播放</video> : <Button href={attachment.url} target="_blank" rel="noreferrer">查看附件：{attachment.name}</Button>}
+  </div>)}</div>;
 }
 
 function AiAnalysisResult({ item }: { item: TaskDetailItem }) {
@@ -127,6 +143,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
   const router = useRouter();
   const hasAll = permissions.includes("*");
   const canView = hasAll || permissions.includes("tasks:records:view");
+  const canEdit = hasAll || permissions.includes("tasks:records:edit");
   const canExport = hasAll || permissions.includes("tasks:records:export");
   const canAnalyze = hasAll || permissions.includes("tasks:records:analyze");
   const canOpenAnalysisList = hasAll || permissions.includes("intelligent-analysis:query") || permissions.includes("intelligent-analysis:view");
@@ -148,6 +165,12 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
   const [detail, setDetail] = useState<TaskDetail>();
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(false);
+  const [editId, setEditId] = useState<string>();
+  const [editDetail, setEditDetail] = useState<TaskDetail>();
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState(false);
+  const [editAttachments, setEditAttachments] = useState<Record<string, EditAttachment>>({});
+  const [editSaving, setEditSaving] = useState(false);
   const [deleteRow, setDeleteRow] = useState<TaskRecordRow>();
   const [deleting, setDeleting] = useState(false);
   const listRequestSequence = useRef(0);
@@ -266,6 +289,103 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     } finally { setDetailLoading(false); }
   };
 
+  const openEditor = async (id: string) => {
+    setEditId(id); setEditDetail(undefined); setEditAttachments({}); setEditError(false); setEditLoading(true);
+    try {
+      const response = await fetch(`/api/task-records/${id}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "任务详情加载失败，请稍后重试");
+      if (!data.editable) throw new Error("仅已完成且尚未智能分析的任务记录支持编辑");
+      setEditDetail(data);
+    } catch (reason) {
+      setEditError(true); message.error(reason instanceof Error ? reason.message : "任务详情加载失败，请稍后重试");
+    } finally { setEditLoading(false); }
+  };
+
+  const uploadEditAttachment = (item: TaskDetailItem): UploadProps["beforeUpload"] => async file => {
+    if (!editId || (item.dataType !== "photo" && item.dataType !== "video")) return Upload.LIST_IGNORE;
+    const dataType = item.dataType;
+    const typeOkay = dataType === "video" ? file.type.startsWith("video/") : file.type.startsWith("image/");
+    const maxBytes = taskAttachmentMaxBytes(dataType);
+    const maxMb = taskAttachmentMaxMb(dataType);
+    if (!typeOkay || (dataType === "photo" && file.size > maxBytes)) {
+      setEditAttachments(current => ({ ...current, [item.id]: { name: file.name, status: "error", progress: 0, message: !typeOkay ? "文件类型不符合要求" : `文件不能超过 ${maxMb}MB` } }));
+      return Upload.LIST_IGNORE;
+    }
+    setEditAttachments(current => ({ ...current, [item.id]: { name: file.name, status: "uploading", progress: 0, message: dataType === "photo" ? "正在优化图片..." : "正在读取并压缩视频..." } }));
+    try {
+      const prepared = dataType === "photo"
+        ? await optimizeTaskPhoto(file)
+        : await optimizeTaskVideo(file, progress => setEditAttachments(current => ({ ...current, [item.id]: { ...current[item.id], name: file.name, status: "uploading", progress: Math.round(progress * .35), message: `正在压缩视频 ${progress}%` } })));
+      const directFile = prepared.file;
+      if (directFile.size > maxBytes) throw new Error(`文件不能超过 ${maxMb}MB`);
+      setEditAttachments(current => ({ ...current, [item.id]: { ...current[item.id], name: directFile.name, status: "uploading", progress: dataType === "video" && prepared.optimized ? 35 : 0, message: "正在上传到R2..." } }));
+      const signResponse = await fetch(`/api/task-records/${editId}/attachments/sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: item.id, name: directFile.name, type: directFile.type || "application/octet-stream", size: directFile.size }),
+      });
+      const sign = await signResponse.json();
+      if (!signResponse.ok) throw new Error(sign.message || "生成R2直传地址失败，请稍后重试");
+      const uploaded = await putFileWithProgress({
+        url: sign.uploadUrl,
+        file: directFile,
+        headers: sign.headers,
+        onProgress: progress => setEditAttachments(current => ({ ...current, [item.id]: { ...current[item.id], name: directFile.name, status: "uploading", progress: dataType === "video" && prepared.optimized ? 35 + Math.round(progress * .65) : progress, message: "正在上传到R2..." } })),
+      });
+      const confirmResponse = await fetch(`/api/task-records/${editId}/attachments/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadToken: sign.uploadToken, etag: uploaded.etag }),
+      });
+      const confirmed = await confirmResponse.json();
+      if (!confirmResponse.ok) throw new Error(confirmed.message || "确认R2附件失败，请重新上传");
+      setEditAttachments(current => ({ ...current, [item.id]: { attachmentId: confirmed.id, name: confirmed.name, status: "success", progress: 100, message: "新附件已上传，保存后正式替换原附件" } }));
+    } catch (reason) {
+      setEditAttachments(current => ({ ...current, [item.id]: { name: current[item.id]?.name || file.name, status: "error", progress: current[item.id]?.progress || 0, message: reason instanceof Error ? reason.message : "附件上传失败，请重新上传" } }));
+    }
+    return Upload.LIST_IGNORE;
+  };
+
+  const closeEditor = () => {
+    if (editSaving || Object.values(editAttachments).some(item => item.status === "uploading")) return;
+    const attachmentIds = Object.values(editAttachments).flatMap(item => item.status === "success" && item.attachmentId ? [item.attachmentId] : []);
+    if (editId && attachmentIds.length) {
+      void fetch(`/api/task-records/${editId}/attachments`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attachmentIds }),
+      }).catch(() => undefined);
+    }
+    setEditId(undefined); setEditDetail(undefined); setEditAttachments({});
+  };
+
+  const saveEdit = async () => {
+    if (!editId || !editDetail || editSaving) return;
+    const items = editDetail.items.flatMap(item => {
+      const replacement = editAttachments[item.id];
+      return replacement?.status === "success" && replacement.attachmentId
+        ? [{ itemId: item.id, attachmentId: replacement.attachmentId, originalObjectKey: item.attachmentObjectKey }]
+        : [];
+    });
+    if (!items.length) { message.warning("请至少重新上传一个图片或视频附件"); return; }
+    setEditSaving(true);
+    try {
+      const response = await fetch(`/api/task-records/${editId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "任务记录保存失败，请稍后重试");
+      message.success(data.message || "任务记录附件已更新");
+      setEditId(undefined); setEditDetail(undefined); setEditAttachments({});
+      void load(page, pageSize, filters, true);
+    } catch (reason) {
+      message.error(reason instanceof Error ? reason.message : "任务记录保存失败，请稍后重试");
+    } finally { setEditSaving(false); }
+  };
+
   const performDelete = async () => {
     if (!deleteRow) return;
     setDeleting(true);
@@ -296,7 +416,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     { title: "任务创建日期", dataIndex: "createdAt", width: 170 },
     { title: "任务提交日期", dataIndex: "submittedAt", width: 170 },
     { title: "任务状态", dataIndex: "status", width: 100, render: (value: TaskStatus) => <Tag color={taskStatusMeta[value].color}>{taskStatusMeta[value].label}</Tag> },
-    { title: "操作", key: "actions", width: canView && canDelete ? 128 : 76, fixed: "right", render: (_, row) => <Space size={4} className="table-actions">{canView && row.status === "COMPLETED" && <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => void openDetail(row.id)}>查看</Button>}{canDelete && <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => setDeleteRow(row)}>删除</Button>}</Space> },
+    { title: "操作", key: "actions", width: 210, fixed: "right", render: (_, row) => <Space size={4} className="table-actions">{canView && row.status === "COMPLETED" && <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => void openDetail(row.id)}>查看</Button>}{canEdit && row.status === "COMPLETED" && !row.hasAiAnalysis && <Button type="link" size="small" icon={<EditOutlined />} onClick={() => void openEditor(row.id)}>编辑</Button>}{canDelete && <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => setDeleteRow(row)}>删除</Button>}</Space> },
   ];
   const rowSelection: TableRowSelection<TaskRecordRow> = {
     selectedRowKeys,
@@ -339,7 +459,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
         </Space>
       </div>
       {loadError ? <Alert type="error" showIcon message="任务记录加载失败，请稍后重试" action={<Button size="small" onClick={() => void load()}>重新加载</Button>} /> : <Table<TaskRecordRow>
-        rowKey="id" dataSource={rows} loading={loading} columns={columns} rowSelection={rowSelection} scroll={{ x: 1410 }}
+        rowKey="id" dataSource={rows} loading={loading} columns={columns} rowSelection={rowSelection} scroll={{ x: 1490 }}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={Object.values(filters).some(Boolean) ? <><div>没有找到符合当前条件的任务记录</div><small>请调整筛选条件后重试</small><div><Button type="link" onClick={resetFilters}>重置筛选</Button></div></> : "暂无任务记录"} /> }}
         pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [20, 50, 100], showTotal: value => `共 ${value} 条`, onChange: (nextPage, nextSize) => { const targetPage = nextSize !== pageSize ? 1 : nextPage; setPage(targetPage); setPageSize(nextSize); void load(targetPage, nextSize, filters); } }}
       />}
@@ -389,8 +509,55 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
         <div className="task-record-detail-heading"><h3>提交内容</h3><Tag color="blue">配置版本 V{detail.configVersion}</Tag></div>
         {detail.items.length ? detail.items.map((item, index) => <section className="task-record-detail-item" key={item.id}>
           <div className="task-record-detail-index">{index + 1}</div>
-          <div className="task-record-detail-content"><div className="task-record-detail-title">{item.itemName}{item.required && <span>*</span>}<Tag>{item.weight} 分</Tag></div>{item.description && <p>{item.description}</p>}<div className="task-record-result">{item.componentType === "attachment" ? <AttachmentResult item={item} /> : item.componentType === "select" && item.value ? <Tag color="blue">{item.value}</Tag> : <span className={item.value ? "" : "task-record-empty-value"}>{item.value || "未填写"}</span>}</div><AiAnalysisResult item={item} /></div>
+          <div className="task-record-detail-content"><div className="task-record-detail-title">{item.itemName}{item.required && <span>*</span>}{item.componentType === "attachment" && <Tag>最多 {item.weight} 个附件</Tag>}</div>{item.description && <p>{item.description}</p>}<div className="task-record-result">{item.componentType === "attachment" ? <AttachmentResult item={item} /> : item.componentType === "select" && item.value ? <Tag color="blue">{item.value}</Tag> : <span className={item.value ? "" : "task-record-empty-value"}>{item.value || "未填写"}</span>}</div><AiAnalysisResult item={item} /></div>
         </section>) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该任务未保存提交明细" />}
+      </div>}
+    </Modal>
+
+    <Modal
+      className="task-record-detail-modal task-record-edit-modal"
+      width={1100}
+      open={!!editId}
+      title="编辑任务"
+      maskClosable={false}
+      closable={!editSaving && !Object.values(editAttachments).some(item => item.status === "uploading")}
+      onCancel={closeEditor}
+      footer={<Space>
+        <Button disabled={editSaving || Object.values(editAttachments).some(item => item.status === "uploading")} onClick={closeEditor}>取消</Button>
+        <Button type="primary" loading={editSaving} disabled={!Object.values(editAttachments).some(item => item.status === "success") || Object.values(editAttachments).some(item => item.status === "uploading")} onClick={() => void saveEdit()}>{editSaving ? "保存中..." : "保存"}</Button>
+      </Space>}
+    >
+      {editLoading ? <Skeleton active paragraph={{ rows: 10 }} /> : editError ? <Alert type="error" showIcon message="任务详情加载失败或当前记录已不支持编辑" action={<Button size="small" onClick={() => editId && void openEditor(editId)}>重新加载</Button>} /> : editDetail && <div className="task-record-detail">
+        <Alert className="task-record-edit-tip" type="info" showIcon message="仅图片、视频附件支持重新上传；点击保存后才会正式替换原附件。" />
+        <h3>任务信息</h3>
+        <Descriptions bordered size="small" column={4}>
+          <Descriptions.Item label="记录编号">{editDetail.recordNo}</Descriptions.Item><Descriptions.Item label="任务名称">{editDetail.taskName}</Descriptions.Item><Descriptions.Item label="任务类型">{editDetail.taskTypeLabel}</Descriptions.Item><Descriptions.Item label="任务执行人">{editDetail.executor}</Descriptions.Item>
+          <Descriptions.Item label="参与核算完成率"><Tag color={editDetail.includeCompletionRate ? "blue" : "default"}>{editDetail.includeCompletionRate ? "参与" : "不参与"}</Tag></Descriptions.Item><Descriptions.Item label="任务创建日期">{editDetail.createdAt}</Descriptions.Item><Descriptions.Item label="任务提交日期">{editDetail.submittedAt}</Descriptions.Item><Descriptions.Item label="任务状态"><Tag color="success">已完成</Tag></Descriptions.Item>
+        </Descriptions>
+        <div className="task-record-detail-heading"><h3>提交内容</h3><Tag color="blue">配置版本 V{editDetail.configVersion}</Tag></div>
+        {editDetail.items.length ? editDetail.items.map((item, index) => {
+          const replacement = editAttachments[item.id];
+          const attachmentEditable = item.componentType === "attachment" && (item.dataType === "photo" || item.dataType === "video");
+          return <section className="task-record-detail-item" key={item.id}>
+            <div className="task-record-detail-index">{index + 1}</div>
+            <div className="task-record-detail-content">
+              <div className="task-record-detail-title">{item.itemName}{item.required && <span>*</span>}{item.componentType === "attachment" && <Tag>最多 {item.weight} 个附件</Tag>}</div>
+              {item.description && <p>{item.description}</p>}
+              <div className="task-record-result">{item.componentType === "attachment" ? <AttachmentResult item={item} /> : item.componentType === "select" && item.value ? <Tag color="blue">{item.value}</Tag> : <span className={item.value ? "" : "task-record-empty-value"}>{item.value || "未填写"}</span>}</div>
+              {attachmentEditable && <div className="task-record-edit-upload">
+                <Upload accept={item.dataType === "video" ? "video/*" : "image/*"} showUploadList={false} maxCount={1} beforeUpload={uploadEditAttachment(item)}>
+                  <Button icon={<UploadOutlined />} loading={replacement?.status === "uploading"} disabled={editSaving}>{replacement?.status === "uploading" ? `上传中 ${replacement.progress}%` : item.dataType === "video" ? "重新上传视频" : "重新上传图片"}</Button>
+                </Upload>
+                {replacement && <div className={`task-record-edit-upload-status ${replacement.status}`}>
+                  {replacement.status === "uploading" && <LoadingOutlined />}
+                  <span>{replacement.name}</span>
+                  <small>{replacement.message}</small>
+                </div>}
+              </div>}
+              <AiAnalysisResult item={item} />
+            </div>
+          </section>;
+        }) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该任务未保存提交明细" />}
       </div>}
     </Modal>
 

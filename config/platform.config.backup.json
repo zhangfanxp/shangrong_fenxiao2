@@ -13,5 +13,21 @@
   "dailyLearningR2StorageId": "cmt0xbey80005tncek1xtase8",
   "trainingVideoR2StorageId": "cmt0xbey80005tncek1xtase8",
   "trainingAudioR2StorageId": "cmt0xbey80005tncek1xtase8",
-  "trainingDocumentR2StorageId": "cmt0xbey80005tncek1xtase8"
+  "trainingDocumentR2StorageId": "cmt0xbey80005tncek1xtase8",
+  "aiApiServices": {
+    "图片分析": {
+      "selectedModel": "QWEN3_VL",
+      "endpoints": {
+        "MAGE_VL": "http://127.0.0.1:8000/api/v1/analyze/image",
+        "QWEN3_VL": "http://127.0.0.1:8001"
+      }
+    },
+    "视频分析": {
+      "selectedModel": "MAGE_VL",
+      "endpoints": {
+        "MAGE_VL": "http://127.0.0.1:8000/api/v1/analyze/video",
+        "QWEN3_VL": ""
+      }
+    }
+  }
 }

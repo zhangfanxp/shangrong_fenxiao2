@@ -1,9 +1,9 @@
 import { createTaskAttachmentReadUrl } from "@/lib/task-r2-upload";
-
-type AiAnalysisKind = "image" | "video" | "text" | "generic";
+import { aiModelLabel, aiModelSupportsService, aiServiceKind, type AiModelId } from "@/lib/ai-model-adapters";
 
 export type TaskAiAnalysisInput = {
   service: string;
+  model: AiModelId;
   endpoint: string;
   prompt: string;
   componentType: string;
@@ -26,16 +26,6 @@ const AI_REQUEST_TIMEOUT_MILLISECONDS = 15 * 60 * 1000;
 const ATTACHMENT_DOWNLOAD_TIMEOUT_MILLISECONDS = 2 * 60 * 1000;
 const MAX_AI_RESPONSE_CHARACTERS = 100_000;
 const MAX_MEDIA_BYTES = 110 * 1024 * 1024;
-
-function serviceKind(service: string, dataType: string | null): AiAnalysisKind {
-  const normalized = service.toLowerCase();
-  if (service.includes("图片") || normalized.includes("image")) return "image";
-  if (service.includes("视频") || normalized.includes("video")) return "video";
-  if (service.includes("文字") || service.includes("文本") || normalized.includes("text")) return "text";
-  if (dataType === "photo") return "image";
-  if (dataType === "video") return "video";
-  return "generic";
-}
 
 function objectValue(value: unknown, keys: string[]) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
@@ -62,11 +52,11 @@ function extractUnqualifiedReason(raw: string) {
   return afterVerdict || "AI接口未单独返回不合格原因描述";
 }
 
-export function parseTaskAiAnalysisResponse(payload: unknown): TaskAiAnalysisOutput {
+export function parseTaskAiAnalysisResponse(payload: unknown, model: AiModelId = "MAGE_VL"): TaskAiAnalysisOutput {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new TaskAiAnalysisError("AI接口响应格式不正确");
   const response = payload as Record<string, unknown>;
-  if (response.success !== true) throw new TaskAiAnalysisError("AI接口响应未标记为成功");
-  let resultPayload = response.result ?? response.data;
+  if (model === "QWEN3_VL" ? response.ok !== true : response.success !== true) throw new TaskAiAnalysisError("AI接口响应未标记为成功");
+  let resultPayload = model === "QWEN3_VL" ? response.answer : response.result ?? response.data;
   if (typeof resultPayload === "string") resultPayload = tryParseJson(resultPayload) || resultPayload;
 
   const structuredResult = objectValue(resultPayload, ["analysisResult", "analysis_result", "result", "conclusion", "qualified", "isQualified"])
@@ -98,7 +88,8 @@ async function attachmentBlob(input: TaskAiAnalysisInput) {
 
 export async function analyzeTaskSubmissionItem(input: TaskAiAnalysisInput): Promise<TaskAiAnalysisOutput> {
   if (!input.endpoint.trim()) throw new TaskAiAnalysisError(`系统参数尚未配置“${input.service}”API接口`);
-  const kind = serviceKind(input.service, input.dataType);
+  if (!aiModelSupportsService(input.model, input.service, input.dataType)) throw new TaskAiAnalysisError(`${aiModelLabel(input.model)}暂不支持“${input.service}”`);
+  const kind = aiServiceKind(input.service, input.dataType);
   let headers: HeadersInit | undefined;
   let body: BodyInit;
   if (kind === "image" || kind === "video") {
@@ -106,13 +97,17 @@ export async function analyzeTaskSubmissionItem(input: TaskAiAnalysisInput): Pro
     if (kind === "image" && input.dataType !== "photo") throw new TaskAiAnalysisError("图片分析任务没有提交图片");
     if (kind === "video" && input.dataType !== "video") throw new TaskAiAnalysisError("视频分析任务没有提交视频");
     const formData = new FormData();
-    formData.append("file", await attachmentBlob(input), input.attachmentName || (kind === "image" ? "task-image" : "task-video"));
+    formData.append(input.model === "QWEN3_VL" ? "image" : "file", await attachmentBlob(input), input.attachmentName || (kind === "image" ? "task-image" : "task-video"));
     formData.append("prompt", input.prompt);
-    formData.append("language", "中文");
     formData.append("max_tokens", "1024");
     formData.append("temperature", "0");
-    if (kind === "image") formData.append("image_max_side", "1600");
+    if (input.model === "QWEN3_VL") formData.append("max_image_dimension", "1600");
+    else if (kind === "image") {
+      formData.append("language", "中文");
+      formData.append("image_max_side", "1600");
+    }
     else {
+      formData.append("language", "中文");
       formData.append("frame_count", "16");
       formData.append("frame_max_side", "1280");
     }
@@ -136,5 +131,5 @@ export async function analyzeTaskSubmissionItem(input: TaskAiAnalysisInput): Pro
   try { payload = JSON.parse(responseText); }
   catch { throw new TaskAiAnalysisError(response.ok ? "AI接口未返回有效JSON数据" : `AI接口返回 HTTP ${response.status}`); }
   if (!response.ok) throw new TaskAiAnalysisError(`AI接口返回 HTTP ${response.status}`);
-  return parseTaskAiAnalysisResponse(payload);
+  return parseTaskAiAnalysisResponse(payload, input.model);
 }
