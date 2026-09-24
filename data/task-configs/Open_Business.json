@@ -38,7 +38,7 @@
   "deadlineTime": "18:00",
   "includeCompletionRate": true,
   "status": "启用",
-  "configVersion": 11,
+  "configVersion": 12,
   "submitItems": [
     {
       "name": "开市【例会】",
@@ -49,7 +49,7 @@
       "aiAnalysisPrompt": null,
       "component": "attachment",
       "dataType": "video",
-      "captureOnly": true,
+      "captureOnly": false,
       "options": []
     },
     {

@@ -1,4 +1,5 @@
 import { loadEnvConfig } from "@next/env";
+import { SYSTEM_DICTIONARIES } from "../lib/deployment";
 import { fixedSystemRoles } from "../lib/system-roles";
 
 async function readStdin() {
@@ -12,16 +13,21 @@ async function main() {
   const input = await readStdin();
   const { db } = await import("../lib/db");
   try {
-    const [administrator, roles, dictionaryCount, database] = await Promise.all([
+    const [administrator, roles, dictionaries, database] = await Promise.all([
       db.user.findUnique({ where: { id: input.administratorId }, select: { id: true, realName: true } }),
       db.role.findMany({ where: { code: { in: fixedSystemRoles.map(role => role.code) }, type: "SYSTEM", status: "ENABLED" }, select: { code: true, name: true } }),
-      db.dataDictionary.count({ where: { status: "ENABLED" } }),
+      db.dataDictionary.findMany({
+        where: { code: { in: SYSTEM_DICTIONARIES.map(dictionary => dictionary.code) }, status: "ENABLED" },
+        select: { recordNo: true, name: true, code: true, fileName: true },
+      }),
       db.$queryRaw<Array<{ ok: number | bigint }>>`SELECT 1 AS ok`,
     ]);
     const roleIdentities = new Set(roles.map(role => `${role.code}:${role.name}`));
     const rolesComplete = fixedSystemRoles.every(role => roleIdentities.has(`${role.code}:${role.name}`));
-    if (!administrator || !rolesComplete || dictionaryCount < 12 || Number(database[0]?.ok) !== 1) throw new Error("数据库初始化结果不完整");
-    process.stdout.write(`${JSON.stringify({ database: true, administrator: true, systemRoles: roles.length, dictionaries: dictionaryCount })}\n`);
+    const dictionaryIdentities = new Set(dictionaries.map(dictionary => `${dictionary.recordNo}:${dictionary.name}:${dictionary.code}:${dictionary.fileName}`));
+    const dictionariesComplete = SYSTEM_DICTIONARIES.every(dictionary => dictionaryIdentities.has(`${dictionary.recordNo}:${dictionary.name}:${dictionary.code}:${dictionary.fileName}`));
+    if (!administrator || !rolesComplete || !dictionariesComplete || Number(database[0]?.ok) !== 1) throw new Error("数据库初始化结果不完整");
+    process.stdout.write(`${JSON.stringify({ database: true, administrator: true, systemRoles: roles.length, dictionaries: dictionaries.length })}\n`);
   } finally {
     await db.$disconnect();
   }

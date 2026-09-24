@@ -161,6 +161,8 @@ http://127.0.0.1:3210/?token=<随机令牌>
 
 正式初始化只创建超级管理员和系统运行必需数据，不会创建任何演示品牌、门店、合同、任务或培训业务数据。
 
+系统数据字典由两部分组成：`Data_Dictionary/*.json` 保存字典值，`lib/deployment.ts` 中的 `SYSTEM_DICTIONARIES` 保存对应的编号、中文名称、英文名称和文件名。两部分均随 Git 代码同步；全新 Mac 执行 Setup 时会自动把清单中的全部字典登记到空数据库，因此品牌、总部部门、岗位星级、人员状态等字典不需要再次手工创建。升级/修复也会重新同步这些系统字典，但不会写入演示业务数据。
+
 如果安装中途失败，已经创建的空库、配置或基础结构可能被安全保留。修正页面提示的问题后重新执行 `npm run setup`；Setup 只允许对同一主机、端口、数据库名和应用账号的未完成安装继续执行，不会把任意非空数据库误判为可继续初始化。不要为了绕过保护而删除 `data/deployment/pending-install.json`。
 
 ### 6. 安装产生的本机文件
@@ -285,7 +287,7 @@ npm run setup
 - 修改 `prisma/schema.prisma` 时，必须在 `prisma/deploy-migrations/` 新增一个不可变 SQL 文件，递增 `deployment/manifest.json` 的 `databaseSchemaVersion`，更新 `databaseSchemaChecksum` 和 `latestMigration`；
 - 已经发布到任何正式 Mac 的迁移文件绝对不能修改、改名或删除，只能新增更晚的迁移；
 - 新增正式环境必需的变量时，要同步 `.env.example`、部署清单和 Setup 写入逻辑；
-- 改变必要字典或本地配置格式时，要更新同步脚本，并按需要递增 `configSchemaVersion`；
+- 修改已有系统字典的选项时，提交对应的 `Data_Dictionary/*.json`；新增或删除系统字典时，还要同步维护 `lib/deployment.ts` 中的 `SYSTEM_DICTIONARIES`，并递增 `configSchemaVersion`。`npm run verify:deployment` 会检查字典文件与初始化清单是否一一对应，遗漏时构建会直接失败；
 - 新增必须由用户首次填写的第三方凭据或系统服务时，才需要调整 Setup 页面和安装流程；
 - 发布前必须执行 `npm run verify:deployment` 和 `npm run build`。当前构建会在 Prisma 结构变化但部署清单未更新时主动失败。
 
@@ -373,3 +375,11 @@ rm ~/Library/LaunchAgents/com.canyin.web.plist
 ## 数据库全量备份
 
 《设置》→《数据库备份》支持每日（最多三个执行时间）、每周（可多选星期）和人工即时备份。每次都会生成一个可独立恢复的 MySQL 全量 `.sql.gz` 文件并上传至所选 Cloudflare R2 存储桶，同时保存 SHA-256、文件大小、执行状态与操作日志。生产部署、环境自检和新服务器恢复步骤见 [prisma/upgrades/README-database-backups.md](prisma/upgrades/README-database-backups.md)。
+
+同一页面的“数据库数据字典”按钮读取项目根目录的 `db_dict.md`，展示数据表及字段详情。运行中的页面不会读取 Prisma schema 或实时查询 `information_schema`；后续数据库结构变化时，直接更新该 Markdown 文件即可。需要基于当前连接的 MySQL 重新生成时，可执行：
+
+```bash
+npm run db:dict:generate
+```
+
+页面解析格式为 `## 英文表名 | 中文名`、下一行 `> 作用：...`，以及“字段英文名、中文名、字段类型、数据内容（意义）、是否主键、索引”六列表格；手工维护时请保留该结构。

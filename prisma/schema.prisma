@@ -207,64 +207,67 @@ model Role {
 }
 
 model User {
-  id                         String                            @id @default(cuid())
-  username                   String                            @unique
-  passwordHash               String
-  realName                   String
-  phone                      String?
-  tags                       String?                           @db.VarChar(200)
-  leadH5BrandIds             Json?
-  leadH5StoreIds             Json?
-  type                       UserType                          @default(CUSTOM)
-  status                     RecordStatus                      @default(ENABLED)
-  roleId                     String
-  role                       Role                              @relation(fields: [roleId], references: [id])
-  createdByUserId            String?
-  createdBy                  User?                             @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdUsers               User[]                            @relation("UserCreator")
-  lastLoginAt                DateTime?
-  createdAt                  DateTime                          @default(now())
-  updatedAt                  DateTime                          @updatedAt
-  logs                       OperationLog[]
-  createdTasks               Task[]                            @relation("TaskCreator")
-  createdAssessments         Assessment[]                      @relation("AssessmentCreator")
-  createdResearchTemplates   ResearchTemplate[]                @relation("ResearchTemplateCreator")
-  createdR2StorageConfigs    R2StorageConfig[]                 @relation("R2StorageCreator")
-  r2StorageTests             R2StorageTest[]                   @relation("R2StorageTestCreator")
-  personnelProfile           Personnel?                        @relation("PersonnelPlatformUser")
-  createdPersonnel           Personnel[]                       @relation("PersonnelCreator")
-  salaryAdjustments          SalaryHistory[]                   @relation("SalaryOperator")
-  positionTransfers          PositionHistory[]                 @relation("PositionOperator")
-  leadH5Reviews              LeadH5Review[]                    @relation("LeadH5Reviewer")
-  leadH5ReviewPhotos         LeadH5ReviewPhoto[]               @relation("LeadH5ReviewPhotoUploader")
-  leadH5ResearchRecords      ResearchTemplateRecord[]          @relation("LeadH5ResearchSubmitter")
-  assignedTaskRecords        TaskRecord[]                      @relation("TaskRecordAssignee")
-  taskSubmissions            TaskSubmission[]                  @relation("TaskSubmissionUser")
-  taskAttachments            TaskAttachment[]                  @relation("TaskAttachmentUploader")
-  analyzedTaskAiRecords      TaskAiAnalysis[]                  @relation("TaskAiAnalysisOperator")
-  createdNotifications       Notification[]                    @relation("NotificationCreator")
-  notificationRecipients     NotificationRecipient[]           @relation("NotificationRecipientUser")
-  createdMeetings            Meeting[]                         @relation("MeetingCreator")
-  meetingParticipants        MeetingParticipant[]              @relation("MeetingParticipantUser")
-  createdDailyLearningPlans  DailyLearningPlan[]               @relation("DailyLearningPlanCreator")
-  dailyLearningAssignments   DailyLearningAssignee[]           @relation("DailyLearningAssigneeUser")
-  dailyLearningProgress      DailyLearningProgress[]           @relation("DailyLearningProgressUser")
-  courseAssignments          CourseAssignment[]                @relation("CourseAssignmentUser")
-  createdCourseAssignments   CourseAssignment[]                @relation("CourseAssignmentCreator")
-  createdActualRevenue       ActualRevenueMonthly[]            @relation("ActualRevenueCreator")
-  createdMonthlyTargets      StoreMonthlyTarget[]              @relation("MonthlyTargetCreator")
-  createdInventoryItems      InventoryItem[]                   @relation("InventoryItemCreator")
-  updatedInventoryItems      InventoryItem[]                   @relation("InventoryItemUpdater")
-  inventoryTransactions      InventoryTransaction[]            @relation("InventoryTransactionOperator")
-  createdItemRequisitions    ItemRequisition[]                 @relation("ItemRequisitionCreator")
-  updatedItemRequisitions    ItemRequisition[]                 @relation("ItemRequisitionUpdater")
-  itemRequisitionReturns     ItemRequisitionReturn[]           @relation("ItemRequisitionReturnOperator")
-  createdDailyAttendances    DailyAttendanceRecord[]           @relation("DailyAttendanceCreator")
-  createdRestDays            RestDay[]                         @relation("RestDayCreator")
-  updatedRestDays            RestDay[]                         @relation("RestDayUpdater")
-  createdPurchaseSalesRatios MonthlyPurchaseSalesRatio[]       @relation("MonthlyPurchaseSalesCreator")
-  updatedPurchaseSalesRatios MonthlyPurchaseSalesRatio[]       @relation("MonthlyPurchaseSalesUpdater")
-  purchaseSalesImportBatches MonthlyPurchaseSalesImportBatch[] @relation("MonthlyPurchaseSalesImportOperator")
+  id                          String                            @id @default(cuid())
+  username                    String                            @unique
+  passwordHash                String
+  realName                    String
+  phone                       String?
+  tags                        String?                           @db.VarChar(200)
+  leadH5BrandIds              Json?
+  leadH5StoreIds              Json?
+  type                        UserType                          @default(CUSTOM)
+  status                      RecordStatus                      @default(ENABLED)
+  roleId                      String
+  role                        Role                              @relation(fields: [roleId], references: [id])
+  createdByUserId             String?
+  createdBy                   User?                             @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdUsers                User[]                            @relation("UserCreator")
+  lastLoginAt                 DateTime?
+  createdAt                   DateTime                          @default(now())
+  updatedAt                   DateTime                          @updatedAt
+  logs                        OperationLog[]
+  createdTasks                Task[]                            @relation("TaskCreator")
+  createdAssessments          Assessment[]                      @relation("AssessmentCreator")
+  createdResearchTemplates    ResearchTemplate[]                @relation("ResearchTemplateCreator")
+  createdR2StorageConfigs     R2StorageConfig[]                 @relation("R2StorageCreator")
+  r2StorageTests              R2StorageTest[]                   @relation("R2StorageTestCreator")
+  personnelProfile            Personnel?                        @relation("PersonnelPlatformUser")
+  createdPersonnel            Personnel[]                       @relation("PersonnelCreator")
+  salaryAdjustments           SalaryHistory[]                   @relation("SalaryOperator")
+  positionTransfers           PositionHistory[]                 @relation("PositionOperator")
+  leadH5Reviews               LeadH5Review[]                    @relation("LeadH5Reviewer")
+  leadH5ReviewPhotos          LeadH5ReviewPhoto[]               @relation("LeadH5ReviewPhotoUploader")
+  leadH5ResearchRecords       ResearchTemplateRecord[]          @relation("LeadH5ResearchSubmitter")
+  assignedTaskRecords         TaskRecord[]                      @relation("TaskRecordAssignee")
+  taskSubmissions             TaskSubmission[]                  @relation("TaskSubmissionUser")
+  taskAttachments             TaskAttachment[]                  @relation("TaskAttachmentUploader")
+  analyzedTaskAiRecords       TaskAiAnalysis[]                  @relation("TaskAiAnalysisOperator")
+  createdNotifications        Notification[]                    @relation("NotificationCreator")
+  notificationRecipients      NotificationRecipient[]           @relation("NotificationRecipientUser")
+  createdMeetings             Meeting[]                         @relation("MeetingCreator")
+  meetingParticipants         MeetingParticipant[]              @relation("MeetingParticipantUser")
+  createdDailyLearningPlans   DailyLearningPlan[]               @relation("DailyLearningPlanCreator")
+  dailyLearningAssignments    DailyLearningAssignee[]           @relation("DailyLearningAssigneeUser")
+  dailyLearningProgress       DailyLearningProgress[]           @relation("DailyLearningProgressUser")
+  courseAssignments           CourseAssignment[]                @relation("CourseAssignmentUser")
+  createdCourseAssignments    CourseAssignment[]                @relation("CourseAssignmentCreator")
+  createdActualRevenue        ActualRevenueMonthly[]            @relation("ActualRevenueCreator")
+  createdMonthlyTargets       StoreMonthlyTarget[]              @relation("MonthlyTargetCreator")
+  createdInventoryItems       InventoryItem[]                   @relation("InventoryItemCreator")
+  updatedInventoryItems       InventoryItem[]                   @relation("InventoryItemUpdater")
+  inventoryTransactions       InventoryTransaction[]            @relation("InventoryTransactionOperator")
+  createdItemRequisitions     ItemRequisition[]                 @relation("ItemRequisitionCreator")
+  updatedItemRequisitions     ItemRequisition[]                 @relation("ItemRequisitionUpdater")
+  itemRequisitionReturns      ItemRequisitionReturn[]           @relation("ItemRequisitionReturnOperator")
+  createdDailyAttendances     DailyAttendanceRecord[]           @relation("DailyAttendanceCreator")
+  createdRestDays             RestDay[]                         @relation("RestDayCreator")
+  updatedRestDays             RestDay[]                         @relation("RestDayUpdater")
+  createdPurchaseSalesRatios  MonthlyPurchaseSalesRatio[]       @relation("MonthlyPurchaseSalesCreator")
+  updatedPurchaseSalesRatios  MonthlyPurchaseSalesRatio[]       @relation("MonthlyPurchaseSalesUpdater")
+  purchaseSalesImportBatches  MonthlyPurchaseSalesImportBatch[] @relation("MonthlyPurchaseSalesImportOperator")
+  createdProductCategorySales ProductCategorySalesMonthly[]     @relation("ProductCategorySalesCreator")
+  updatedProductCategorySales ProductCategorySalesMonthly[]     @relation("ProductCategorySalesUpdater")
+  productCategorySalesBatches ProductCategorySalesImportBatch[] @relation("ProductCategorySalesImportOperator")
 
   @@index([createdByUserId])
   @@index([lastLoginAt])
@@ -518,54 +521,55 @@ model ContractRebate {
 }
 
 model Store {
-  id                         String                      @id @default(cuid())
-  recordNo                   String                      @unique
-  contractId                 String?                     @unique
-  contract                   Contract?                   @relation(fields: [contractId], references: [id])
-  brandId                    String
-  brand                      Brand                       @relation(fields: [brandId], references: [id])
-  name                       String
-  operationStatus            StoreOperationStatus        @default(PREPARING)
-  region                     String?
-  supervisorUserId           String?                     @db.VarChar(191)
-  supervisorName             String?
-  province                   String?
-  city                       String?
-  district                   String?
-  address                    String?
-  cooperationType            CooperationType
-  startDate                  DateTime?
-  endDate                    DateTime?
-  businessDistrict           String?
-  locationType               String?
-  trialOpenDate              DateTime?
-  formalOpenDate             DateTime?
-  workdayHours               Decimal?                    @db.Decimal(5, 2)
-  managerUserId              String?                     @db.VarChar(191)
-  managerName                String?
-  chefUserId                 String?                     @db.VarChar(191)
-  chefName                   String?
-  douyinLaikeName            String?                     @db.VarChar(50)
-  kuaishouName               String?                     @db.VarChar(50)
-  meituanManagerName         String?                     @db.VarChar(50)
-  meituanBusinessName        String?                     @db.VarChar(50)
-  ownerName                  String?
-  ownerPhone                 String?
-  ownerIdNumber              String?
-  createdAt                  DateTime                    @default(now())
-  updatedAt                  DateTime                    @updatedAt
-  personnel                  Personnel[]
-  leadH5Reviews              LeadH5Review[]
-  leadH5ResearchRecords      ResearchTemplateRecord[]
-  taskRecords                TaskRecord[]
-  taskSubmissions            TaskSubmission[]
-  actualRevenueMonthly       ActualRevenueMonthly[]
-  actualRevenueDaily         ActualRevenueDaily[]
-  monthlyTargets             StoreMonthlyTarget[]
-  dailyTargets               StoreDailyTarget[]
-  dailyAttendanceRecords     DailyAttendanceRecord[]
-  costProfile                StoreCost?
-  monthlyPurchaseSalesRatios MonthlyPurchaseSalesRatio[]
+  id                          String                        @id @default(cuid())
+  recordNo                    String                        @unique
+  contractId                  String?                       @unique
+  contract                    Contract?                     @relation(fields: [contractId], references: [id])
+  brandId                     String
+  brand                       Brand                         @relation(fields: [brandId], references: [id])
+  name                        String
+  operationStatus             StoreOperationStatus          @default(PREPARING)
+  region                      String?
+  supervisorUserId            String?                       @db.VarChar(191)
+  supervisorName              String?
+  province                    String?
+  city                        String?
+  district                    String?
+  address                     String?
+  cooperationType             CooperationType
+  startDate                   DateTime?
+  endDate                     DateTime?
+  businessDistrict            String?
+  locationType                String?
+  trialOpenDate               DateTime?
+  formalOpenDate              DateTime?
+  workdayHours                Decimal?                      @db.Decimal(5, 2)
+  managerUserId               String?                       @db.VarChar(191)
+  managerName                 String?
+  chefUserId                  String?                       @db.VarChar(191)
+  chefName                    String?
+  douyinLaikeName             String?                       @db.VarChar(50)
+  kuaishouName                String?                       @db.VarChar(50)
+  meituanManagerName          String?                       @db.VarChar(50)
+  meituanBusinessName         String?                       @db.VarChar(50)
+  ownerName                   String?
+  ownerPhone                  String?
+  ownerIdNumber               String?
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime                      @updatedAt
+  personnel                   Personnel[]
+  leadH5Reviews               LeadH5Review[]
+  leadH5ResearchRecords       ResearchTemplateRecord[]
+  taskRecords                 TaskRecord[]
+  taskSubmissions             TaskSubmission[]
+  actualRevenueMonthly        ActualRevenueMonthly[]
+  actualRevenueDaily          ActualRevenueDaily[]
+  monthlyTargets              StoreMonthlyTarget[]
+  dailyTargets                StoreDailyTarget[]
+  dailyAttendanceRecords      DailyAttendanceRecord[]
+  costProfile                 StoreCost?
+  monthlyPurchaseSalesRatios  MonthlyPurchaseSalesRatio[]
+  productCategorySalesMonthly ProductCategorySalesMonthly[]
 
   @@index([supervisorUserId])
 }
@@ -647,6 +651,103 @@ model MonthlyPurchaseSalesImportFailure {
   createdAt     DateTime                        @default(now())
 
   @@index([batchId, excelRowNo])
+}
+
+model ProductCategorySalesMonthly {
+  id                    String                           @id @default(cuid())
+  recordNo              String                           @unique @db.VarChar(12)
+  year                  Int                              @db.SmallInt
+  month                 Int                              @db.TinyInt
+  storeId               String
+  store                 Store                            @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  storeNameSnapshot     String                           @db.VarChar(100)
+  aliasId               String                           @db.VarChar(191)
+  meituanAliasSnapshot  String                           @db.VarChar(100)
+  brandCode             String                           @db.VarChar(50)
+  brandNameSnapshot     String                           @db.VarChar(100)
+  citySnapshot          String                           @db.VarChar(100)
+  totalSalesQuantity    Decimal                          @db.Decimal(18, 2)
+  totalSalesAmount      Decimal                          @db.Decimal(18, 2)
+  lastImportBatchId     String?
+  lastImportBatch       ProductCategorySalesImportBatch? @relation(fields: [lastImportBatchId], references: [id], onDelete: SetNull)
+  createdByUserId       String?
+  createdBy             User?                            @relation("ProductCategorySalesCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUsername     String                           @db.VarChar(50)
+  createdByNameSnapshot String                           @db.VarChar(50)
+  updatedByUserId       String?
+  updatedBy             User?                            @relation("ProductCategorySalesUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  updatedByNameSnapshot String?                          @db.VarChar(50)
+  createdAt             DateTime                         @default(now())
+  updatedAt             DateTime                         @updatedAt
+  details               ProductCategorySalesDetail[]
+
+  @@unique([storeId, year, month])
+  @@index([year, month, storeNameSnapshot])
+  @@index([brandCode, year, month])
+  @@index([lastImportBatchId])
+}
+
+model ProductCategorySalesDetail {
+  id                 String                      @id @default(cuid())
+  monthlyRecordId    String
+  monthlyRecord      ProductCategorySalesMonthly @relation(fields: [monthlyRecordId], references: [id], onDelete: Cascade)
+  categoryName       String                      @db.VarChar(100)
+  salesQuantity      Decimal                     @db.Decimal(18, 2)
+  salesQuantityRatio Decimal?                    @db.Decimal(10, 4)
+  salesAmount        Decimal                     @db.Decimal(18, 2)
+  salesAmountRatio   Decimal?                    @db.Decimal(10, 4)
+  dishIncome         Decimal                     @db.Decimal(18, 2)
+  dishIncomeRatio    Decimal?                    @db.Decimal(10, 4)
+  dishDiscount       Decimal                     @db.Decimal(18, 2)
+  dishDiscountRatio  Decimal?                    @db.Decimal(10, 4)
+  sortOrder          Int
+  createdAt          DateTime                    @default(now())
+
+  @@unique([monthlyRecordId, categoryName])
+  @@index([monthlyRecordId, sortOrder])
+}
+
+model ProductCategorySalesSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model ProductCategorySalesImportBatch {
+  id                   String                              @id @default(cuid())
+  batchNo              String                              @unique @db.VarChar(24)
+  fileName             String                              @db.VarChar(255)
+  periodStart          DateTime                            @db.Date
+  periodEnd            DateTime                            @db.Date
+  year                 Int                                 @db.SmallInt
+  month                Int                                 @db.TinyInt
+  rawRowCount          Int
+  storeCount           Int
+  insertedCount        Int                                 @default(0)
+  updatedCount         Int                                 @default(0)
+  skippedCount         Int                                 @default(0)
+  failedCount          Int                                 @default(0)
+  operatorUserId       String?
+  operator             User?                               @relation("ProductCategorySalesImportOperator", fields: [operatorUserId], references: [id], onDelete: SetNull)
+  operatorNameSnapshot String                              @db.VarChar(50)
+  createdAt            DateTime                            @default(now())
+  records              ProductCategorySalesMonthly[]
+  failures             ProductCategorySalesImportFailure[]
+
+  @@index([year, month, createdAt])
+  @@index([operatorUserId, createdAt])
+}
+
+model ProductCategorySalesImportFailure {
+  id            String                          @id @default(cuid())
+  batchId       String
+  batch         ProductCategorySalesImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  storeAlias    String?                         @db.VarChar(100)
+  failureReason String                          @db.VarChar(255)
+  excelRows     Json
+  createdAt     DateTime                        @default(now())
+
+  @@index([batchId, createdAt])
 }
 
 model StoreCost {
@@ -1314,6 +1415,7 @@ model TaskSubmission {
 
   @@index([userId, submittedAt])
   @@index([storeId, executionDate])
+  @@index([taskIdSnapshot, executionDate])
 }
 
 model TaskSubmissionSequence {

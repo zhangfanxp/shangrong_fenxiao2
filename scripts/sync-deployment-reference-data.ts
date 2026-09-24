@@ -1,6 +1,6 @@
 import { loadEnvConfig } from "@next/env";
 import { RecordStatus } from "@prisma/client";
-import { SYSTEM_DICTIONARIES } from "../lib/deployment";
+import { synchronizeSystemDictionaries } from "../lib/system-dictionary-sync";
 import { synchronizeFixedSystemRoles } from "../lib/system-role-sync";
 
 async function main() {
@@ -8,13 +8,7 @@ async function main() {
   const { db } = await import("../lib/db");
   try {
     const roles = await synchronizeFixedSystemRoles(db);
-    for (const dictionary of SYSTEM_DICTIONARIES) {
-      await db.dataDictionary.upsert({
-        where: { code: dictionary.code },
-        create: { ...dictionary, status: RecordStatus.ENABLED },
-        update: { name: dictionary.name, fileName: dictionary.fileName, status: RecordStatus.ENABLED },
-      });
-    }
+    const dictionaries = await synchronizeSystemDictionaries(db);
     const positionLevels = ["实习生", "员工·一星", "员工·二星", "主管·三星", "店长·四星", "店长·五星"];
     for (const [sort, label] of positionLevels.entries()) {
       await db.dictionaryItem.upsert({
@@ -23,7 +17,7 @@ async function main() {
         update: { label, sort, status: RecordStatus.ENABLED },
       });
     }
-    process.stdout.write(`${JSON.stringify({ systemRoles: roles.length, dictionaries: SYSTEM_DICTIONARIES.length, positionLevels: positionLevels.length })}\n`);
+    process.stdout.write(`${JSON.stringify({ systemRoles: roles.length, dictionaries: dictionaries.length, positionLevels: positionLevels.length })}\n`);
   } finally { await db.$disconnect(); }
 }
 

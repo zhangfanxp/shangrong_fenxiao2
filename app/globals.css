@@ -183,6 +183,7 @@ a { color: inherit; text-decoration: none; }
 .r2-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
 .r2-form-span { grid-column: 1 / -1; }
 .database-backup-page { display: grid; gap: 16px; }
+.database-backup-page-actions { display: flex; justify-content: flex-end; }
 .database-backup-restore-tip { border-color: #91caff; background: #f7fbff; }
 .database-backup-card .ant-card-head-title { font-weight: 600; }
 .database-backup-schedule-grid { display: grid; grid-template-columns: minmax(180px, .55fr) minmax(220px, .7fr) minmax(360px, 1.4fr); gap: 0 24px; align-items: start; }
@@ -196,6 +197,9 @@ a { color: inherit; text-decoration: none; }
 .database-backup-manual-button.ant-btn-primary:not(:disabled),
 .database-backup-manual-button.ant-btn-primary:not(:disabled):hover,
 .database-backup-manual-button.ant-btn-primary:not(:disabled):focus { color: #fff; }
+.database-dictionary-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.database-dictionary-table-info { margin-bottom: 16px; }
+.database-dictionary-modal .ant-modal-body, .database-dictionary-fields-modal .ant-modal-body { min-height: 180px; }
 .dictionary-filter-grid { display: grid; grid-template-columns: minmax(220px, 320px) minmax(220px, 320px) auto; gap: 16px; align-items: end; }
 .dictionary-filter-actions { padding-bottom: 1px; }
 .dictionary-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
@@ -620,6 +624,23 @@ a { color: inherit; text-decoration: none; }
   .store-learning-record-button.ant-btn { height: 46px; }
 }
 
+/* 产品类别销售占比 */
+.product-category-sales-alert { margin-bottom: 16px; }
+.product-category-sales-filter-card { margin-bottom: 16px; }
+.product-category-sales-filter-grid { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(260px, 1.2fr) minmax(200px, .8fr) auto; gap: 0 16px; align-items: end; }
+.product-category-sales-filter-grid .ant-form-item { margin-bottom: 0; }
+.product-category-sales-filter-grid .ant-picker { width: 100%; }
+.product-category-sales-filter-actions { display: flex; justify-content: flex-end; }
+.product-category-sales-list-card .ant-card-body { padding: 0; }
+.product-category-sales-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 16px 12px; }
+.product-category-sales-toolbar strong { color: #1677ff; }
+.product-category-sales-table-error { margin: 0 16px 12px; }
+.product-category-sales-import-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0 20px; }
+.product-category-sales-import-stats .ant-statistic { padding: 12px; border: 1px solid #f0f0f0; border-radius: 8px; background: #fafafa; }
+.product-category-sales-failures-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.product-category-sales-descriptions { margin-bottom: 20px; }
+.product-category-sales-detail-title { margin: 0 0 12px; font-size: 15px; }
+
 /* 每月采销比 */
 .monthly-ps-alert { margin-bottom: 16px; }
 .monthly-ps-filter-card { margin-bottom: 16px; }
@@ -675,6 +696,8 @@ a { color: inherit; text-decoration: none; }
 .wechat-private-toolbar { display: flex; min-height: 36px; margin-bottom: 16px; align-items: center; justify-content: space-between; gap: 12px; color: #6f7b8f; }
 .wechat-private-toolbar strong { color: #1677ff; }
 @media (max-width: 900px) {
+  .database-dictionary-summary { align-items: stretch; flex-direction: column; }
+  .database-dictionary-summary .ant-input-search { width: 100% !important; }
   .wechat-private-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
   .wechat-private-filter-actions { grid-column: 1 / -1; }
 }
@@ -684,12 +707,62 @@ a { color: inherit; text-decoration: none; }
   .wechat-private-toolbar { align-items: flex-start; flex-direction: column; }
 }
 
+/* 运营 / 每日销售数据上报 */
+.daily-sales-alert { margin-bottom: 16px; }
+.daily-sales-filter-card,
+.daily-sales-list-card {
+  border-color: #e8edf4;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(31, 52, 86, .035);
+}
+.daily-sales-list-card { margin-top: 16px; }
+.daily-sales-list-card .ant-card-body { padding: 0; }
+.daily-sales-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(160px, .72fr) minmax(230px, 1.2fr) repeat(2, minmax(170px, .78fr)) auto;
+  gap: 0 16px;
+  align-items: end;
+}
+.daily-sales-filter-grid .ant-form-item { margin-bottom: 0; }
+.daily-sales-filter-grid .ant-picker { width: 100%; }
+.daily-sales-filter-actions { display: flex; justify-content: flex-end; }
+.daily-sales-toolbar {
+  display: flex;
+  min-height: 36px;
+  padding: 16px 16px 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.daily-sales-toolbar strong { color: #1677ff; }
+.daily-sales-export-hint { font-size: 12px; }
+.daily-sales-table-error { margin: 0 16px 16px; }
+.daily-sales-money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+@media (max-width: 1080px) {
+  .daily-sales-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+  .daily-sales-filter-actions { grid-column: 1 / -1; }
+}
+
+@media (max-width: 700px) {
+  .daily-sales-filter-grid { grid-template-columns: 1fr; }
+  .daily-sales-filter-actions { grid-column: auto; }
+  .daily-sales-toolbar { align-items: flex-start; flex-direction: column; }
+  .daily-sales-export-hint { display: none; }
+}
+
 @media (max-width: 1366px) {
+  .product-category-sales-filter-grid { grid-template-columns: repeat(3, minmax(160px, 1fr)); }
+  .product-category-sales-filter-actions { grid-column: 1 / -1; }
   .monthly-ps-filter-grid { grid-template-columns: repeat(4, minmax(135px, 1fr)); }
   .monthly-ps-filter-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
 }
 
 @media (max-width: 900px) {
+  .product-category-sales-filter-grid { grid-template-columns: 1fr; gap: 14px; }
+  .product-category-sales-filter-actions { grid-column: auto; }
+  .product-category-sales-toolbar { align-items: flex-start; flex-direction: column; }
+  .product-category-sales-import-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .monthly-ps-filter-grid,
   .monthly-ps-form-grid { grid-template-columns: 1fr; }
   .monthly-ps-form-span { grid-column: auto; }

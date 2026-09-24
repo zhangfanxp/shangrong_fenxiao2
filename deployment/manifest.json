@@ -1,9 +1,9 @@
 {
   "deploymentVersion": 2,
-  "databaseSchemaVersion": 32,
-  "databaseSchemaChecksum": "158547936c7062c5db2f02d1a72d28c402b21fe729abd303c8b765a4adde8ff6",
-  "latestMigration": "202609241000_fix_default_store_labor_cost_rest_rule.sql",
-  "configSchemaVersion": 4,
+  "databaseSchemaVersion": 34,
+  "databaseSchemaChecksum": "44ebc3e5e96db13343902af6d1ea53a9acd1c69f4b0dd81bdefa0a3af73faba5",
+  "latestMigration": "202609241900_add_task_submission_source_date_index.sql",
+  "configSchemaVersion": 5,
   "requiredEnvironment": [
     "DATABASE_URL",
     "AUTH_SECRET",

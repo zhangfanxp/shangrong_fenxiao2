@@ -11,7 +11,20 @@ export type NavGroup = { key: string; label: string; icon: ComponentType; childr
 export const navigation: NavGroup[] = [
   { key: "dashboard", label: "仪表板", icon: DashboardOutlined, href: "/lead_pc/dashboard" },
   { key: "stores", label: "门店", icon: HomeOutlined, children: [{ key: "contracts", label: "合同管理", href: "/lead_pc/stores/contracts" }, { key: "list", label: "门店列表", href: "/lead_pc/stores/list" }] },
-  { key: "operations", label: "运营", icon: FundOutlined, children: ["目标营业额","实际营业额","人力成本","用工记录","千元用量表","每日保本营业额","线上线下销售占比","产品类别销售占比","微信私域每日新增","线上团购数据","线上外卖数据","每月采销比","百日筑基表"].map((label, i) => ({ key: `op-${i}`, label, href: `/lead_pc/operations/${i}` })) },
+  { key: "operations", label: "运营", icon: FundOutlined, children: [
+    { key: "op-0", label: "目标营业额", href: "/lead_pc/operations/0" },
+    { key: "op-1", label: "实际营业额", href: "/lead_pc/operations/1" },
+    { key: "op-2", label: "人力成本", href: "/lead_pc/operations/2" },
+    { key: "op-3", label: "用工记录", href: "/lead_pc/operations/3" },
+    { key: "op-4", label: "千元用量表", href: "/lead_pc/operations/4" },
+    { key: "op-5", label: "每日保本营业额", href: "/lead_pc/operations/5" },
+    { key: "op-6", label: "每日销售数据上报", href: "/lead_pc/operations/6" },
+    { key: "op-7", label: "产品类别销售占比", href: "/lead_pc/operations/7" },
+    { key: "op-8", label: "微信私域每日新增", href: "/lead_pc/operations/8" },
+    { key: "op-9", label: "线上团购数据", href: "/lead_pc/operations/9" },
+    { key: "op-11", label: "每月采销比", href: "/lead_pc/operations/11" },
+    { key: "op-12", label: "百日筑基表", href: "/lead_pc/operations/12" },
+  ] },
   { key: "inspection", label: "巡店", icon: AuditOutlined, children: [
     { key: "inspection-2", label: "门店稽核评分", href: "/lead_pc/inspection/2" },
     { key: "inspection-3", label: "门店信用得分", href: "/lead_pc/inspection/3" },

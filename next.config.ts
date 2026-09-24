@@ -6,6 +6,7 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: projectRoot,
+  outputFileTracingIncludes: { "/api/settings/database-backups/dictionary": ["./db_dict.md"] },
   experimental: { optimizePackageImports: ["antd", "@ant-design/icons"] },
   async redirects() {
     return [{ source: "/lead_pc/settings/assessments", destination: "/lead_pc/inspection/assessments", permanent: true }];

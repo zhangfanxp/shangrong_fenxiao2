@@ -2,6 +2,14 @@
   "recordNo": "202609090001",
   "taskName": "班前会",
   "taskType": "日任务",
+  "taskTarget": "门店",
+  "specifiedTargets": [],
+  "executorRoles": [
+    {
+      "id": "cmt6jn0cl000ctn6y5ukshkil",
+      "name": "店长"
+    }
+  ],
   "executorRole": {
     "id": "cmt6jn0cl000ctn6y5ukshkil",
     "name": "店长"
@@ -30,7 +38,7 @@
   "deadlineTime": "19:00",
   "includeCompletionRate": true,
   "status": "启用",
-  "configVersion": 3,
+  "configVersion": 4,
   "submitItems": [
     {
       "name": "班前会视频",
@@ -41,7 +49,7 @@
       "aiAnalysisPrompt": null,
       "component": "attachment",
       "dataType": "video",
-      "captureOnly": true,
+      "captureOnly": false,
       "options": []
     },
     {

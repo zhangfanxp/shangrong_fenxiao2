@@ -1,0 +1,132 @@
+{
+  "recordNo": "202609240001",
+  "taskName": "每日销售数据上报",
+  "taskType": "日任务",
+  "taskTarget": "门店",
+  "specifiedTargets": [],
+  "executorRoles": [
+    {
+      "id": "cmt6jn0cl000ctn6y5ukshkil",
+      "name": "店长"
+    }
+  ],
+  "executorRole": {
+    "id": "cmt6jn0cl000ctn6y5ukshkil",
+    "name": "店长"
+  },
+  "brands": [
+    {
+      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "name": "奋小二"
+    }
+  ],
+  "storageSpace": {
+    "id": "cmt0xbey80005tncek1xtase8",
+    "name": "R2-test",
+    "bucketName": "videolist"
+  },
+  "executionDays": [
+    "周一",
+    "周二",
+    "周三",
+    "周四",
+    "周五",
+    "周六",
+    "周日"
+  ],
+  "deadlineDayOffset": 1,
+  "deadlineTime": "08:00",
+  "includeCompletionRate": true,
+  "status": "启用",
+  "configVersion": 2,
+  "submitItems": [
+    {
+      "name": "【营业数据】实际销售额",
+      "description": "请填写今日实际的营业额",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "amount",
+      "options": []
+    },
+    {
+      "name": "【营业数据】实收金额",
+      "description": "请填写今日实际首款金额",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "amount",
+      "options": []
+    },
+    {
+      "name": "【业绩构成】扫码/现金",
+      "description": "请填写今日扫码/现金订单的金额",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "amount",
+      "options": []
+    },
+    {
+      "name": "【业绩构成】美团团购",
+      "description": "请填写今日美团团购订单的金额",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "amount",
+      "options": []
+    },
+    {
+      "name": "【业绩构成】抖音",
+      "description": "请填写今日抖音订单的金额",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "amount",
+      "options": []
+    },
+    {
+      "name": "【业绩构成】快手",
+      "description": "请填写今日快手订单的金额",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "amount",
+      "options": []
+    },
+    {
+      "name": "【业绩构成】高德",
+      "description": "请填写今日高德订单的金额",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "amount",
+      "options": []
+    },
+    {
+      "name": "【业绩构成】外卖",
+      "description": "请填写今日高德订单的金额",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "amount",
+      "options": []
+    }
+  ]
+}

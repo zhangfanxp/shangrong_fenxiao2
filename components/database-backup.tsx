@@ -5,6 +5,7 @@ import { Alert, Button, Card, Checkbox, Empty, Form, Input, message, Modal, Sele
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
+import { DatabaseDictionaryButton } from "@/components/database-dictionary-button";
 
 type Permission = "query" | "configure" | "manual" | "download" | "delete";
 type Frequency = "DAILY" | "WEEKLY";
@@ -225,6 +226,7 @@ export function DatabaseBackup({ permissions }: { permissions: string[] }) {
 
   const visibleTimes = timeFields(frequency, executionTimes);
   return <div className="database-backup-page">
+    <div className="database-backup-page-actions"><DatabaseDictionaryButton /></div>
     <Alert className="database-backup-restore-tip" showIcon type="info" message="完整备份，可独立恢复" description="每次人工或定时任务都会生成包含表结构、全部数据、视图、触发器、存储过程与事件的 MySQL 全量 SQL，并压缩为 .sql.gz 文件；不是增量备份。" />
     <Form<BackupForm> form={form} layout="vertical" initialValues={{ r2StorageId: null, enabled: false, frequency: "DAILY", weekdays: [], executionTimes: ["", "", ""] }} disabled={loading || !can("configure")}>
       <Card title={<Space><DatabaseOutlined />R2存储桶</Space>} className="database-backup-card">

@@ -26,7 +26,9 @@ import { RestDayList } from "@/components/rest-day-list";
 import { BusinessDataSourceList } from "@/components/business-data-source-list";
 import { PersonnelRosterList } from "@/components/personnel-roster-list";
 import { MonthlyPurchaseSalesRatioList } from "@/components/monthly-purchase-sales-ratio-list";
+import { ProductCategorySalesRatioList } from "@/components/product-category-sales-ratio-list";
 import { WechatPrivateDailyNewList } from "@/components/wechat-private-daily-new-list";
+import { DailySalesReportList } from "@/components/daily-sales-report-list";
 import { getPlatformConfig } from "@/lib/platform-config";
 import { requirePageAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -38,6 +40,7 @@ import { revenueTargetDataScope, revenueTargetListSelect, serializeRevenueTarget
 import { attendanceRecordDataScope, attendanceRecordListSelect, serializeAttendanceRecord } from "@/lib/attendance-records";
 import { canPersonnelRoster, personnelRosterDataScope, personnelRosterSelect, serializePersonnelRoster } from "@/lib/personnel-roster";
 import { canMonthlyPurchaseSales, monthlyPurchaseSalesDataScope, monthlyPurchaseSalesSelect, serializeMonthlyPurchaseSales } from "@/lib/monthly-purchase-sales-ratios";
+import { canProductCategorySales, productCategorySalesDataScope, productCategorySalesListSelect, serializeProductCategorySales } from "@/lib/product-category-sales-ratios";
 
 const titles: Record<string, { title: string; description: string }> = {
   "settings/backups": { title: "数据库备份", description: "将可独立恢复的 MySQL 全量备份安全保存至 Cloudflare R2" },
@@ -45,6 +48,8 @@ const titles: Record<string, { title: string; description: string }> = {
   "inspection/3": { title: "门店信用得分", description: "查询和管理运营移动端正式提交的门店信用评分结果" },
   "operations/0": { title: "目标营业额", description: "管理门店月度营业目标及每日目标分解" },
   "operations/1": { title: "实际营业额", description: "管理门店月度实际经营数据及目标" },
+  "operations/6": { title: "每日销售数据上报", description: "按品牌、门店和业务日期查询每日销售及渠道业绩数据" },
+  "operations/7": { title: "产品类别销售占比", description: "查询门店月度菜品大类销售结构" },
   "operations/8": { title: "微信私域每日新增", description: "按门店和业务日期查询每日新增微信好友数据" },
   "operations/11": { title: "每月采销比", description: "查询并维护门店月度销售额、要货金额及采销比" },
   "inspection/4": { title: "巡店调研表", description: "查询、查看及管理运营 H5 正式提交的门店调研记录" },
@@ -88,7 +93,20 @@ export default async function GenericPage({ params }: { params: Promise<{ sectio
     ]);
     return <main className="page-wrap"><PageHeader {...meta} /><ActualRevenueList permissions={session.permissions} initialRows={initialRows.map(serializeActualRevenue)} initialTotal={initialTotal} /></main>;
   }
+  if (key === "operations/6") return <main className="page-wrap"><PageHeader {...meta} /><DailySalesReportList permissions={session.permissions} /></main>;
   if (key === "operations/8") return <main className="page-wrap"><PageHeader {...meta} /><WechatPrivateDailyNewList permissions={session.permissions} /></main>;
+  if (key === "operations/7") {
+    const [initialRows, initialTotal] = canProductCategorySales(session, "query")
+      ? await (async () => {
+        const where = await productCategorySalesDataScope(session);
+        return db.$transaction([
+          db.productCategorySalesMonthly.findMany({ where, select: productCategorySalesListSelect, orderBy: [{ year: "desc" }, { month: "desc" }, { storeNameSnapshot: "asc" }], take: 20 }),
+          db.productCategorySalesMonthly.count({ where }),
+        ]);
+      })()
+      : [[], 0] as const;
+    return <main className="page-wrap"><PageHeader {...meta} /><ProductCategorySalesRatioList permissions={session.permissions} initialRows={initialRows.map(serializeProductCategorySales)} initialTotal={initialTotal} /></main>;
+  }
   if (key === "operations/11") {
     const [initialRows, initialTotal] = canMonthlyPurchaseSales(session, "query")
       ? await (async () => {
