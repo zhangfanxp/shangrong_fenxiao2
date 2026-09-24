@@ -25,8 +25,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const current = await db.personnel.findFirst({ where: { id, deletedAt: null } }); if (!current) return NextResponse.json({ message: "人员档案不存在或已删除" }, { status: 404 });
     if (current.status === PersonnelStatus.RESIGNED) return NextResponse.json({ message: "离职人员仅允许查看，不能通过普通编辑恢复或变更任职信息" }, { status: 400 });
     if (parsed.data.version !== current.version) return NextResponse.json({ message: "当前人员档案已被其他用户修改，请刷新后重新操作" }, { status: 409 });
-    const relation = await validatePersonnelRelations(parsed.data, id);
-    const result = await db.personnel.updateMany({ where: { id, version: current.version, deletedAt: null }, data: { ...personnelData(parsed.data, relation.positionLevel, relation.workdayHours), version: { increment: 1 } } });
+    const updateData = { ...parsed.data, baseSalary: Number(current.baseSalary), laborCost: null, workdayHours: null };
+    const relation = await validatePersonnelRelations(updateData, id);
+    const result = await db.personnel.updateMany({ where: { id, version: current.version, deletedAt: null }, data: { ...personnelData(updateData, relation.positionLevel, relation.workdayHours, relation.laborCost), version: { increment: 1 } } });
     if (!result.count) return NextResponse.json({ message: "当前人员档案已被其他用户修改，请刷新后重新操作" }, { status: 409 });
     const row = await db.personnel.findUniqueOrThrow({ where: { id }, include: personnelInclude }); await personnelLog(session.userId, "编辑", "成功", `编辑人员档案：${row.recordNo}`); return NextResponse.json(row);
   } catch (error) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { PlusOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Divider, Drawer, Empty, Form, Input, message, Modal, Row, Select, Space, Table, Tag, type FormProps } from "antd";
+import { Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Divider, Drawer, Empty, Form, Input, InputNumber, message, Modal, Row, Select, Skeleton, Space, Table, Tag, type FormProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -20,24 +20,27 @@ type Contract = {
 };
 type Store = {
   id: string; recordNo: string; contractId?: string; brandId: string; name: string; operationStatus: string; cooperationType: string;
-  region?: string; supervisorName?: string; province?: string; city?: string; district?: string; address?: string;
+  region?: string; supervisorUserId?: string; supervisorName?: string; province?: string; city?: string; district?: string; address?: string;
   startDate?: string; endDate?: string; businessDistrict?: string; locationType?: string; trialOpenDate?: string;
-  formalOpenDate?: string; managerUserId?: string; managerName?: string; chefUserId?: string; chefName?: string; ownerName?: string; ownerPhone?: string;
+  formalOpenDate?: string; workdayHours?: number | string | null; managerUserId?: string; managerName?: string; chefUserId?: string; chefName?: string; ownerName?: string; ownerPhone?: string;
   ownerIdNumber?: string; douyinLaikeName?: string; kuaishouName?: string; meituanManagerName?: string; meituanBusinessName?: string;
   createdAt: string; brand: Brand; contract?: Contract;
 };
 type Filters = { keyword: string; status: string; brandId: string; cooperationType: string; city: string; dates: [Dayjs | null, Dayjs | null] | null };
 type StoreForm = {
-  contractId?: string; brandId: string; name: string; cooperationType: string; operationStatus: string; region?: string; supervisorName?: string;
+  contractId?: string; brandId: string; name: string; cooperationType: string; operationStatus: string; region?: string; supervisorUserId?: string; supervisorName?: string;
   location?: string[]; address?: string; startDate?: Dayjs; endDate?: Dayjs; businessDistrict?: string; locationType?: string;
-  trialOpenDate?: Dayjs; formalOpenDate?: Dayjs; managerName?: string; chefName?: string; ownerName?: string;
+  trialOpenDate?: Dayjs; formalOpenDate?: Dayjs; workdayHours?: number; managerName?: string; chefName?: string; ownerName?: string;
   ownerPhone?: string; ownerIdNumber?: string;
 };
 type StaffRole = "supervisor";
 type StaffMember = { id: string; realName: string; phone?: string | null; tags?: string | null };
-type StaffPicker = { role: StaffRole; title: string; field: "supervisorName" };
+type StaffPicker = { role: StaffRole; title: string; field: "supervisorName"; idField: "supervisorUserId" };
 type AliasForm = { douyinLaikeName: string; kuaishouName: string; meituanManagerName: string; meituanBusinessName: string };
 type AliasMode = "view" | "edit";
+type CostForm = { storeRent: number; employeeWages: number; dormitoryRent: number; propertyFee: number; utilitiesFee: number; otherCost: number; ratioCoefficient: number };
+type StoreCostData = { id: string; recordNo: string; name: string; storeRent: string; employeeWages: string; dormitoryRent: string; propertyFee: string; utilitiesFee: string; otherCost: string; ratioCoefficient: string; monthlyBreakEvenRevenue: string | null };
+type CostMode = "view" | "edit";
 type StoreEmployee = { id: string; recordNo: string; name: string; phone: string; phoneMasked?: string; positionLevel: string; laborCost: string; storeId: string | null; platformUserId?: string | null; platformUser?: { role: { name: string } } | null };
 type StoreEmployeeData = { id: string; recordNo: string; name: string; managerName?: string | null; chefName?: string | null; employees: StoreEmployee[] };
 type EmployeeMode = "view" | "edit";
@@ -50,10 +53,18 @@ const emptyEmployeeFilters: EmployeeFilters = { name: "", positionLevels: [] };
 const districtOptions = districtData as DistrictNode[];
 
 function text(value?: string | null) { return value || "-"; }
+function money(value: string | number) { return `¥ ${Number(value).toFixed(2)}`; }
+function calculateMonthlyBreakEvenRevenue(value: Partial<CostForm>) {
+  const ratio = Number(value.ratioCoefficient);
+  if (!Number.isFinite(ratio) || ratio <= 0) return null;
+  const total = [value.storeRent, value.employeeWages, value.dormitoryRent, value.propertyFee, value.utilitiesFee, value.otherCost]
+    .reduce<number>((sum, item) => sum + (Number.isFinite(Number(item)) ? Number(item) : 0), 0);
+  return total / ratio;
+}
 function locationLabel(store: Pick<Store, "province" | "city" | "district">) { return [store.province, store.city, store.district].filter(Boolean).join(" ") || "-"; }
 function cooperationLabel(value: string) { return value === "DIRECT" ? "直营店" : "加盟店"; }
 
-export function StoreList({ permissions }: { permissions: string[] }) {
+export function StoreList({ permissions, brandDayHours }: { permissions: string[]; brandDayHours: Record<string, number> }) {
   const [messageApi, messageContextHolder] = message.useMessage();
   const canEditAliases = permissions.includes("*") || permissions.includes("stores:aliases:edit");
   const canEditEmployees = permissions.includes("*") || permissions.includes("stores:employees:edit");
@@ -88,6 +99,12 @@ export function StoreList({ permissions }: { permissions: string[] }) {
   const [aliasStore, setAliasStore] = useState<Store | null>(null);
   const [aliasSaving, setAliasSaving] = useState(false);
   const [aliasSuccessOpen, setAliasSuccessOpen] = useState(false);
+  const [costMode, setCostMode] = useState<CostMode | null>(null);
+  const [costStore, setCostStore] = useState<Store | null>(null);
+  const [costData, setCostData] = useState<StoreCostData | null>(null);
+  const [costLoading, setCostLoading] = useState(false);
+  const [costSaving, setCostSaving] = useState(false);
+  const [costError, setCostError] = useState<string | null>(null);
   const [employeeMode, setEmployeeMode] = useState<EmployeeMode | null>(null);
   const [employeeData, setEmployeeData] = useState<StoreEmployeeData | null>(null);
   const [employeeDraft, setEmployeeDraft] = useState<StoreEmployee[]>([]);
@@ -107,7 +124,12 @@ export function StoreList({ permissions }: { permissions: string[] }) {
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [form] = Form.useForm<StoreForm>();
   const [aliasForm] = Form.useForm<AliasForm>();
+  const [costForm] = Form.useForm<CostForm>();
   const cityOptions = useMemo(() => Array.from(new Set(districtOptions.flatMap((province) => (province.children || []).map((city) => city.name)))).map((city) => ({ value: city, label: city })), []);
+  const configuredWorkdayHoursForBrand = (brandId?: string) => {
+    const brandName = brands.find(brand => brand.id === brandId)?.name || rows.find(store => store.brandId === brandId)?.brand.name;
+    return brandName && Object.prototype.hasOwnProperty.call(brandDayHours, brandName) ? brandDayHours[brandName] : undefined;
+  };
 
   const load = async (nextFilters = filters) => {
     setLoading(true); setError(false);
@@ -150,9 +172,12 @@ export function StoreList({ permissions }: { permissions: string[] }) {
   const chooseStaff = (staff: StaffMember) => {
     if (!staffPicker) return;
     form.setFieldValue(staffPicker.field, staff.realName);
+    form.setFieldValue(staffPicker.idField, staff.id);
     setStaffPicker(null);
   };
   const chooseContract = (contract: Contract) => {
+    const currentBrandId = form.getFieldValue("brandId");
+    const currentWorkdayHours = form.getFieldValue("workdayHours");
     setSelectedContract(contract);
     setSaveError(null);
     form.setFieldsValue({
@@ -160,6 +185,7 @@ export function StoreList({ permissions }: { permissions: string[] }) {
       brandId: contract.brandId,
       name: contract.storeName,
       cooperationType: contract.cooperationType,
+      workdayHours: currentBrandId === contract.brandId && currentWorkdayHours !== undefined ? currentWorkdayHours : configuredWorkdayHoursForBrand(contract.brandId),
       location: contract.province && contract.city && contract.district ? [contract.province, contract.city, contract.district] : undefined,
       address: contract.address ?? "",
       trialOpenDate: contract.trialOpenDate ? dayjs(contract.trialOpenDate) : undefined,
@@ -193,6 +219,7 @@ export function StoreList({ permissions }: { permissions: string[] }) {
       endDate: store.endDate ? dayjs(store.endDate) : undefined,
       trialOpenDate: trialOpenDate ? dayjs(trialOpenDate) : undefined,
       formalOpenDate: store.formalOpenDate ? dayjs(store.formalOpenDate) : undefined,
+      workdayHours: store.workdayHours === null || store.workdayHours === undefined ? brandDayHours[store.brand.name] : Number(store.workdayHours),
       ownerName: store.contract?.ownerName || store.ownerName,
       ownerPhone: (store.contract ? store.contract.ownerPhone : store.ownerPhone) ?? "",
       ownerIdNumber: (store.contract ? store.contract.ownerIdNumber : store.ownerIdNumber) ?? "",
@@ -268,6 +295,74 @@ export function StoreList({ permissions }: { permissions: string[] }) {
       if (error instanceof Error) messageApi.error(error.message);
     } finally {
       setAliasSaving(false);
+    }
+  };
+
+  const loadStoreCost = async (storeId: string) => {
+    setCostLoading(true);
+    setCostError(null);
+    try {
+      const response = await fetch(`/api/stores/${storeId}/cost`, { cache: "no-store" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || "门店成本加载失败，请稍后重试");
+      setCostData(data as StoreCostData);
+    } catch (loadError) {
+      setCostError(loadError instanceof Error ? loadError.message : "门店成本加载失败，请稍后重试");
+    } finally {
+      setCostLoading(false);
+    }
+  };
+  const openCost = (store: Store) => {
+    setCostStore(store);
+    setCostData(null);
+    setCostMode("view");
+    setCostError(null);
+    costForm.resetFields();
+    void loadStoreCost(store.id);
+  };
+  const closeCost = () => {
+    if (costSaving) return;
+    setCostMode(null);
+    setCostStore(null);
+    setCostData(null);
+    setCostError(null);
+    costForm.resetFields();
+  };
+  const startCostEdit = () => {
+    if (!costData) return;
+    costForm.setFieldsValue({
+      storeRent: Number(costData.storeRent),
+      employeeWages: Number(costData.employeeWages),
+      dormitoryRent: Number(costData.dormitoryRent),
+      propertyFee: Number(costData.propertyFee),
+      utilitiesFee: Number(costData.utilitiesFee),
+      otherCost: Number(costData.otherCost),
+      ratioCoefficient: Number(costData.ratioCoefficient),
+    });
+    setCostMode("edit");
+  };
+  const saveCost = async () => {
+    if (!costStore || costSaving) return;
+    try {
+      const values = await costForm.validateFields();
+      setCostSaving(true);
+      const response = await fetch(`/api/stores/${costStore.id}/cost`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || "门店成本保存失败，请稍后重试");
+      setCostMode(null);
+      setCostStore(null);
+      setCostData(null);
+      setCostError(null);
+      costForm.resetFields();
+      messageApi.success("门店保本成本已保存");
+    } catch (saveCostError) {
+      if (saveCostError instanceof Error) messageApi.error(saveCostError.message);
+    } finally {
+      setCostSaving(false);
     }
   };
 
@@ -413,7 +508,7 @@ export function StoreList({ permissions }: { permissions: string[] }) {
     { title: "店长", dataIndex: "managerName", width: 100, render: text },
     { title: "正式营业日期", dataIndex: "formalOpenDate", width: 130, render: displayDate },
     { title: "创建日期", dataIndex: "createdAt", width: 120, render: displayDate },
-    { title: "操作", fixed: "right", width: 220, render: (_, row) => <Space className="table-actions" size={0}><Button type="link" size="small" onClick={() => { setSelected(row); setDetailOpen(true); }}>查看</Button><Button type="link" size="small" onClick={() => openEdit(row)}>编辑</Button><Button type="link" size="small" onClick={() => openAliases(row)}>别名</Button><Button type="link" size="small" onClick={() => openEmployees(row)}>员工</Button></Space> },
+    { title: "操作", fixed: "right", width: 265, render: (_, row) => <Space className="table-actions" size={0}><Button type="link" size="small" onClick={() => { setSelected(row); setDetailOpen(true); }}>查看</Button><Button type="link" size="small" onClick={() => openEdit(row)}>编辑</Button><Button type="link" size="small" onClick={() => openAliases(row)}>别名</Button><Button type="link" size="small" onClick={() => openEmployees(row)}>员工</Button><Button type="link" size="small" onClick={() => openCost(row)}>成本</Button></Space> },
   ];
 
   return <>
@@ -436,10 +531,11 @@ export function StoreList({ permissions }: { permissions: string[] }) {
     <Drawer title={editing ? "编辑门店" : "新增门店"} width={920} open={formOpen} onClose={closeForm} destroyOnHidden maskClosable={!saving} footer={saveError ? <Alert type="error" showIcon message={saveError} /> : null} extra={<Space><Button onClick={closeForm} disabled={saving}>取消</Button><Button type="primary" loading={saving} onClick={() => void save()}>保存</Button></Space>}>
       <Form form={form} layout="vertical">
         <Form.Item name="contractId" hidden><Input /></Form.Item>
+        <Form.Item name="supervisorUserId" hidden><Input /></Form.Item>
         <FormHeading title="基础信息" />
         <Row gutter={16}><Col span={24}><Form.Item label="关联合同"><Space wrap><Button onClick={openContractModal}>选择合同</Button>{selectedContract ? <span>当前关联合同：{selectedContract.recordNo}</span> : <span className="store-form-hint">未关联合同，可直接维护门店档案。</span>}</Space></Form.Item></Col></Row>
-        <Row gutter={16}><FormItem span={8} label="品牌" name="brandId" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} placeholder="请选择品牌" options={brands.map((brand) => ({ value: brand.id, label: brand.name }))} /></FormItem><FormItem span={8} label="门店名称" name="name" required><Input disabled={!!selectedContract} maxLength={60} placeholder="请输入门店名称" /></FormItem><FormItem span={8} label="合作类型" name="cooperationType" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} options={cooperationOptions.filter((option) => option.value)} /></FormItem></Row>
-        <Row gutter={16}><FormItem span={8} label="运营状态" name="operationStatus" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} options={statusOptions.filter((option) => option.value)} /></FormItem><FormItem span={8} label="营运大区" name="region"><Select allowClear loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择营运大区" options={areaOptions} /></FormItem><FormItem span={8} label="负责督导" name="supervisorName"><Input readOnly placeholder="请选择督导" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "supervisor", title: "督导", field: "supervisorName" })}>选择</Button>} /></FormItem></Row>
+        <Row gutter={16}><FormItem span={8} label="品牌" name="brandId" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} placeholder="请选择品牌" options={brands.map((brand) => ({ value: brand.id, label: brand.name }))} onChange={(brandId) => form.setFieldValue("workdayHours", configuredWorkdayHoursForBrand(brandId))} /></FormItem><FormItem span={8} label="门店名称" name="name" required><Input disabled={!!selectedContract} maxLength={60} placeholder="请输入门店名称" /></FormItem><FormItem span={8} label="合作类型" name="cooperationType" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} options={cooperationOptions.filter((option) => option.value)} /></FormItem></Row>
+        <Row gutter={16}><FormItem span={6} label="运营状态" name="operationStatus" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} options={statusOptions.filter((option) => option.value)} /></FormItem><FormItem span={6} label="营运大区" name="region"><Select allowClear loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择营运大区" options={areaOptions} /></FormItem><FormItem span={6} label="负责督导" name="supervisorName"><Input readOnly placeholder="请选择督导" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "supervisor", title: "督导", field: "supervisorName", idField: "supervisorUserId" })}>选择</Button>} /></FormItem><FormItem span={6} label="工作日小时" name="workdayHours" required rules={[{ required: true, message: "请输入工作日小时" }, { type: "number", min: 0.1, max: 24, message: "请输入0.1至24之间的工作日小时" }]}><InputNumber min={0.1} max={24} step={0.1} precision={1} suffix="小时/日" style={{ width: "100%" }} placeholder="读取品牌考勤参数，可修改" /></FormItem></Row>
         <FormHeading title="门店地址与商圈" />
         <Row gutter={16}><FormItem span={12} label="省 / 市 / 区县" name="location"><Cascader disabled={!!selectedContract} options={districtOptions} fieldNames={{ label: "name", value: "name", children: "children" }} placeholder="请选择门店所在地区" showSearch /></FormItem><FormItem span={12} label="详细地址" name="address"><Input disabled={!!selectedContract} maxLength={200} placeholder="请输入街道、门牌号等" /></FormItem></Row>
         <Row gutter={16}><FormItem span={8} label="商圈" name="businessDistrict"><Input maxLength={60} placeholder="如：静安寺商圈" /></FormItem><FormItem span={8} label="选址类型" name="locationType"><Select allowClear loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择门店位置类型" options={locationTypeOptions} /></FormItem></Row>
@@ -453,7 +549,7 @@ export function StoreList({ permissions }: { permissions: string[] }) {
       </Form>
     </Drawer>
     <Drawer title="门店详情" width={840} open={detailOpen} onClose={() => setDetailOpen(false)} extra={selected ? <Button type="primary" onClick={() => { setDetailOpen(false); openEdit(selected); }}>编辑门店</Button> : null}>
-      {selected && <StoreDetails store={selected} />}
+      {selected && <StoreDetails store={selected} brandDayHours={brandDayHours} />}
     </Drawer>
     <Modal title={aliasMode === "edit" ? "编辑-门店别名" : "查看-门店别名"} open={!!aliasMode && !!aliasStore} onCancel={closeAliases} width={640} destroyOnHidden maskClosable={!aliasSaving} closable={!aliasSaving} footer={aliasMode === "edit" ? <Space><Button disabled={aliasSaving} onClick={closeAliases}>取消</Button><Button type="primary" loading={aliasSaving} onClick={() => void saveAliases()}>保存</Button></Space> : <Space>{canEditAliases && <Button type="primary" onClick={() => setAliasMode("edit")}>编辑</Button>}<Button onClick={closeAliases}>返回</Button></Space>}>
       {aliasStore && aliasMode === "view" && <Descriptions bordered size="middle" column={1} items={[
@@ -475,6 +571,43 @@ export function StoreList({ permissions }: { permissions: string[] }) {
     </Modal>
     <Modal title="温馨提示" open={aliasSuccessOpen} centered closable={false} maskClosable={false} footer={<Button type="primary" onClick={() => { setAliasSuccessOpen(false); setAliasStore(null); aliasForm.resetFields(); }}>我知道了</Button>}>
       <p>门店别名已成功保存。</p>
+    </Modal>
+    <Modal
+      title={costMode === "edit" ? "编辑成本" : "查看成本"}
+      open={!!costMode && !!costStore}
+      onCancel={closeCost}
+      width={680}
+      destroyOnHidden
+      maskClosable={!costSaving}
+      closable={!costSaving}
+      footer={costMode === "edit"
+        ? <Space><Button disabled={costSaving} onClick={() => setCostMode("view")}>取消</Button><Button type="primary" loading={costSaving} onClick={() => void saveCost()}>保存</Button></Space>
+        : <Space><Button type="primary" disabled={costLoading || !costData} onClick={startCostEdit}>编辑</Button><Button onClick={closeCost}>返回</Button></Space>}
+    >
+      {costLoading && !costData ? <Skeleton active paragraph={{ rows: 7 }} /> : costError ? <Alert type="error" showIcon message="门店成本加载失败" description={costError} action={costStore ? <Button size="small" onClick={() => void loadStoreCost(costStore.id)}>重新加载</Button> : undefined} /> : costData && costMode === "view" ? <Descriptions bordered size="middle" column={2} items={[
+        { key: "name", label: "门店名称", children: costData.name, span: 2 },
+        { key: "recordNo", label: "门店编号", children: costData.recordNo, span: 2 },
+        { key: "storeRent", label: "门店房租", children: money(costData.storeRent) },
+        { key: "employeeWages", label: "员工工资", children: money(costData.employeeWages) },
+        { key: "dormitoryRent", label: "宿舍房租", children: money(costData.dormitoryRent) },
+        { key: "propertyFee", label: "物业费", children: money(costData.propertyFee) },
+        { key: "utilitiesFee", label: "水电费", children: money(costData.utilitiesFee) },
+        { key: "otherCost", label: "其他", children: money(costData.otherCost) },
+        { key: "ratioCoefficient", label: "比例系数", children: Number(costData.ratioCoefficient), span: 2 },
+        { key: "monthlyBreakEvenRevenue", label: "月保本营业额", children: costData.monthlyBreakEvenRevenue === null ? "比例系数须大于0" : money(costData.monthlyBreakEvenRevenue), span: 2 },
+      ]} /> : costData && costMode === "edit" ? <Form form={costForm} layout="vertical">
+        <Row gutter={16}><Col span={12}><Form.Item label="门店名称"><Input value={costData.name} readOnly /></Form.Item></Col><Col span={12}><Form.Item label="门店编号"><Input value={costData.recordNo} readOnly /></Form.Item></Col></Row>
+        <Row gutter={16}><CostFormItem label="门店房租" name="storeRent" /><CostFormItem label="员工工资" name="employeeWages" /></Row>
+        <Row gutter={16}><CostFormItem label="宿舍房租" name="dormitoryRent" /><CostFormItem label="物业费" name="propertyFee" /></Row>
+        <Row gutter={16}><CostFormItem label="水电费" name="utilitiesFee" /><CostFormItem label="其他" name="otherCost" /></Row>
+        <Row gutter={16}>
+          <Col span={12}><Form.Item label="比例系数" name="ratioCoefficient" rules={[{ required: true, message: "请输入比例系数" }, { type: "number", min: 0.0001, max: 999999.9999, message: "比例系数须在0.0001至999999.9999之间" }]}><InputNumber min={0.0001} max={999999.9999} step={0.0001} precision={4} style={{ width: "100%" }} placeholder="请输入比例系数" /></Form.Item></Col>
+          <Col span={12}><Form.Item noStyle shouldUpdate>{({ getFieldsValue }) => {
+            const monthlyRevenue = calculateMonthlyBreakEvenRevenue(getFieldsValue());
+            return <Form.Item label="月保本营业额"><Input value={monthlyRevenue === null ? "" : money(monthlyRevenue)} readOnly placeholder="根据成本和比例系数自动计算" /></Form.Item>;
+          }}</Form.Item></Col>
+        </Row>
+      </Form> : null}
     </Modal>
     <Modal
       title={employeeMode === "edit" ? "编辑-员工列表" : "查看-员工列表"}
@@ -586,12 +719,17 @@ function FormHeading({ title }: { title: string }) { return <div className="cont
 function FormItem({ span, label, name, required, rules, children }: { span: number; label: string; name: keyof StoreForm; required?: boolean; rules?: object[]; children: ReactNode }) {
   return <Col span={span}><Form.Item label={label} name={name} rules={rules || (required ? [{ required: true, message: `请${label.includes("选择") ? "选择" : "填写"}${label}` }] : undefined)}>{children}</Form.Item></Col>;
 }
-function StoreDetails({ store }: { store: Store }) {
+function CostFormItem({ label, name }: { label: string; name: keyof Omit<CostForm, "ratioCoefficient"> }) {
+  return <Col span={12}><Form.Item label={label} name={name} rules={[{ required: true, message: `请输入${label}` }, { type: "number", min: 0, max: 999999999999.99, message: `${label}不能小于0` }]}><InputNumber min={0} max={999999999999.99} step={0.01} precision={2} prefix="¥" style={{ width: "100%" }} placeholder={`请输入${label}`} /></Form.Item></Col>;
+}
+function StoreDetails({ store, brandDayHours }: { store: Store; brandDayHours: Record<string, number> }) {
+  const workdayHours = store.workdayHours === null || store.workdayHours === undefined ? brandDayHours[store.brand.name] : Number(store.workdayHours);
   return <>
     <Descriptions column={2} bordered size="small" items={[
       { key: "recordNo", label: "门店编号", children: store.recordNo }, { key: "status", label: "运营状态", children: <StatusTag value={store.operationStatus} /> },
       { key: "brand", label: "品牌", children: store.brand.name }, { key: "name", label: "门店名称", children: store.name },
       { key: "cooperation", label: "合作类型", children: cooperationLabel(store.cooperationType) }, { key: "contract", label: "关联合同", children: store.contract ? <>{store.contract.recordNo} <StatusTag value={store.contract.status} /></> : "未关联" },
+      { key: "workdayHours", label: "工作日小时", children: workdayHours === undefined ? "-" : `${Number(workdayHours)}小时/日` },
       { key: "region", label: "营运大区", children: text(store.region) }, { key: "supervisor", label: "负责督导", children: text(store.supervisorName) },
       { key: "location", label: "省 / 市 / 区县", children: locationLabel(store) }, { key: "address", label: "详细地址", children: text(store.address) },
       { key: "businessDistrict", label: "商圈", children: text(store.businessDistrict) }, { key: "locationType", label: "选址类型", children: text(store.locationType) },

@@ -71,6 +71,7 @@ export const createNotificationSchema = z.object({
 function meetingTypeForNotification(type: NotificationType) {
   if (type === NotificationType.MID_MONTH_OFFLINE_MEETING) return MeetingType.MID_MONTH_OFFLINE;
   if (type === NotificationType.MONTHLY_ONLINE_MEETING) return MeetingType.MONTHLY_ONLINE;
+  if (type === NotificationType.QUARTERLY_OFFLINE_MEETING) return MeetingType.QUARTERLY_OFFLINE;
   return null;
 }
 

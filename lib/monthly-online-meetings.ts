@@ -15,10 +15,14 @@ export function canUseMonthlyOnlineMeetings(session: Pick<Session, "permissions"
 }
 
 export function meetingConfigurationForRequest(request: Request) {
-  const isMidMonthOffline = new URL(request.url).pathname.startsWith("/api/mid-month-offline-meetings");
-  return isMidMonthOffline
-    ? { type: MeetingType.MID_MONTH_OFFLINE, permissionPrefix: "mid-month-offline-meetings", pageName: "月中线下会", exportFileName: "月中线下会" } as const
-    : { type: MeetingType.MONTHLY_ONLINE, permissionPrefix: "monthly-online-meetings", pageName: "每月线上会", exportFileName: "每月线上会" } as const;
+  const pathname = new URL(request.url).pathname;
+  if (pathname.startsWith("/api/mid-month-offline-meetings")) {
+    return { type: MeetingType.MID_MONTH_OFFLINE, permissionPrefix: "mid-month-offline-meetings", pageName: "月中线下会", exportFileName: "月中线下会" } as const;
+  }
+  if (pathname.startsWith("/api/quarterly-offline-meetings")) {
+    return { type: MeetingType.QUARTERLY_OFFLINE, permissionPrefix: "quarterly-offline-meetings", pageName: "季度线下会", exportFileName: "季度线下会" } as const;
+  }
+  return { type: MeetingType.MONTHLY_ONLINE, permissionPrefix: "monthly-online-meetings", pageName: "每月线上会", exportFileName: "每月线上会" } as const;
 }
 
 export const monthlyMeetingFiltersSchema = z.object({
@@ -76,9 +80,9 @@ export function serializeMonthlyMeeting(source: MonthlyMeetingListSource, actual
   };
 }
 
-export function filterLogDetail(filters: MonthlyMeetingFilters) {
+export function filterLogDetail(filters: MonthlyMeetingFilters, pageName = "每月线上会") {
   return [
     filters.meetingMonth && `会议月份：${filters.meetingMonth}`,
     filters.expectedAttendeeKeyword && `应参会人：${filters.expectedAttendeeKeyword}`,
-  ].filter(Boolean).join("；") || "全部每月线上会";
+  ].filter(Boolean).join("；") || `全部${pageName}`;
 }

@@ -16,7 +16,7 @@ type LearningTask = {
   completedAt: string | null;
 };
 
-export function StoreH5DailyLearningList() {
+export function StoreH5DailyLearningList({ canView }: { canView: boolean }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<LearningTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,11 +43,10 @@ export function StoreH5DailyLearningList() {
     {loading ? <div className="mobile-learning-state"><Skeleton active paragraph={{ rows: 6 }} /></div>
       : error ? <div className="mobile-learning-state"><Alert type="error" showIcon message="每日学习内容加载失败，请稍后重试" action={<Button size="small" icon={<ReloadOutlined />} onClick={() => void load()}>重试</Button>} /></div>
         : !tasks.length ? <div className="mobile-learning-empty"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="今天暂无每日学习任务" /><p>如有新的学习安排，将在这里展示</p></div>
-          : <div className="store-learning-task-list">{tasks.map(task => <button type="button" key={task.id} className={`store-learning-task-card ${task.completed ? "completed" : ""}`} onClick={() => router.push(`/store_h5/daily-learning/${task.id}`)}>
+          : <div className="store-learning-task-list">{tasks.map(task => <button type="button" disabled={!canView} key={task.id} className={`store-learning-task-card ${task.completed ? "completed" : ""}`} onClick={() => router.push(`/store_h5/daily-learning/${task.id}`)}>
             <span className="store-learning-task-icon">{task.completed ? <CheckCircleFilled /> : <ClockCircleOutlined />}</span>
             <span className="store-learning-task-main"><span className="store-learning-task-title">{task.title}</span><span className="store-learning-task-preview">{task.contentPreview}</span><span className="store-learning-task-meta"><Tag color={task.completed ? "success" : "processing"}>{task.completed ? "已完成" : "待学习"}</Tag><span>{task.studentTag}</span></span></span>
             <RightOutlined className="store-learning-task-arrow" />
           </button>)}</div>}
   </main>;
 }
-

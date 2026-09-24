@@ -7,6 +7,7 @@ export type SubmitItem = {
   name: string;
   component: "attachment" | "input" | "select";
   dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null;
+  maxValue?: number | null;
   captureOnly?: boolean;
   options: string[];
   description: string;
@@ -26,14 +27,19 @@ export function normalizeConfigFileName(value: string) {
   return `${baseName}.json`;
 }
 
-function parseComponent(value: string, lineNumber: number): Pick<SubmitItem, "component" | "dataType" | "captureOnly" | "options"> {
+function parseComponent(value: string, lineNumber: number): Pick<SubmitItem, "component" | "dataType" | "maxValue" | "captureOnly" | "options"> {
   if (value === "[附件]照片") return { component: "attachment", dataType: "photo", captureOnly: false, options: [] };
   if (value === "[附件]拍照") return { component: "attachment", dataType: "photo", captureOnly: true, options: [] };
   if (value === "[附件]视频") return { component: "attachment", dataType: "video", captureOnly: false, options: [] };
   if (value === "[附件]录像") return { component: "attachment", dataType: "video", captureOnly: true, options: [] };
   if (value === "[附件]文档") return { component: "attachment", dataType: "document", captureOnly: false, options: [] };
   if (value === "[输入框]金额") return { component: "input", dataType: "amount", options: [] };
-  if (value === "[输入框]数量" || value === "[输入框]数字") return { component: "input", dataType: "quantity", options: [] };
+  const quantityInput = value.match(/^\[输入框(?:_(\d+))?\](?:数量|数字)$/);
+  if (quantityInput) {
+    const maxValue = quantityInput[1] === undefined ? null : Number(quantityInput[1]);
+    if (maxValue !== null && !Number.isSafeInteger(maxValue)) throw new TaskConfigError(`第${lineNumber}行数字输入框上限必须是有效的非负整数`);
+    return { component: "input", dataType: "quantity", maxValue, options: [] };
+  }
   if (value === "[输入框]文字") return { component: "input", dataType: "text", options: [] };
   if (value.startsWith("[下拉选框]")) {
     const options = value.slice("[下拉选框]".length).split(",").map(item => item.trim()).filter(Boolean);

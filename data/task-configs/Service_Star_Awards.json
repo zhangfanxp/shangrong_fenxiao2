@@ -1,0 +1,314 @@
+{
+  "recordNo": "202609170001",
+  "taskName": "服务之星月度评选",
+  "taskType": "月任务",
+  "taskTarget": "门店员工",
+  "specifiedTargets": [
+    "收银员-普通",
+    "收银员一星",
+    "收银员二星",
+    "收银员三星",
+    "服务员-普通",
+    "服务员一星",
+    "服务员二星",
+    "服务员三星"
+  ],
+  "executorRoles": [
+    {
+      "id": "cmt6jn0cl000ctn6y5ukshkil",
+      "name": "店长"
+    },
+    {
+      "id": "cmu4xzjx60000tnkspnarjnrk",
+      "name": "督导"
+    }
+  ],
+  "executorRole": {
+    "id": "cmt6jn0cl000ctn6y5ukshkil",
+    "name": "店长"
+  },
+  "brands": [
+    {
+      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "name": "奋小二"
+    }
+  ],
+  "storageSpace": {
+    "id": "cmt0xbey80005tncek1xtase8",
+    "name": "R2-test",
+    "bucketName": "videolist"
+  },
+  "executionDays": [],
+  "monthlyExecutionDay": "ANY_DAY",
+  "deadlineDayOffset": -1,
+  "deadlineTime": "23:59",
+  "includeCompletionRate": true,
+  "status": "启用",
+  "configVersion": 2,
+  "submitItems": [
+    {
+      "name": "服务礼仪与仪容仪表【工服规范】",
+      "description": "工服整洁无污渍无破损、佩戴物料有手套及围裙头绳打火机缺一项扣2分，严重不规范扣5分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "服务礼仪与仪容仪表【形象细节】",
+      "description": "发型合规、佩戴头花、指甲短净、无饰品，违规一项扣2分，严重扣5分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "服务礼仪与仪容仪表【礼貌仪态】",
+      "description": "站姿端正、微笑服务，使用”挥手示意““您好、欢迎光临蚝家伙、等规范用语，缺失一次扣2分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "服务流程与规范执行【迎宾流程】",
+      "description": "3秒内问候、引位、递菜单、上茶水，（台面瓜子花生）缺失一项扣2分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "服务流程与规范执行【点单精准】",
+      "description": "根据顾客需求、熟练介绍产品、确认忌口，无错单/漏单，确认下单完成、错单/漏单一次扣3分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "服务流程与规范执行【上菜规范】",
+      "description": "报菜名、提醒温度、摆放合理，流程缺失一次扣2分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "服务流程与规范执行【席间与好评】",
+      "description": "正确的巡台及时加水、清台面，沟通顾客要好评、路遇顾客挥手问好、缺失一项扣1分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "服务流程与规范执行【送客】",
+      "description": "送客提醒带好随身物品，挥手送客、欢迎下次光临、缺失一项扣2分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "服务态度与主动服务【态度表现】",
+      "description": "热情耐心、无顶撞/不耐烦，摆脸色，不愿接待、出现一次扣4分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 8,
+      "options": []
+    },
+    {
+      "name": "服务态度与主动服务【主动服务】",
+      "description": "主动送宝宝椅、手套、围裙、头绳、打火机、未主动执行一次扣2分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 6,
+      "options": []
+    },
+    {
+      "name": "服务态度与主动服务【特殊响应】",
+      "description": "快速处理（3分钟内）客人呼叫、特殊需求（老人/小孩/打包等），滞后一次扣2分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 4,
+      "options": []
+    },
+    {
+      "name": "服务态度与主动服务【无投诉】",
+      "description": "无有效服务投诉，有投诉本次（评分）考核0分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 2,
+      "options": []
+    },
+    {
+      "name": "服务态度与主动服务【加分项】",
+      "description": "顾客口头/书面表扬1次加2分，上限+6分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 6,
+      "options": []
+    },
+    {
+      "name": "业务技能与效率【开市与收市】",
+      "description": "区域内严格按照开市及收市卫生标准、缺失（未清洁）一项扣1分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "业务技能与效率【岗位技能】",
+      "description": "熟练掌握餐厅摆台、收餐、开市及收市卫生标准一次扣3分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "业务技能与效率【业务熟悉】",
+      "description": "熟练掌握会员/餐厅活动/套餐内容及规则，推荐合理，不熟练一次扣2分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "顾客满意度与口碑【评价平均分】",
+      "description": "门店扫码/纸质评价分≥4.6，低于标准每0.1扣1分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 6,
+      "options": []
+    },
+    {
+      "name": "顾客满意度与口碑【线上表扬】",
+      "description": "美团/点评实名表扬提及1次加2分，上限+4分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 4,
+      "options": []
+    },
+    {
+      "name": "顾客满意度与口碑【无差评】",
+      "description": "无差评、无舆情风险，有差评该项0分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "团队协作与纪律合规【出勤合规】",
+      "description": "全勤、无迟到早退/旷工，迟到1次扣1分，旷工该项0分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 2,
+      "options": []
+    },
+    {
+      "name": "团队协作与纪律合规【协同配合】",
+      "description": "主动帮岗、配合多岗位，不配合一次扣2分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 5,
+      "options": []
+    },
+    {
+      "name": "团队协作与纪律合规【规章遵守】",
+      "description": "遵守卫生/安全/等规范，违规一次扣3分，重大违规取消参评（健康证）",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": 3,
+      "options": []
+    }
+  ]
+}

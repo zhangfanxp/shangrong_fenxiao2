@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getPlatformConfig, userHasAnyLoginTag } from "@/lib/platform-config";
+import { hasRolePermission, hasRolePlatformAccess, type RolePermissionRequirement } from "@/lib/role-permissions";
 import { sessionCookieSecure } from "@/lib/session-cookie";
 
 const cookieName = "canyin_lead_h5_session";
@@ -32,22 +32,20 @@ export async function createLeadH5Session(userId: string) {
     .sign(secret);
 }
 
-export async function getLeadH5Session(): Promise<LeadH5Session | null> {
+export async function getLeadH5Session(requirement?: RolePermissionRequirement): Promise<LeadH5Session | null> {
   const token = (await cookies()).get(cookieName)?.value;
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret, { audience: "lead_h5" });
     const tokenSession = payload as unknown as LeadH5Token;
     if (!tokenSession.userId || tokenSession.channel !== "lead_h5") return null;
-    const [user, platform] = await Promise.all([
-      db.user.findUnique({ where: { id: tokenSession.userId }, include: { role: true } }),
-      getPlatformConfig(),
-    ]);
+    const user = await db.user.findUnique({ where: { id: tokenSession.userId }, include: { role: true } });
     if (!user || user.status !== "ENABLED" || user.role.status !== "ENABLED") return null;
-    if (!userHasAnyLoginTag(user.tags, platform.leadH5LoginTags)) return null;
     const permissions = Array.isArray(user.role.permissions)
       ? user.role.permissions.filter((item): item is string => typeof item === "string")
       : [];
+    if (!hasRolePlatformAccess(permissions, "lead-h5")) return null;
+    if (requirement && !hasRolePermission(permissions, requirement)) return null;
     const configuredBrandIds = jsonStringArray(user.leadH5BrandIds);
     const configuredStoreIds = jsonStringArray(user.leadH5StoreIds);
     const tokenBrandIds = permissions.filter(value => value.startsWith("data:brand:")).map(value => value.slice(11)).filter(Boolean);
@@ -62,10 +60,22 @@ export async function getLeadH5Session(): Promise<LeadH5Session | null> {
   }
 }
 
-export async function requireLeadH5PageSession() {
+export async function requireLeadH5PageSession(requirement?: RolePermissionRequirement) {
   const session = await getLeadH5Session();
   if (!session) redirect("/lead_h5/login");
+  if (requirement && !hasRolePermission(session.permissions, requirement)) redirect("/lead_h5");
   return session;
+}
+
+export function leadH5SessionHasPermission(session: LeadH5Session, requirement: RolePermissionRequirement) {
+  return hasRolePermission(session.permissions, requirement);
+}
+
+export function leadH5ReviewPermission(reviewType: string, action: "view" | "submit") {
+  if (reviewType === "FRONT_HALL_AUDIT") return `lead-h5:front-hall:${action}`;
+  if (reviewType === "BACK_KITCHEN_AUDIT") return `lead-h5:back-kitchen:${action}`;
+  if (reviewType === "STORE_CREDIT_SCORE") return `lead-h5:store-credit:${action}`;
+  return null;
 }
 
 export const leadH5SessionCookie = {

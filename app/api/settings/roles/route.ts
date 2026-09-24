@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
+import { isFixedSystemRoleIdentity } from "@/lib/system-roles";
 
 const roleSchema = z.object({
   name: z.string().trim().min(1, "请输入角色名称").max(30, "角色名称不能超过30个字符"),
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
   if (!sessionHasPermission(session, "settings:roles")) return NextResponse.json({ message: "暂无角色管理权限" }, { status: 403 });
   const parsed = roleSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0].message }, { status: 400 });
+  if (isFixedSystemRoleIdentity(parsed.data.name, parsed.data.code)) return NextResponse.json({ message: "该名称或英文名称属于系统固定角色，不可用于新增自定义角色" }, { status: 400 });
   try {
     const role = await db.role.create({ data: { ...parsed.data, type: "CUSTOM" } });
     await writeOperationLog({ userId: session.userId, username: session.username, page: "角色管理", action: "新增", result: "成功", detail: `新增角色：${role.name}`, request });

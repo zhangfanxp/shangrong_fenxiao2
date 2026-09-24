@@ -50,11 +50,12 @@ type FormValues = { meetingMonth?: Dayjs | null; expectedAttendeeKeyword?: strin
 
 const emptyFilters: Filters = { meetingMonth: "", expectedAttendeeKeyword: "" };
 
-type MeetingVariant = "monthly-online" | "mid-month-offline";
+type MeetingVariant = "monthly-online" | "mid-month-offline" | "quarterly-offline";
 
 const meetingConfigurations = {
   "monthly-online": { apiBase: "/api/monthly-online-meetings", permissionPrefix: "monthly-online-meetings", pageName: "每月线上会" },
   "mid-month-offline": { apiBase: "/api/mid-month-offline-meetings", permissionPrefix: "mid-month-offline-meetings", pageName: "月中线下会" },
+  "quarterly-offline": { apiBase: "/api/quarterly-offline-meetings", permissionPrefix: "quarterly-offline-meetings", pageName: "季度线下会" },
 } as const;
 
 function responseFileName(response: Response, pageName: string) {
@@ -328,4 +329,8 @@ export function MonthlyOnlineMeetingList({ permissions }: { permissions: string[
 
 export function MidMonthOfflineMeetingList({ permissions }: { permissions: string[] }) {
   return <MeetingManagementList permissions={permissions} variant="mid-month-offline" />;
+}
+
+export function QuarterlyOfflineMeetingList({ permissions }: { permissions: string[] }) {
+  return <MeetingManagementList permissions={permissions} variant="quarterly-offline" />;
 }

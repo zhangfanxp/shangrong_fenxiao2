@@ -16,8 +16,17 @@ export const permissionGroups = [
     { value: "actual-revenue:set-monthly-target", label: "实际营业额-设置月目标" },
     { value: "actual-revenue:daily-target-preview", label: "实际营业额-生成日目标" },
     { value: "actual-revenue:delete", label: "实际营业额-删除" },
+    { value: "wechat-private-daily-new:query", label: "微信私域每日新增-查询" },
+    { value: "wechat-private-daily-new:export", label: "微信私域每日新增-导出" },
+    { value: "monthly-purchase-sales:query", label: "每月采销比-查询" },
+    { value: "monthly-purchase-sales:create", label: "每月采销比-新增" },
+    { value: "monthly-purchase-sales:import", label: "每月采销比-导入" },
+    { value: "monthly-purchase-sales:export", label: "每月采销比-导出" },
+    { value: "monthly-purchase-sales:view", label: "每月采销比-查看" },
+    { value: "monthly-purchase-sales:edit", label: "每月采销比-编辑" },
+    { value: "monthly-purchase-sales:delete", label: "每月采销比-删除" },
   ] },
-  { key: "inspection", label: "巡店", permissions: [{ value: "inspection:view", label: "巡店管理" }, { value: "store-reviews:query", label: "稽核评分查询" }, { value: "store-reviews:view", label: "稽核评分查看" }, { value: "store-reviews:export", label: "稽核评分导出" }, { value: "store-reviews:delete", label: "稽核评分删除" }, { value: "store-credit-scores:query", label: "门店信用得分-查询" }, { value: "store-credit-scores:view", label: "门店信用得分-查看" }, { value: "store-credit-scores:export", label: "门店信用得分-导出" }, { value: "store-credit-scores:delete", label: "门店信用得分-删除" }, { value: "store-research-records:query", label: "巡店调研表查询" }, { value: "store-research-records:view", label: "巡店调研表查看" }, { value: "store-research-records:export", label: "巡店调研表导出" }, { value: "store-research-records:delete", label: "巡店调研表删除" }, { value: "assessments:query", label: "考核表格查询" }, { value: "assessments:create", label: "考核表格新增" }, { value: "assessments:preview", label: "考核表格预览" }, { value: "assessments:edit", label: "考核表格编辑" }, { value: "assessments:view", label: "考核表格查看" }, { value: "assessments:enable", label: "考核表格启用" }, { value: "assessments:disable", label: "考核表格禁用" }, { value: "assessments:delete", label: "考核表格删除" }] },
+  { key: "inspection", label: "巡店", permissions: [{ value: "inspection:view", label: "巡店管理" }, { value: "store-reviews:query", label: "稽核评分查询" }, { value: "store-reviews:view", label: "稽核评分查看" }, { value: "store-reviews:export", label: "稽核评分导出" }, { value: "store-reviews:delete", label: "稽核评分删除" }, { value: "store-credit-scores:query", label: "门店信用得分-查询" }, { value: "store-credit-scores:view", label: "门店信用得分-查看" }, { value: "store-credit-scores:export", label: "门店信用得分-导出" }, { value: "store-credit-scores:delete", label: "门店信用得分-删除" }, { value: "store-research-records:query", label: "巡店调研表查询" }, { value: "store-research-records:view", label: "巡店调研表查看" }, { value: "store-research-records:export", label: "巡店调研表导出" }, { value: "store-research-records:delete", label: "巡店调研表删除" }, { value: "assessments:query", label: "考核表格查询" }, { value: "assessments:create", label: "考核表格新增" }, { value: "assessments:preview", label: "考核表格预览" }, { value: "assessments:edit", label: "考核表格编辑" }, { value: "assessments:view", label: "考核表格查看" }, { value: "assessments:enable", label: "考核表格启用" }, { value: "assessments:disable", label: "考核表格禁用" }, { value: "assessments:delete", label: "考核表格删除" }, { value: "research-templates:query", label: "调研模版查询" }, { value: "research-templates:create", label: "调研模版新增" }, { value: "research-templates:preview", label: "调研模版预览" }, { value: "research-templates:edit", label: "调研模版编辑" }, { value: "research-templates:view", label: "调研模版查看" }, { value: "research-templates:enable", label: "调研模版启用" }, { value: "research-templates:disable", label: "调研模版禁用" }, { value: "research-templates:delete", label: "调研模版删除" }] },
   { key: "tasks", label: "任务", permissions: [
     { value: "tasks:settings:view", label: "任务设置" },
     { value: "tasks:records:query", label: "任务记录查询" },
@@ -34,6 +43,7 @@ export const permissionGroups = [
   { key: "staff", label: "员工", permissions: [
     { value: "staff:view", label: "员工管理（兼容权限）" },
     { value: "personnel:query", label: "人员档案查询" }, { value: "personnel:create", label: "人员档案新增" }, { value: "personnel:edit", label: "人员档案编辑" }, { value: "personnel:view", label: "人员档案查看" }, { value: "personnel:import", label: "人员档案导入" }, { value: "personnel:export", label: "人员档案导出" }, { value: "personnel:salary", label: "人员档案调薪" }, { value: "personnel:position", label: "人员档案调岗" }, { value: "personnel:issues", label: "领用记录查看" }, { value: "personnel:return", label: "人员物品返还" }, { value: "personnel:resign", label: "人员离职" }, { value: "personnel:delete", label: "人员档案删除" }, { value: "personnel:sensitive", label: "人员敏感数据查看" },
+    { value: "attendance-records:query", label: "考勤记录-查询" }, { value: "attendance-records:view", label: "考勤记录-查看" }, { value: "attendance-records:export", label: "考勤记录-导出" },
     { value: "item-requisitions:query", label: "领用管理-查询" }, { value: "item-requisitions:create", label: "领用管理-新增" }, { value: "item-requisitions:edit", label: "领用管理-编辑" }, { value: "item-requisitions:view", label: "领用管理-查看" }, { value: "item-requisitions:export", label: "领用管理-导出" },
     { value: "workwear-inventory:query", label: "物品管理-查询" }, { value: "workwear-inventory:create", label: "物品管理-新增" }, { value: "workwear-inventory:view", label: "物品管理-查看" }, { value: "workwear-inventory:edit", label: "物品管理-编辑" }, { value: "workwear-inventory:inbound", label: "物品管理-入库" }, { value: "workwear-inventory:enable", label: "物品管理-启用" }, { value: "workwear-inventory:disable", label: "物品管理-禁用" }, { value: "workwear-inventory:export", label: "物品管理-导出" }, { value: "workwear-inventory:delete", label: "物品管理-删除" },
   ] },
@@ -65,8 +75,17 @@ export const permissionGroups = [
     { value: "course-assignments:batch-disable", label: "课程分配记录-批量停用" },
     { value: "course-assignments:batch-enable", label: "课程分配记录-批量启用" },
   ] },
-  { key: "meetings", label: "会议", permissions: [{ value: "meetings:view", label: "会议管理（兼容权限）" }, { value: "monthly-online-meetings:query", label: "每月线上会-查询" }, { value: "monthly-online-meetings:view", label: "每月线上会-查看" }, { value: "monthly-online-meetings:attendance", label: "每月线上会-签到" }, { value: "monthly-online-meetings:export", label: "每月线上会-导出" }, { value: "mid-month-offline-meetings:query", label: "月中线下会-查询" }, { value: "mid-month-offline-meetings:view", label: "月中线下会-查看" }, { value: "mid-month-offline-meetings:attendance", label: "月中线下会-签到" }, { value: "mid-month-offline-meetings:export", label: "月中线下会-导出" }] },
+  { key: "meetings", label: "会议", permissions: [{ value: "meetings:view", label: "会议管理（兼容权限）" }, { value: "monthly-online-meetings:query", label: "每月线上会-查询" }, { value: "monthly-online-meetings:view", label: "每月线上会-查看" }, { value: "monthly-online-meetings:attendance", label: "每月线上会-签到" }, { value: "monthly-online-meetings:export", label: "每月线上会-导出" }, { value: "mid-month-offline-meetings:query", label: "月中线下会-查询" }, { value: "mid-month-offline-meetings:view", label: "月中线下会-查看" }, { value: "mid-month-offline-meetings:attendance", label: "月中线下会-签到" }, { value: "mid-month-offline-meetings:export", label: "月中线下会-导出" }, { value: "quarterly-offline-meetings:query", label: "季度线下会-查询" }, { value: "quarterly-offline-meetings:view", label: "季度线下会-查看" }, { value: "quarterly-offline-meetings:attendance", label: "季度线下会-签到" }, { value: "quarterly-offline-meetings:export", label: "季度线下会-导出" }] },
   { key: "notifications", label: "通知", permissions: [{ value: "notifications:publish:access", label: "发布通知-访问" }, { value: "notifications:publish:save", label: "发布通知-保存" }, { value: "notifications:publish:select-users", label: "发布通知-选择用户" }, { value: "notifications:manage", label: "通知管理" }] },
+  { key: "statistics", label: "统计", permissions: [
+    { value: "statistics:roster:view", label: "花名册一览表-查看（兼容权限）" },
+    { value: "statistics:roster:query", label: "花名册一览表-查询" },
+    { value: "statistics:roster:export", label: "花名册一览表-导出" },
+    { value: "statistics:roster:sensitive", label: "花名册一览表-查看敏感信息" },
+    { value: "statistics:roster:export-sensitive", label: "花名册一览表-导出敏感信息" },
+    { value: "statistics:roster:headquarters", label: "花名册一览表-查看总部人员" },
+    { value: "statistics:labor-contract-expiry:view", label: "劳动合同过期预警-查看" },
+  ] },
   { key: "database-backups", label: "数据库备份", permissions: [
     { value: "database-backups:query", label: "查询" },
     { value: "database-backups:configure", label: "定时设置" },
@@ -74,7 +93,58 @@ export const permissionGroups = [
     { value: "database-backups:download", label: "下载" },
     { value: "database-backups:delete", label: "删除" },
   ] },
-  { key: "settings", label: "设置", permissions: [{ value: "settings:roles", label: "角色管理" }, { value: "settings:users", label: "用户列表" }, { value: "settings:parameters", label: "系统参数" }, { value: "dictionaries:query", label: "数据字典查询" }, { value: "dictionaries:create", label: "数据字典新增" }, { value: "dictionaries:edit", label: "数据字典编辑" }, { value: "dictionaries:view", label: "数据字典查看" }, { value: "dictionaries:enable", label: "数据字典启用" }, { value: "dictionaries:disable", label: "数据字典停用" }, { value: "dictionaries:values:view", label: "枚举值查看" }, { value: "dictionaries:values:edit", label: "枚举值编辑" }, { value: "research-templates:query", label: "调研模版查询" }, { value: "research-templates:create", label: "调研模版新增" }, { value: "research-templates:preview", label: "调研模版预览" }, { value: "research-templates:edit", label: "调研模版编辑" }, { value: "research-templates:view", label: "调研模版查看" }, { value: "research-templates:enable", label: "调研模版启用" }, { value: "research-templates:disable", label: "调研模版禁用" }, { value: "research-templates:delete", label: "调研模版删除" }, { value: "r2-storage:query", label: "R2存储空间查询" }, { value: "r2-storage:create", label: "R2存储空间新增" }, { value: "r2-storage:edit", label: "R2存储空间编辑" }, { value: "r2-storage:view", label: "R2存储空间查看" }, { value: "r2-storage:test", label: "R2存储空间测试" }, { value: "r2-storage:enable", label: "R2存储空间启用" }, { value: "r2-storage:disable", label: "R2存储空间禁用" }, { value: "r2-storage:delete", label: "R2存储空间删除" }, { value: "operation-logs:view", label: "操作日志查看" }, { value: "operation-logs:export", label: "操作日志导出" }] },
+  { key: "rest-days", label: "休息日管理", permissions: [
+    { value: "rest-days:query", label: "查询" },
+    { value: "rest-days:create", label: "新增" },
+    { value: "rest-days:view", label: "查看" },
+    { value: "rest-days:edit", label: "编辑" },
+    { value: "rest-days:calculate", label: "立即计算" },
+    { value: "rest-days:export", label: "导出" },
+    { value: "rest-days:delete", label: "删除" },
+  ] },
+  { key: "settings", label: "设置", permissions: [{ value: "settings:roles", label: "角色管理" }, { value: "settings:users", label: "用户列表" }, { value: "settings:parameters", label: "系统参数" }, { value: "settings:rest-days", label: "休息日管理" }, { value: "business-data-sources:query", label: "业务数据源-查询" }, { value: "business-data-sources:create", label: "业务数据源-新增" }, { value: "business-data-sources:view", label: "业务数据源-查看" }, { value: "business-data-sources:edit", label: "业务数据源-编辑" }, { value: "business-data-sources:delete", label: "业务数据源-删除" }, { value: "business-data-sources:export", label: "业务数据源-导出" }, { value: "dictionaries:query", label: "数据字典查询" }, { value: "dictionaries:create", label: "数据字典新增" }, { value: "dictionaries:edit", label: "数据字典编辑" }, { value: "dictionaries:view", label: "数据字典查看" }, { value: "dictionaries:enable", label: "数据字典启用" }, { value: "dictionaries:disable", label: "数据字典停用" }, { value: "dictionaries:values:view", label: "枚举值查看" }, { value: "dictionaries:values:edit", label: "枚举值编辑" }, { value: "r2-storage:query", label: "R2存储空间查询" }, { value: "r2-storage:create", label: "R2存储空间新增" }, { value: "r2-storage:edit", label: "R2存储空间编辑" }, { value: "r2-storage:view", label: "R2存储空间查看" }, { value: "r2-storage:test", label: "R2存储空间测试" }, { value: "r2-storage:enable", label: "R2存储空间启用" }, { value: "r2-storage:disable", label: "R2存储空间禁用" }, { value: "r2-storage:delete", label: "R2存储空间删除" }, { value: "operation-logs:view", label: "操作日志查看" }, { value: "operation-logs:export", label: "操作日志导出" }] },
 ] as const;
 
-export const permissionValues = permissionGroups.flatMap(group => group.permissions.map(permission => permission.value));
+export const leadH5PermissionGroups = [
+  { key: "lead-h5-home", label: "运营工作台", permissions: [{ value: "lead-h5:home:view", label: "访问工作台" }] },
+  { key: "lead-h5-front-hall", label: "前厅稽核评分", permissions: [{ value: "lead-h5:front-hall:view", label: "进入页面/查看评分表" }, { value: "lead-h5:front-hall:submit", label: "上传照片并提交评分" }] },
+  { key: "lead-h5-back-kitchen", label: "后厨稽核评分", permissions: [{ value: "lead-h5:back-kitchen:view", label: "进入页面/查看评分表" }, { value: "lead-h5:back-kitchen:submit", label: "上传照片并提交评分" }] },
+  { key: "lead-h5-store-credit", label: "门店信用评分", permissions: [{ value: "lead-h5:store-credit:view", label: "进入页面/查看评分表" }, { value: "lead-h5:store-credit:submit", label: "上传照片并提交评分" }] },
+  { key: "lead-h5-store-research", label: "门店调研表", permissions: [{ value: "lead-h5:store-research:view", label: "进入页面/查看调研表" }, { value: "lead-h5:store-research:submit", label: "填写并提交调研" }] },
+  { key: "lead-h5-tasks", label: "任务", permissions: [{ value: "lead-h5:tasks:query", label: "查看待完成/已完成任务" }, { value: "lead-h5:tasks:view", label: "查看任务详情" }, { value: "lead-h5:tasks:attachment", label: "上传/删除任务附件" }, { value: "lead-h5:tasks:submit", label: "填写并提交任务" }] },
+  { key: "lead-h5-daily-learning", label: "每日学习", permissions: [{ value: "lead-h5:daily-learning:view", label: "查看学习任务" }, { value: "lead-h5:daily-learning:record", label: "录制/上传学习记录" }, { value: "lead-h5:daily-learning:complete", label: "完成学习任务" }] },
+  { key: "lead-h5-notifications", label: "通知", permissions: [{ value: "lead-h5:notifications:view", label: "查看通知" }, { value: "lead-h5:notifications:read", label: "标记已读/确认通知" }] },
+  { key: "lead-h5-online-courses", label: "线上课堂", permissions: [{ value: "lead-h5:courses:query", label: "查看课程列表" }, { value: "lead-h5:courses:view", label: "查看课程与课时" }, { value: "lead-h5:courses:learn", label: "学习并记录进度" }, { value: "lead-h5:courses:download", label: "查看/下载课程资料" }] },
+] as const;
+
+export const storeH5PermissionGroups = [
+  { key: "store-h5-home", label: "门店工作台", permissions: [{ value: "store-h5:home:view", label: "访问工作台" }] },
+  { key: "store-h5-tasks", label: "任务", permissions: [{ value: "store-h5:tasks:query", label: "查看待完成/已完成任务" }, { value: "store-h5:tasks:view", label: "查看任务详情" }, { value: "store-h5:tasks:attachment", label: "上传/删除任务附件" }, { value: "store-h5:tasks:submit", label: "填写并提交任务" }] },
+  { key: "store-h5-daily-learning", label: "每日学习", permissions: [{ value: "store-h5:daily-learning:query", label: "查看学习计划" }, { value: "store-h5:daily-learning:view", label: "查看学习任务" }, { value: "store-h5:daily-learning:record", label: "录制/上传学习记录" }, { value: "store-h5:daily-learning:complete", label: "完成学习任务" }] },
+  { key: "store-h5-notifications", label: "通知", permissions: [{ value: "store-h5:notifications:view", label: "查看通知" }, { value: "store-h5:notifications:read", label: "标记已读/确认通知" }] },
+  { key: "store-h5-online-courses", label: "线上课堂", permissions: [{ value: "store-h5:courses:query", label: "查看课程列表" }, { value: "store-h5:courses:view", label: "查看课程与课时" }, { value: "store-h5:courses:learn", label: "学习并记录进度" }, { value: "store-h5:courses:download", label: "查看/下载课程资料" }] },
+  { key: "store-h5-daily-attendance", label: "每日考勤", permissions: [{ value: "store-h5:daily-attendance:view", label: "查看当日考勤" }, { value: "store-h5:daily-attendance:submit", label: "提交考勤/补正" }] },
+] as const;
+
+export const rolePermissionPlatforms = [
+  { key: "lead-pc", label: "PC运营端", shortLabel: "PC", description: "运营后台页面、数据与管理操作", groups: permissionGroups },
+  { key: "lead-h5", label: "运营H5移动端", shortLabel: "运营H5", description: "督导及运营人员移动巡店与学习功能", groups: leadH5PermissionGroups },
+  { key: "store-h5", label: "门店H5移动端", shortLabel: "门店H5", description: "门店员工任务、学习与考勤功能", groups: storeH5PermissionGroups },
+] as const;
+
+export type RolePermissionPlatformKey = typeof rolePermissionPlatforms[number]["key"];
+
+export const permissionValuesByPlatform = Object.fromEntries(rolePermissionPlatforms.map(platform => [platform.key, platform.groups.flatMap(group => group.permissions.map(permission => permission.value))])) as Record<RolePermissionPlatformKey, string[]>;
+export const permissionValues = rolePermissionPlatforms.flatMap(platform => permissionValuesByPlatform[platform.key]);
+
+export type RolePermissionRequirement = string | readonly string[];
+
+export function hasRolePermission(permissions: readonly string[], requirement: RolePermissionRequirement) {
+  if (permissions.includes("*")) return true;
+  const required = typeof requirement === "string" ? [requirement] : requirement;
+  return required.some(permission => permissions.includes(permission));
+}
+
+export function hasRolePlatformAccess(permissions: readonly string[], platform: RolePermissionPlatformKey) {
+  return permissions.includes("*") || permissionValuesByPlatform[platform].some(permission => permissions.includes(permission));
+}

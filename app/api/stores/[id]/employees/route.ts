@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getLaborCostPolicyVersions } from "@/lib/labor-cost-policy";
 import { writeOperationLog } from "@/lib/operation-log";
+import { buildPersonnelLaborCostReport, shanghaiYearMonth } from "@/lib/personnel-labor-costs";
 import { isStoreLeader, storeEmployeeSelect } from "@/lib/store-employees";
 import { synchronizeStoreLeadership } from "@/lib/store-leadership";
 
@@ -21,11 +23,12 @@ const storeSelect = {
   managerName: true,
   chefUserId: true,
   chefName: true,
+  workdayHours: true,
   brand: { select: { name: true } },
   personnel: {
     where: { status: PersonnelStatus.ACTIVE, deletedAt: null },
     orderBy: [{ positionLevel: "asc" }, { name: "asc" }],
-    select: storeEmployeeSelect,
+    select: { ...storeEmployeeSelect, baseSalary: true, hireDate: true, resignationDate: true, salaryHistory: { select: { oldSalary: true, newSalary: true, effectiveDate: true, createdAt: true }, orderBy: [{ effectiveDate: "asc" as const }, { createdAt: "asc" as const }] }, positionHistory: { select: { oldOrganization: true, newOrganization: true, effectiveDate: true, createdAt: true }, orderBy: [{ effectiveDate: "asc" as const }, { createdAt: "asc" as const }] } },
   },
 } satisfies Prisma.StoreSelect;
 
@@ -36,13 +39,23 @@ function maskedPhone(phone: string) {
 async function employeeSnapshot(storeId: string, database: Prisma.TransactionClient = db) {
   const store = await database.store.findUnique({ where: { id: storeId }, select: storeSelect });
   if (!store) return null;
+  const current = shanghaiYearMonth();
+  const [restDays, policyVersions] = await Promise.all([
+    database.restDay.findMany({ where: { year: current.year }, select: { startDate: true, endDate: true, holidayType: true } }),
+    getLaborCostPolicyVersions(database),
+  ]);
+  const workdayHours = store.workdayHours === null ? null : Number(store.workdayHours);
   return {
     id: store.id,
     recordNo: store.recordNo,
     name: store.name,
     managerName: store.managerName,
     chefName: store.chefName,
-    employees: store.personnel.filter(personnel => !isStoreLeader(personnel, store)).map(personnel => ({ ...personnel, phone: maskedPhone(personnel.phone) })),
+    employees: store.personnel.filter(personnel => !isStoreLeader(personnel, store)).map(personnel => {
+      const costs = buildPersonnelLaborCostReport({ year: current.year, baseSalary: Number(personnel.baseSalary), workdayHours, organization: personnel.organization, hireDate: personnel.hireDate, resignationDate: personnel.resignationDate, salaryHistory: personnel.salaryHistory, positionHistory: personnel.positionHistory, restDays, policyVersions })[current.month - 1];
+      const { baseSalary: _baseSalary, hireDate: _hireDate, resignationDate: _resignationDate, salaryHistory: _salaryHistory, positionHistory: _positionHistory, ...safePersonnel } = personnel;
+      return { ...safePersonnel, phone: maskedPhone(personnel.phone), laborCost: costs.dailyLaborCost ?? Number(personnel.laborCost) };
+    }),
   };
 }
 

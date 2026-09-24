@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     expectedAttendeeKeyword: url.searchParams.get("expectedAttendeeKeyword") || "",
   });
   if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0]?.message || "筛选参数不正确" }, { status: 400 });
-  const detail = filterLogDetail(parsed.data);
+  const detail = filterLogDetail(parsed.data, configuration.pageName);
 
   try {
     const where = monthlyMeetingFilterWhere(parsed.data, configuration.type);
@@ -46,6 +46,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ rows: rows.map(row => serializeMonthlyMeeting(row, actualCounts.get(row.id) || 0)), total, page, pageSize }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     await writeOperationLog({ userId: session.userId, username: session.username, page: configuration.pageName, action: "筛选", result: "失败", detail, request }).catch(() => undefined);
-    return NextResponse.json({ message: "线上会记录加载失败，请稍后重试" }, { status: 500 });
+    return NextResponse.json({ message: `${configuration.pageName}记录加载失败，请稍后重试` }, { status: 500 });
   }
 }

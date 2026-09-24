@@ -5,6 +5,19 @@ import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { contractInputSchema } from "@/lib/contract-validation";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
 import { writeOperationLog } from "@/lib/operation-log";
+import { getPlatformConfig } from "@/lib/platform-config";
+import { dateKeyAsDbDate, shanghaiDateKey } from "@/lib/store-h5-tasks";
+
+function calculateContractStatus(contract: { status: ContractStatus; startDate: Date; endDate: Date }, warningDays: number) {
+  if (contract.status === ContractStatus.TERMINATED) return { status: ContractStatus.TERMINATED, isExpiring: false };
+  const today = dateKeyAsDbDate(shanghaiDateKey());
+  if (contract.endDate.getTime() < today.getTime()) return { status: ContractStatus.EXPIRED, isExpiring: false };
+  if (contract.startDate.getTime() > today.getTime()) return { status: ContractStatus.PENDING, isExpiring: false };
+  const expiryDate = new Date(contract.endDate);
+  expiryDate.setUTCHours(0, 0, 0, 0);
+  const daysUntilExpiry = Math.floor((expiryDate.getTime() - today.getTime()) / 86_400_000);
+  return { status: ContractStatus.ACTIVE, isExpiring: daysUntilExpiry >= 0 && daysUntilExpiry < warningDays };
+}
 
 export async function GET(request: Request) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
@@ -16,16 +29,16 @@ export async function GET(request: Request) {
   const cooperationType = url.searchParams.get("cooperationType") || "";
   const startDate = url.searchParams.get("startDate") || "";
   const endDate = url.searchParams.get("endDate") || "";
+  const expiringOnly = url.searchParams.get("expiringOnly") === "true";
   const startDateFilter = startDate ? new Date(startDate) : undefined;
   const endDateFilter = endDate ? new Date(`${endDate}T23:59:59.999`) : undefined;
-
-  const rows = await db.contract.findMany({
+  const selectedStatus = status && Object.values(ContractStatus).includes(status as ContractStatus) ? status as ContractStatus : undefined;
+  const [rows, platform] = await Promise.all([db.contract.findMany({
     where: {
       ...(keyword ? { OR: [
         { recordNo: { contains: keyword } }, { storeName: { contains: keyword } },
         { ownerName: { contains: keyword } }, { contactName: { contains: keyword } }, { ownerPhone: { contains: keyword } },
       ] } : {}),
-      ...(status && Object.values(ContractStatus).includes(status as ContractStatus) ? { status: status as ContractStatus } : {}),
       ...(brandId ? { brandId } : {}),
       ...(cooperationType && Object.values(CooperationType).includes(cooperationType as CooperationType) ? { cooperationType: cooperationType as CooperationType } : {}),
       ...((startDateFilter || endDateFilter) ? { startDate: { ...(startDateFilter ? { gte: startDateFilter } : {}), ...(endDateFilter ? { lte: endDateFilter } : {}) } } : {}),
@@ -33,9 +46,14 @@ export async function GET(request: Request) {
     include: { brand: true, rebates: { orderBy: { createdAt: "asc" } } },
     orderBy: { createdAt: "desc" },
     take: 500,
+  }), getPlatformConfig()]);
+  const calculatedRows = rows.map((row) => ({ ...row, ...calculateContractStatus(row, platform.contractExpiringWarningDays) }));
+  const filteredRows = calculatedRows.filter((row) => {
+    const statusMatches = !selectedStatus || (selectedStatus === ContractStatus.EXPIRING ? row.isExpiring : row.status === selectedStatus);
+    return statusMatches && (!expiringOnly || row.isExpiring);
   });
-  await writeOperationLog({ userId: session.userId, username: session.username, page: "合同管理", action: "筛选", result: "成功", detail: keyword || status || brandId || cooperationType || startDate || endDate ? `关键字：${keyword || "全部"}；状态：${status || "全部"}；日期：${startDate || "不限"}至${endDate || "不限"}` : "加载全部合同", request }).catch(() => undefined);
-  return NextResponse.json(rows);
+  await writeOperationLog({ userId: session.userId, username: session.username, page: "合同管理", action: "筛选", result: "成功", detail: keyword || status || brandId || cooperationType || startDate || endDate || expiringOnly ? `关键字：${keyword || "全部"}；状态：${status || "全部"}；日期：${startDate || "不限"}至${endDate || "不限"}；仅即将到期：${expiringOnly ? "是" : "否"}` : "加载全部合同", request }).catch(() => undefined);
+  return NextResponse.json(filteredRows);
 }
 
 export async function POST(request: Request) {

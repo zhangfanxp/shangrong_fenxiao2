@@ -1,4 +1,4 @@
-import { Prisma, RecordStatus } from "@prisma/client";
+import { BusinessDataSourceType, Prisma, RecordStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiSession } from "@/lib/auth";
@@ -109,6 +109,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const template = await findTemplate((await params).id);
   if (!template) return NextResponse.json({ message: "调研模版不存在或已删除" }, { status: 404 });
   if (template._count.records > 0) return NextResponse.json({ message: "该调研模版已产生历史调研记录，暂不能删除，请使用“禁用”操作。" }, { status: 400 });
+  if (await db.businessDataSource.count({ where: { sourceType: BusinessDataSourceType.RESEARCH_TEMPLATE, templateId: template.id } })) return NextResponse.json({ message: "该调研模版已被业务数据源引用，暂不能删除，请先删除对应业务数据源或使用“禁用”操作。" }, { status: 400 });
   try {
     const oldConfig = await readResearchConfig(template.configFileName);
     await deleteResearchConfig(template.configFileName);

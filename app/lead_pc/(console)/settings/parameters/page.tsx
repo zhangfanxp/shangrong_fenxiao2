@@ -3,11 +3,12 @@ import { SystemParameters } from "@/components/system-parameters";
 import { requirePageAccess } from "@/lib/auth";
 import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
 import { db } from "@/lib/db";
+import { getNextMonthLaborCostPolicy } from "@/lib/labor-cost-policy";
 import { getPlatformConfig, splitPlatformConfig } from "@/lib/platform-config";
 
 export default async function SystemParametersPage() {
   await requirePageAccess("/lead_pc/settings/parameters");
-  const [platform, r2Storages, aiServices] = await Promise.all([
+  const [platform, r2Storages, aiServices, laborCostPolicy] = await Promise.all([
     getPlatformConfig(),
     db.r2StorageConfig.findMany({
       where: { status: "ENABLED", deletedAt: null },
@@ -17,13 +18,14 @@ export default async function SystemParametersPage() {
     getBusinessDictionaryOptions("AI_SERVICE")
       .then(options => ({ options, error: false }))
       .catch(() => ({ options: [], error: true })),
+    getNextMonthLaborCostPolicy(),
   ]);
   const activeIds = new Set(r2Storages.map(storage => storage.id));
   const activeStorageId = (id: string | null) => id && activeIds.has(id) ? id : null;
   const { settings, assetUrls } = splitPlatformConfig(platform);
 
   return <main className="page-wrap">
-    <PageHeader title="系统参数" description="维护平台信息、课程培训、品牌工作日小时和Ai API配置" />
+    <PageHeader title="系统参数" description="维护平台信息、课程培训、考勤参数、Ai API及其他系统配置" />
     <SystemParameters
       initialPlatform={{
         ...settings,
@@ -36,6 +38,7 @@ export default async function SystemParametersPage() {
       r2StorageOptions={r2Storages.map(storage => ({ value: storage.id, label: storage.name }))}
       aiServiceOptions={aiServices.options}
       aiServiceLoadError={aiServices.error}
+      initialLaborCostPolicy={laborCostPolicy}
     />
   </main>;
 }

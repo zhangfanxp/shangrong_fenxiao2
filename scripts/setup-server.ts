@@ -393,6 +393,9 @@ async function repair(job: Job, originalState: DeploymentState) {
     await runStep(job, "同步系统权限和必要字典", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "sync-deployment-reference-data.ts")], env: childEnv, timeoutMs: 5 * 60 * 1000 }), value => {
       const result = parsedJson(value); return `${String(result.dictionaries || 0)}项数据字典`;
     });
+    await runStep(job, "迁移登录标签到角色端口权限", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "migrate-login-tags-to-role-permissions.ts")], env: childEnv, timeoutMs: 5 * 60 * 1000 }), value => {
+      const result = parsedJson(value); return `${Array.isArray(result.migrated) ? result.migrated.length : 0}个角色已更新`;
+    });
     await runStep(job, "校验并升级本地配置文件", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "sync-deployment-config.ts")], env: childEnv, timeoutMs: 5 * 60 * 1000 }), () => "平台配置和本地JSON均正常");
     const agents = await runStep(job, "重装并重启LaunchAgent", () => installCanyinLaunchAgents(projectDirectory, state.appPort), value => `主站：${value.web.loaded ? "已加载" : "异常"}；调度器：${value.scheduler.loaded ? "已加载" : "异常"}`);
     if (!agents.web.loaded || !agents.scheduler.loaded) throw new Error("LaunchAgent修复后未能正确加载");

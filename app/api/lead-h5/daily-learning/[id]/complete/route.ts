@@ -4,7 +4,7 @@ import { getLeadH5Session } from "@/lib/lead-h5-auth";
 import { writeOperationLog } from "@/lib/operation-log";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getLeadH5Session();
+  const session = await getLeadH5Session("lead-h5:daily-learning:complete");
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   const body = await request.json().catch(() => ({})); const planId = (await params).id;
   try {

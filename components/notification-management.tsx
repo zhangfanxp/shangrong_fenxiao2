@@ -1,20 +1,27 @@
 "use client";
 
 import { DownloadOutlined, EyeOutlined, SearchOutlined, StopOutlined, WarningOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, DatePicker, Descriptions, Empty, Form, Input, message, Modal, Skeleton, Space, Table, Tabs, Tag, Tooltip } from "antd";
+import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, Input, message, Modal, Skeleton, Space, Table, Tabs, Tag, Tooltip } from "antd";
 import type { ColumnsType, TableRowSelection } from "antd/es/table/interface";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type NotificationStatus = "PENDING" | "PUBLISHED" | "STOPPED" | "FAILED";
+type NotificationType = "GENERAL" | "MID_MONTH_OFFLINE_MEETING" | "MONTHLY_ONLINE_MEETING" | "QUARTERLY_OFFLINE_MEETING";
 type NotificationRow = { id: string; recordNo: string; title: string; readCount: number; unreadCount: number; releaseDate: string; publisherName: string; createdAt: string; status: NotificationStatus };
 type Filters = { title: string; releaseStartDate: string; releaseEndDate: string; publisherName: string };
 type FormValues = { title?: string; releaseStartDate?: Dayjs | null; releaseEndDate?: Dayjs | null; publisherName?: string };
-type Detail = { id: string; recordNo: string; title: string; showAfterLogin: boolean; content: string; releaseDate: string; releaseAt: string; publisherName: string; createdAt: string; createdByName: string; status: NotificationStatus; readCount: number; unreadCount: number };
+type Detail = { id: string; recordNo: string; title: string; notificationType: NotificationType; showAfterLogin: boolean; content: string; releaseDate: string; releaseAt: string; publisherName: string; createdAt: string; createdByName: string; status: NotificationStatus; readCount: number; unreadCount: number };
 type PersonRow = { id: string; realName: string; role: string; readAt: string | null };
 
 const emptyFilters: Filters = { title: "", releaseStartDate: "", releaseEndDate: "", publisherName: "" };
+const notificationTypeLabels: Record<NotificationType, string> = {
+  GENERAL: "普通通知",
+  MID_MONTH_OFFLINE_MEETING: "月中线下会通知",
+  MONTHLY_ONLINE_MEETING: "每月线上会通知",
+  QUARTERLY_OFFLINE_MEETING: "季度线下会通知",
+};
 
 function responseFileName(response: Response) {
   const encoded = response.headers.get("Content-Disposition")?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
@@ -192,7 +199,7 @@ export function NotificationManagement({ permissions }: { permissions: string[] 
 
     <Modal className="notification-detail-modal" width={900} open={!!detailId} title="查看通知" onCancel={() => setDetailId(undefined)} footer={<Button onClick={() => setDetailId(undefined)}>关闭</Button>}>
       {detailLoading ? <Skeleton active paragraph={{ rows: 10 }} /> : detailError ? <Alert type="error" showIcon message="通知详情加载失败，请稍后重试" action={<Button size="small" onClick={() => detailId && void openDetail(detailId)}>重新加载</Button>} /> : detail && <Tabs activeKey={activeTab} onChange={switchTab} items={[
-        { key: "content", label: "通知内容", children: <div className="notification-detail-content"><Descriptions bordered size="small" column={2}><Descriptions.Item label="记录编号">{detail.recordNo}</Descriptions.Item><Descriptions.Item label="通知标题">{detail.title}</Descriptions.Item><Descriptions.Item label="登录后展示">{detail.showAfterLogin ? "是" : "否"}</Descriptions.Item><Descriptions.Item label="发布日期">{detail.releaseDate}</Descriptions.Item><Descriptions.Item label="发布人">{detail.publisherName}</Descriptions.Item><Descriptions.Item label="创建日期">{detail.createdAt}</Descriptions.Item><Descriptions.Item label="创建人">{detail.createdByName}</Descriptions.Item><Descriptions.Item label="正式发布时间">{detail.releaseAt}</Descriptions.Item><Descriptions.Item label="通知正文" span={2}><div className="notification-detail-body">{detail.content}</div></Descriptions.Item></Descriptions></div> },
+        { key: "content", label: "通知内容", children: <div className="notification-detail-content"><Descriptions bordered size="small" column={2}><Descriptions.Item label="记录编号">{detail.recordNo}</Descriptions.Item><Descriptions.Item label="通知标题">{detail.title}</Descriptions.Item><Descriptions.Item label="通知类型">{notificationTypeLabels[detail.notificationType]}</Descriptions.Item><Descriptions.Item label="登录后展示通知正文"><Space size={6}><Checkbox checked={detail.showAfterLogin} disabled /><span>{detail.showAfterLogin ? "已勾选" : "未勾选"}</span></Space></Descriptions.Item><Descriptions.Item label="发布日期">{detail.releaseDate}</Descriptions.Item><Descriptions.Item label="发布人">{detail.publisherName}</Descriptions.Item><Descriptions.Item label="创建日期">{detail.createdAt}</Descriptions.Item><Descriptions.Item label="创建人">{detail.createdByName}</Descriptions.Item><Descriptions.Item label="正式发布时间" span={2}>{detail.releaseAt}</Descriptions.Item><Descriptions.Item label="通知正文" span={2}><div className="notification-detail-body">{detail.content}</div></Descriptions.Item></Descriptions></div> },
         { key: "read", label: `已读人（${detail.readCount}）`, children: peopleContent("read") },
         { key: "unread", label: `未读人（${detail.unreadCount}）`, children: peopleContent("unread") },
       ]} />}

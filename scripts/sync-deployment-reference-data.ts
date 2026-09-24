@@ -1,16 +1,13 @@
 import { loadEnvConfig } from "@next/env";
 import { RecordStatus } from "@prisma/client";
 import { SYSTEM_DICTIONARIES } from "../lib/deployment";
+import { synchronizeFixedSystemRoles } from "../lib/system-role-sync";
 
 async function main() {
   loadEnvConfig(process.cwd());
   const { db } = await import("../lib/db");
   try {
-    await db.role.upsert({
-      where: { code: "SUPER_ADMIN" },
-      create: { code: "SUPER_ADMIN", name: "超级管理员", type: "SYSTEM", status: RecordStatus.ENABLED, permissions: ["*"] },
-      update: { name: "超级管理员", type: "SYSTEM", status: RecordStatus.ENABLED, permissions: ["*"] },
-    });
+    const roles = await synchronizeFixedSystemRoles(db);
     for (const dictionary of SYSTEM_DICTIONARIES) {
       await db.dataDictionary.upsert({
         where: { code: dictionary.code },
@@ -26,7 +23,7 @@ async function main() {
         update: { label, sort, status: RecordStatus.ENABLED },
       });
     }
-    process.stdout.write(`${JSON.stringify({ dictionaries: SYSTEM_DICTIONARIES.length, positionLevels: positionLevels.length })}\n`);
+    process.stdout.write(`${JSON.stringify({ systemRoles: roles.length, dictionaries: SYSTEM_DICTIONARIES.length, positionLevels: positionLevels.length })}\n`);
   } finally { await db.$disconnect(); }
 }
 

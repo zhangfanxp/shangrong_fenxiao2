@@ -46,10 +46,36 @@ enum TaskType {
   TEMPORARY
 }
 
+enum TaskTarget {
+  STORE
+  STORE_EMPLOYEE
+}
+
 enum TaskRecordStatus {
   PENDING
   COMPLETED
   OVERDUE
+}
+
+enum BusinessDataSourceType {
+  TASK_TEMPLATE
+  ASSESSMENT_TEMPLATE
+  RESEARCH_TEMPLATE
+}
+
+enum BusinessDataFieldType {
+  INTEGER
+  DECIMAL
+  MONEY
+  PERCENTAGE
+  TEXT
+  DATE
+  DATETIME
+}
+
+enum BusinessDataFieldRole {
+  DIMENSION
+  METRIC
 }
 
 enum AssessmentScoreMode {
@@ -68,6 +94,13 @@ enum PersonnelStatus {
   RESIGNED
 }
 
+enum DailyAttendanceType {
+  FULL_ATTENDANCE
+  REST
+  LEAVE_FULL_DAY
+  LEAVE_HOURS
+}
+
 enum SocialSecurityStatus {
   INSURED
   AGREEMENT
@@ -76,6 +109,11 @@ enum SocialSecurityStatus {
 enum PlatformAccess {
   YES
   NO
+}
+
+enum BirthdayCalendar {
+  LUNAR
+  SOLAR
 }
 
 enum NotificationStatus {
@@ -89,6 +127,7 @@ enum NotificationType {
   GENERAL
   MID_MONTH_OFFLINE_MEETING
   MONTHLY_ONLINE_MEETING
+  QUARTERLY_OFFLINE_MEETING
 }
 
 enum NotificationPublishMode {
@@ -99,6 +138,7 @@ enum NotificationPublishMode {
 enum MeetingType {
   MID_MONTH_OFFLINE
   MONTHLY_ONLINE
+  QUARTERLY_OFFLINE
 }
 
 enum MeetingAttendanceStatus {
@@ -136,72 +176,95 @@ enum ItemRequisitionStatus {
   REVOKED
 }
 
+enum RestDayHolidayType {
+  NEW_YEAR_DAY
+  SPRING_FESTIVAL
+  QINGMING_FESTIVAL
+  LABOR_DAY
+  DRAGON_BOAT_FESTIVAL
+  MID_AUTUMN_FESTIVAL
+  NATIONAL_DAY
+  OTHER
+}
+
+enum MonthlyPurchaseSalesSourceType {
+  MANUAL
+  IMPORT
+}
+
 model Role {
-  id            String       @id @default(cuid())
-  code          String       @unique
-  name          String       @unique
-  type          String       @default("SYSTEM")
-  status        RecordStatus @default(ENABLED)
-  permissions   Json
-  users         User[]
-  assignedTasks Task[]       @relation("TaskExecutorRole")
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id                String             @id @default(cuid())
+  code              String             @unique
+  name              String             @unique
+  type              String             @default("SYSTEM")
+  status            RecordStatus       @default(ENABLED)
+  permissions       Json
+  users             User[]
+  assignedTasks     Task[]             @relation("TaskExecutorRole")
+  taskExecutorRoles TaskExecutorRole[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model User {
-  id                        String                   @id @default(cuid())
-  username                  String                   @unique
-  passwordHash              String
-  realName                  String
-  phone                     String?
-  tags                      String?                  @db.VarChar(200)
-  leadH5BrandIds            Json?
-  leadH5StoreIds            Json?
-  type                      UserType                 @default(CUSTOM)
-  status                    RecordStatus             @default(ENABLED)
-  roleId                    String
-  role                      Role                     @relation(fields: [roleId], references: [id])
-  createdByUserId           String?
-  createdBy                 User?                    @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdUsers              User[]                   @relation("UserCreator")
-  lastLoginAt               DateTime?
-  createdAt                 DateTime                 @default(now())
-  updatedAt                 DateTime                 @updatedAt
-  logs                      OperationLog[]
-  createdTasks              Task[]                   @relation("TaskCreator")
-  createdAssessments        Assessment[]             @relation("AssessmentCreator")
-  createdResearchTemplates  ResearchTemplate[]       @relation("ResearchTemplateCreator")
-  createdR2StorageConfigs   R2StorageConfig[]        @relation("R2StorageCreator")
-  r2StorageTests            R2StorageTest[]          @relation("R2StorageTestCreator")
-  personnelProfile          Personnel?               @relation("PersonnelPlatformUser")
-  createdPersonnel          Personnel[]              @relation("PersonnelCreator")
-  salaryAdjustments         SalaryHistory[]          @relation("SalaryOperator")
-  positionTransfers         PositionHistory[]        @relation("PositionOperator")
-  leadH5Reviews             LeadH5Review[]           @relation("LeadH5Reviewer")
-  leadH5ReviewPhotos        LeadH5ReviewPhoto[]      @relation("LeadH5ReviewPhotoUploader")
-  leadH5ResearchRecords     ResearchTemplateRecord[] @relation("LeadH5ResearchSubmitter")
-  assignedTaskRecords       TaskRecord[]             @relation("TaskRecordAssignee")
-  taskSubmissions           TaskSubmission[]         @relation("TaskSubmissionUser")
-  taskAttachments           TaskAttachment[]         @relation("TaskAttachmentUploader")
-  analyzedTaskAiRecords     TaskAiAnalysis[]         @relation("TaskAiAnalysisOperator")
-  createdNotifications      Notification[]           @relation("NotificationCreator")
-  notificationRecipients    NotificationRecipient[]  @relation("NotificationRecipientUser")
-  createdMeetings           Meeting[]                @relation("MeetingCreator")
-  meetingParticipants       MeetingParticipant[]     @relation("MeetingParticipantUser")
-  createdDailyLearningPlans DailyLearningPlan[]      @relation("DailyLearningPlanCreator")
-  dailyLearningAssignments  DailyLearningAssignee[]  @relation("DailyLearningAssigneeUser")
-  dailyLearningProgress     DailyLearningProgress[]  @relation("DailyLearningProgressUser")
-  courseAssignments         CourseAssignment[]       @relation("CourseAssignmentUser")
-  createdCourseAssignments  CourseAssignment[]       @relation("CourseAssignmentCreator")
-  createdActualRevenue      ActualRevenueMonthly[]   @relation("ActualRevenueCreator")
-  createdMonthlyTargets     StoreMonthlyTarget[]     @relation("MonthlyTargetCreator")
-  createdInventoryItems     InventoryItem[]          @relation("InventoryItemCreator")
-  updatedInventoryItems     InventoryItem[]          @relation("InventoryItemUpdater")
-  inventoryTransactions     InventoryTransaction[]   @relation("InventoryTransactionOperator")
-  createdItemRequisitions   ItemRequisition[]        @relation("ItemRequisitionCreator")
-  updatedItemRequisitions   ItemRequisition[]        @relation("ItemRequisitionUpdater")
-  itemRequisitionReturns    ItemRequisitionReturn[]  @relation("ItemRequisitionReturnOperator")
+  id                         String                            @id @default(cuid())
+  username                   String                            @unique
+  passwordHash               String
+  realName                   String
+  phone                      String?
+  tags                       String?                           @db.VarChar(200)
+  leadH5BrandIds             Json?
+  leadH5StoreIds             Json?
+  type                       UserType                          @default(CUSTOM)
+  status                     RecordStatus                      @default(ENABLED)
+  roleId                     String
+  role                       Role                              @relation(fields: [roleId], references: [id])
+  createdByUserId            String?
+  createdBy                  User?                             @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdUsers               User[]                            @relation("UserCreator")
+  lastLoginAt                DateTime?
+  createdAt                  DateTime                          @default(now())
+  updatedAt                  DateTime                          @updatedAt
+  logs                       OperationLog[]
+  createdTasks               Task[]                            @relation("TaskCreator")
+  createdAssessments         Assessment[]                      @relation("AssessmentCreator")
+  createdResearchTemplates   ResearchTemplate[]                @relation("ResearchTemplateCreator")
+  createdR2StorageConfigs    R2StorageConfig[]                 @relation("R2StorageCreator")
+  r2StorageTests             R2StorageTest[]                   @relation("R2StorageTestCreator")
+  personnelProfile           Personnel?                        @relation("PersonnelPlatformUser")
+  createdPersonnel           Personnel[]                       @relation("PersonnelCreator")
+  salaryAdjustments          SalaryHistory[]                   @relation("SalaryOperator")
+  positionTransfers          PositionHistory[]                 @relation("PositionOperator")
+  leadH5Reviews              LeadH5Review[]                    @relation("LeadH5Reviewer")
+  leadH5ReviewPhotos         LeadH5ReviewPhoto[]               @relation("LeadH5ReviewPhotoUploader")
+  leadH5ResearchRecords      ResearchTemplateRecord[]          @relation("LeadH5ResearchSubmitter")
+  assignedTaskRecords        TaskRecord[]                      @relation("TaskRecordAssignee")
+  taskSubmissions            TaskSubmission[]                  @relation("TaskSubmissionUser")
+  taskAttachments            TaskAttachment[]                  @relation("TaskAttachmentUploader")
+  analyzedTaskAiRecords      TaskAiAnalysis[]                  @relation("TaskAiAnalysisOperator")
+  createdNotifications       Notification[]                    @relation("NotificationCreator")
+  notificationRecipients     NotificationRecipient[]           @relation("NotificationRecipientUser")
+  createdMeetings            Meeting[]                         @relation("MeetingCreator")
+  meetingParticipants        MeetingParticipant[]              @relation("MeetingParticipantUser")
+  createdDailyLearningPlans  DailyLearningPlan[]               @relation("DailyLearningPlanCreator")
+  dailyLearningAssignments   DailyLearningAssignee[]           @relation("DailyLearningAssigneeUser")
+  dailyLearningProgress      DailyLearningProgress[]           @relation("DailyLearningProgressUser")
+  courseAssignments          CourseAssignment[]                @relation("CourseAssignmentUser")
+  createdCourseAssignments   CourseAssignment[]                @relation("CourseAssignmentCreator")
+  createdActualRevenue       ActualRevenueMonthly[]            @relation("ActualRevenueCreator")
+  createdMonthlyTargets      StoreMonthlyTarget[]              @relation("MonthlyTargetCreator")
+  createdInventoryItems      InventoryItem[]                   @relation("InventoryItemCreator")
+  updatedInventoryItems      InventoryItem[]                   @relation("InventoryItemUpdater")
+  inventoryTransactions      InventoryTransaction[]            @relation("InventoryTransactionOperator")
+  createdItemRequisitions    ItemRequisition[]                 @relation("ItemRequisitionCreator")
+  updatedItemRequisitions    ItemRequisition[]                 @relation("ItemRequisitionUpdater")
+  itemRequisitionReturns     ItemRequisitionReturn[]           @relation("ItemRequisitionReturnOperator")
+  createdDailyAttendances    DailyAttendanceRecord[]           @relation("DailyAttendanceCreator")
+  createdRestDays            RestDay[]                         @relation("RestDayCreator")
+  updatedRestDays            RestDay[]                         @relation("RestDayUpdater")
+  createdPurchaseSalesRatios MonthlyPurchaseSalesRatio[]       @relation("MonthlyPurchaseSalesCreator")
+  updatedPurchaseSalesRatios MonthlyPurchaseSalesRatio[]       @relation("MonthlyPurchaseSalesUpdater")
+  purchaseSalesImportBatches MonthlyPurchaseSalesImportBatch[] @relation("MonthlyPurchaseSalesImportOperator")
 
   @@index([createdByUserId])
   @@index([lastLoginAt])
@@ -329,6 +392,61 @@ model ResearchTemplateRecord {
   @@index([submittedByUserId])
 }
 
+model BusinessDataSource {
+  id                       String                    @id @default(cuid())
+  recordNo                 String                    @unique @db.VarChar(12)
+  businessName             String                    @db.VarChar(20)
+  sourceType               BusinessDataSourceType
+  templateId               String                    @db.VarChar(191)
+  templateRecordNoSnapshot String                    @db.VarChar(24)
+  templateNameSnapshot     String                    @db.VarChar(100)
+  remark                   String?                   @db.VarChar(200)
+  createdByUserId          String                    @db.VarChar(191)
+  createdByUsername        String                    @db.VarChar(50)
+  createdByNameSnapshot    String                    @db.VarChar(50)
+  updatedByUserId          String?                   @db.VarChar(191)
+  updatedByNameSnapshot    String?                   @db.VarChar(50)
+  version                  Int                       @default(1)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  fields                   BusinessDataSourceField[]
+
+  @@unique([sourceType, templateId])
+  @@index([businessName])
+  @@index([templateRecordNoSnapshot])
+  @@index([createdAt, id])
+}
+
+model BusinessDataSourceField {
+  id                   String                @id @default(cuid())
+  businessDataSourceId String
+  businessDataSource   BusinessDataSource    @relation(fields: [businessDataSourceId], references: [id], onDelete: Cascade)
+  sourceFieldKey       String                @db.VarChar(191)
+  sourceFieldId        String?               @db.VarChar(191)
+  sourceFieldCode      String?               @db.VarChar(191)
+  fieldNameSnapshot    String                @db.VarChar(200)
+  sourceFieldType      String?               @db.VarChar(50)
+  sourceFieldConfig    Json?
+  fieldRole            BusinessDataFieldRole @default(METRIC)
+  fieldType            BusinessDataFieldType
+  unit                 String?               @db.VarChar(10)
+  remark               String?               @db.VarChar(200)
+  sortOrder            Int
+  createdByUserId      String                @db.VarChar(191)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@unique([businessDataSourceId, sourceFieldKey], map: "BusinessDSField_source_field_key")
+  @@unique([businessDataSourceId, fieldNameSnapshot], map: "BusinessDSField_field_name_key")
+  @@index([businessDataSourceId, sortOrder], map: "BusinessDSField_source_sort_idx")
+}
+
+model BusinessDataSourceSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
 model LeadH5ResearchSequence {
   dateKey   String   @id @db.VarChar(8)
   nextValue Int      @default(1)
@@ -400,49 +518,150 @@ model ContractRebate {
 }
 
 model Store {
-  id                    String                   @id @default(cuid())
-  recordNo              String                   @unique
-  contractId            String?                  @unique
-  contract              Contract?                @relation(fields: [contractId], references: [id])
-  brandId               String
-  brand                 Brand                    @relation(fields: [brandId], references: [id])
-  name                  String
-  operationStatus       StoreOperationStatus     @default(PREPARING)
-  region                String?
-  supervisorName        String?
-  province              String?
-  city                  String?
-  district              String?
-  address               String?
-  cooperationType       CooperationType
-  startDate             DateTime?
-  endDate               DateTime?
-  businessDistrict      String?
-  locationType          String?
-  trialOpenDate         DateTime?
-  formalOpenDate        DateTime?
-  managerUserId         String?                  @db.VarChar(191)
-  managerName           String?
-  chefUserId            String?                  @db.VarChar(191)
-  chefName              String?
-  douyinLaikeName       String?                  @db.VarChar(50)
-  kuaishouName          String?                  @db.VarChar(50)
-  meituanManagerName    String?                  @db.VarChar(50)
-  meituanBusinessName   String?                  @db.VarChar(50)
-  ownerName             String?
-  ownerPhone            String?
-  ownerIdNumber         String?
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
-  personnel             Personnel[]
-  leadH5Reviews         LeadH5Review[]
-  leadH5ResearchRecords ResearchTemplateRecord[]
-  taskRecords           TaskRecord[]
-  taskSubmissions       TaskSubmission[]
-  actualRevenueMonthly  ActualRevenueMonthly[]
-  actualRevenueDaily    ActualRevenueDaily[]
-  monthlyTargets        StoreMonthlyTarget[]
-  dailyTargets          StoreDailyTarget[]
+  id                         String                      @id @default(cuid())
+  recordNo                   String                      @unique
+  contractId                 String?                     @unique
+  contract                   Contract?                   @relation(fields: [contractId], references: [id])
+  brandId                    String
+  brand                      Brand                       @relation(fields: [brandId], references: [id])
+  name                       String
+  operationStatus            StoreOperationStatus        @default(PREPARING)
+  region                     String?
+  supervisorUserId           String?                     @db.VarChar(191)
+  supervisorName             String?
+  province                   String?
+  city                       String?
+  district                   String?
+  address                    String?
+  cooperationType            CooperationType
+  startDate                  DateTime?
+  endDate                    DateTime?
+  businessDistrict           String?
+  locationType               String?
+  trialOpenDate              DateTime?
+  formalOpenDate             DateTime?
+  workdayHours               Decimal?                    @db.Decimal(5, 2)
+  managerUserId              String?                     @db.VarChar(191)
+  managerName                String?
+  chefUserId                 String?                     @db.VarChar(191)
+  chefName                   String?
+  douyinLaikeName            String?                     @db.VarChar(50)
+  kuaishouName               String?                     @db.VarChar(50)
+  meituanManagerName         String?                     @db.VarChar(50)
+  meituanBusinessName        String?                     @db.VarChar(50)
+  ownerName                  String?
+  ownerPhone                 String?
+  ownerIdNumber              String?
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  personnel                  Personnel[]
+  leadH5Reviews              LeadH5Review[]
+  leadH5ResearchRecords      ResearchTemplateRecord[]
+  taskRecords                TaskRecord[]
+  taskSubmissions            TaskSubmission[]
+  actualRevenueMonthly       ActualRevenueMonthly[]
+  actualRevenueDaily         ActualRevenueDaily[]
+  monthlyTargets             StoreMonthlyTarget[]
+  dailyTargets               StoreDailyTarget[]
+  dailyAttendanceRecords     DailyAttendanceRecord[]
+  costProfile                StoreCost?
+  monthlyPurchaseSalesRatios MonthlyPurchaseSalesRatio[]
+
+  @@index([supervisorUserId])
+}
+
+model MonthlyPurchaseSalesRatio {
+  id                             String                           @id @default(cuid())
+  recordNo                       String                           @unique @db.VarChar(12)
+  storeId                        String
+  store                          Store                            @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  storeNameSnapshot              String                           @db.VarChar(100)
+  aliasId                        String                           @db.VarChar(191)
+  meituanAliasSnapshot           String                           @db.VarChar(50)
+  brandCode                      String                           @db.VarChar(50)
+  brandNameSnapshot              String                           @db.VarChar(100)
+  year                           Int                              @db.SmallInt
+  month                          Int                              @db.TinyInt
+  preDiscountSales               Decimal                          @db.Decimal(18, 2)
+  postDiscountSales              Decimal?                         @db.Decimal(18, 2)
+  purchaseAmount                 Decimal                          @db.Decimal(18, 2)
+  preDiscountPurchaseSalesRatio  Decimal                          @db.Decimal(10, 4)
+  postDiscountPurchaseSalesRatio Decimal?                         @db.Decimal(10, 4)
+  remark                         String?                          @db.VarChar(200)
+  sourceType                     MonthlyPurchaseSalesSourceType
+  lastImportBatchId              String?
+  lastImportBatch                MonthlyPurchaseSalesImportBatch? @relation(fields: [lastImportBatchId], references: [id], onDelete: SetNull)
+  createdByUserId                String?
+  createdBy                      User?                            @relation("MonthlyPurchaseSalesCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUsername              String                           @db.VarChar(50)
+  createdByNameSnapshot          String                           @db.VarChar(50)
+  updatedByUserId                String?
+  updatedBy                      User?                            @relation("MonthlyPurchaseSalesUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  updatedByNameSnapshot          String?                          @db.VarChar(50)
+  createdAt                      DateTime                         @default(now())
+  updatedAt                      DateTime                         @updatedAt
+
+  @@unique([storeId, year, month])
+  @@index([year, month, storeNameSnapshot])
+  @@index([brandCode, year, month])
+  @@index([lastImportBatchId])
+}
+
+model MonthlyPurchaseSalesSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+model MonthlyPurchaseSalesImportBatch {
+  id                   String                              @id @default(cuid())
+  batchNo              String                              @unique @db.VarChar(24)
+  fileName             String                              @db.VarChar(255)
+  year                 Int                                 @db.SmallInt
+  month                Int                                 @db.TinyInt
+  periodStart          DateTime                            @db.Date
+  periodEnd            DateTime                            @db.Date
+  totalCount           Int
+  insertedCount        Int                                 @default(0)
+  updatedCount         Int                                 @default(0)
+  skippedCount         Int                                 @default(0)
+  failedCount          Int                                 @default(0)
+  operatorUserId       String?
+  operator             User?                               @relation("MonthlyPurchaseSalesImportOperator", fields: [operatorUserId], references: [id], onDelete: SetNull)
+  operatorNameSnapshot String                              @db.VarChar(50)
+  createdAt            DateTime                            @default(now())
+  records              MonthlyPurchaseSalesRatio[]
+  failures             MonthlyPurchaseSalesImportFailure[]
+
+  @@index([year, month, createdAt])
+  @@index([operatorUserId, createdAt])
+}
+
+model MonthlyPurchaseSalesImportFailure {
+  id            String                          @id @default(cuid())
+  batchId       String
+  batch         MonthlyPurchaseSalesImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  excelRowNo    Int
+  storeAlias    String?                         @db.VarChar(100)
+  failureReason String                          @db.VarChar(255)
+  createdAt     DateTime                        @default(now())
+
+  @@index([batchId, excelRowNo])
+}
+
+model StoreCost {
+  id               String   @id @default(cuid())
+  storeId          String   @unique
+  store            Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeRent        Decimal  @default(0) @db.Decimal(18, 2)
+  employeeWages    Decimal  @default(0) @db.Decimal(18, 2)
+  dormitoryRent    Decimal  @default(0) @db.Decimal(18, 2)
+  propertyFee      Decimal  @default(0) @db.Decimal(18, 2)
+  utilitiesFee     Decimal  @default(0) @db.Decimal(18, 2)
+  otherCost        Decimal  @default(0) @db.Decimal(18, 2)
+  ratioCoefficient Decimal  @default(1) @db.Decimal(10, 4)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model ActualRevenueMonthly {
@@ -792,49 +1011,107 @@ model InventoryTransaction {
 }
 
 model Personnel {
-  id                    String               @id @default(cuid())
-  recordNo              String               @unique @db.VarChar(12)
-  name                  String               @db.VarChar(8)
-  phone                 String               @db.VarChar(11)
-  idNumber              String               @unique @db.VarChar(18)
-  birthday              String?              @db.VarChar(5)
-  status                PersonnelStatus      @default(ACTIVE)
+  id                    String                @id @default(cuid())
+  recordNo              String                @unique @db.VarChar(12)
+  name                  String                @db.VarChar(8)
+  phone                 String                @db.VarChar(11)
+  idNumber              String                @unique @db.VarChar(18)
+  birthday              String?               @db.VarChar(5)
+  birthdayCalendar      BirthdayCalendar      @default(LUNAR)
+  status                PersonnelStatus       @default(ACTIVE)
   hireDate              DateTime
-  positionLevel         String               @db.VarChar(50)
-  organization          String               @db.VarChar(30)
-  department            String?              @db.VarChar(50)
+  positionLevel         String                @db.VarChar(50)
+  organization          String                @db.VarChar(30)
+  department            String?               @db.VarChar(50)
   storeId               String?
-  store                 Store?               @relation(fields: [storeId], references: [id])
+  store                 Store?                @relation(fields: [storeId], references: [id])
   resignationDate       DateTime?
-  resignationReason     String?              @db.VarChar(200)
+  resignationReason     String?               @db.VarChar(200)
   contractSignDate      DateTime
   contractYears         Int?
   contractExpiryDate    DateTime
-  homeAddress           String               @db.VarChar(50)
-  currentAddress        String               @db.VarChar(50)
-  supplementaryMaterial String?              @db.VarChar(50)
-  baseSalary            Decimal              @db.Decimal(12, 2)
-  laborCost             Decimal              @default(0) @db.Decimal(12, 2)
-  workdayHours          Decimal?             @db.Decimal(5, 2)
+  homeAddress           String                @db.VarChar(50)
+  currentAddress        String                @db.VarChar(50)
+  supplementaryMaterial String?               @db.VarChar(50)
+  baseSalary            Decimal               @db.Decimal(12, 2)
+  laborCost             Decimal               @default(0) @db.Decimal(12, 2)
+  workdayHours          Decimal?              @db.Decimal(5, 2)
   socialSecurity        SocialSecurityStatus
   platformAccess        PlatformAccess?
-  platformUserId        String?              @unique
-  platformUser          User?                @relation("PersonnelPlatformUser", fields: [platformUserId], references: [id])
-  remark                String?              @db.VarChar(50)
-  version               Int                  @default(1)
+  platformUserId        String?               @unique
+  platformUser          User?                 @relation("PersonnelPlatformUser", fields: [platformUserId], references: [id])
+  remark                String?               @db.VarChar(50)
+  version               Int                   @default(1)
   createdByUserId       String?
-  createdBy             User?                @relation("PersonnelCreator", fields: [createdByUserId], references: [id])
+  createdBy             User?                 @relation("PersonnelCreator", fields: [createdByUserId], references: [id])
   deletedAt             DateTime?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
   salaryHistory         SalaryHistory[]
   positionHistory       PositionHistory[]
   itemRequisitions      ItemRequisition[]
+  dailyAttendanceItems  DailyAttendanceItem[]
+  targetedTaskRecords   TaskRecord[]          @relation("TaskRecordTargetPersonnel")
 
   @@index([status, deletedAt])
   @@index([hireDate])
   @@index([organization])
   @@index([storeId])
+}
+
+model DailyAttendanceRecord {
+  id                      String                @id @default(cuid())
+  recordNo                String                @unique @db.VarChar(12)
+  attendanceDate          DateTime              @db.Date
+  storeId                 String
+  store                   Store                 @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  storeNameSnapshot       String                @db.VarChar(100)
+  brandIdSnapshot         String                @db.VarChar(191)
+  brandNameSnapshot       String                @db.VarChar(100)
+  cooperationTypeSnapshot String                @db.VarChar(30)
+  deadlineAt              DateTime              @db.DateTime(0)
+  partTimeHeadcount       Int?
+  partTimeHours           Decimal?              @db.Decimal(6, 1)
+  createdByUserId         String?
+  createdBy               User?                 @relation("DailyAttendanceCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUsername       String                @db.VarChar(100)
+  createdByNameSnapshot   String                @db.VarChar(100)
+  createdAt               DateTime              @default(now()) @db.DateTime(0)
+  items                   DailyAttendanceItem[]
+
+  @@unique([storeId, attendanceDate])
+  @@index([attendanceDate, storeId])
+  @@index([createdByUserId, createdAt])
+}
+
+model DailyAttendanceItem {
+  id                      String                @id @default(cuid())
+  attendanceId            String
+  attendance              DailyAttendanceRecord @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  personnelId             String
+  personnel               Personnel             @relation(fields: [personnelId], references: [id], onDelete: Restrict)
+  personnelRecordNo       String                @db.VarChar(12)
+  personnelNameSnapshot   String                @db.VarChar(50)
+  positionLevelSnapshot   String                @db.VarChar(50)
+  attendanceType          DailyAttendanceType
+  leaveHours              Decimal?              @db.Decimal(4, 1)
+  overtime                Boolean               @default(false)
+  overtimeHours           Decimal?              @db.Decimal(4, 1)
+  laborCostSnapshot       Decimal?              @db.Decimal(18, 2)
+  hourlyLaborCostSnapshot Decimal?              @db.Decimal(18, 2)
+  laborCostUnitSnapshot   String?               @db.VarChar(20)
+  sortOrder               Int
+  createdAt               DateTime              @default(now())
+
+  @@unique([attendanceId, personnelId])
+  @@index([personnelId, attendanceId])
+  @@index([attendanceType])
+}
+
+model DailyAttendanceSequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
 }
 
 model SalaryHistory {
@@ -874,36 +1151,49 @@ model PositionHistory {
 }
 
 model Task {
-  id                    String           @id @default(cuid())
-  recordNo              String?          @unique
+  id                    String             @id @default(cuid())
+  recordNo              String?            @unique
   title                 String
   type                  TaskType
-  status                RecordStatus     @default(ENABLED)
-  description           String?          @db.Text
+  targetType            TaskTarget         @default(STORE)
+  specifiedTargets      Json?
+  status                RecordStatus       @default(ENABLED)
+  description           String?            @db.Text
   executorRoleId        String?
-  executorRole          Role?            @relation("TaskExecutorRole", fields: [executorRoleId], references: [id])
-  includeCompletionRate Boolean          @default(true)
+  executorRole          Role?              @relation("TaskExecutorRole", fields: [executorRoleId], references: [id])
+  includeCompletionRate Boolean            @default(true)
   executionDays         Json?
-  weeklyExecutionDay    String?          @db.VarChar(3)
-  monthlyExecutionDay   String?          @db.VarChar(10)
-  deadlineDayOffset     Int              @default(0)
-  deadlineTime          String           @default("23:59") @db.VarChar(5)
-  configFileName        String?          @unique
+  weeklyExecutionDay    String?            @db.VarChar(3)
+  monthlyExecutionDay   String?            @db.VarChar(10)
+  deadlineDayOffset     Int                @default(0)
+  deadlineTime          String             @default("23:59") @db.VarChar(5)
+  configFileName        String?            @unique
   submitItems           Json?
-  configVersion         Int              @default(1)
+  configVersion         Int                @default(1)
   r2StorageId           String?
-  r2Storage             R2StorageConfig? @relation("TaskR2Storage", fields: [r2StorageId], references: [id])
+  r2Storage             R2StorageConfig?   @relation("TaskR2Storage", fields: [r2StorageId], references: [id])
   createdByUserId       String?
-  createdBy             User?            @relation("TaskCreator", fields: [createdByUserId], references: [id])
+  createdBy             User?              @relation("TaskCreator", fields: [createdByUserId], references: [id])
   deletedAt             DateTime?
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @default(now()) @updatedAt
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @default(now()) @updatedAt
   records               TaskRecord[]
   brands                TaskBrand[]
+  executorRoles         TaskExecutorRole[]
 
   @@index([createdAt])
   @@index([executorRoleId])
   @@index([r2StorageId])
+}
+
+model TaskExecutorRole {
+  taskId String
+  roleId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, roleId])
+  @@index([roleId])
 }
 
 model TaskBrand {
@@ -916,40 +1206,50 @@ model TaskBrand {
 }
 
 model TaskRecord {
-  id                       String           @id @default(cuid())
-  recordNo                 String?          @unique @db.VarChar(24)
-  taskId                   String
-  task                     Task             @relation(fields: [taskId], references: [id])
-  taskNameSnapshot         String?          @db.VarChar(100)
-  taskType                 TaskType?
-  storeId                  String?
-  store                    Store?           @relation(fields: [storeId], references: [id])
-  storeNameSnapshot        String?          @db.VarChar(100)
-  brandIdSnapshot          String?          @db.VarChar(191)
-  brandNameSnapshot        String?          @db.VarChar(100)
-  assignedUserId           String?
-  assignedUser             User?            @relation("TaskRecordAssignee", fields: [assignedUserId], references: [id])
-  assignedUserNameSnapshot String?          @db.VarChar(50)
-  assignedRoleIdSnapshot   String?          @db.VarChar(191)
-  assignedRoleNameSnapshot String?          @db.VarChar(50)
-  executionDate            DateTime?        @db.Date
-  effectiveStartAt         DateTime?
-  effectiveEndAt           DateTime?
-  includeCompletionRate    Boolean?         @default(true)
-  status                   TaskRecordStatus @default(PENDING)
-  dueDate                  DateTime
-  triggeredAt              DateTime         @default(now())
-  completedAt              DateTime?
-  configVersion            Int?
-  configSnapshot           Json?
-  submission               Json?
-  formalSubmission         TaskSubmission?
-  aiAnalysis               TaskAiAnalysis?
-  attachments              TaskAttachment[]
-  createdAt                DateTime         @default(now())
+  id                              String           @id @default(cuid())
+  recordNo                        String?          @unique @db.VarChar(24)
+  taskId                          String
+  task                            Task             @relation(fields: [taskId], references: [id])
+  taskNameSnapshot                String?          @db.VarChar(100)
+  taskType                        TaskType?
+  targetType                      TaskTarget       @default(STORE)
+  storeId                         String?
+  store                           Store?           @relation(fields: [storeId], references: [id])
+  storeNameSnapshot               String?          @db.VarChar(100)
+  brandIdSnapshot                 String?          @db.VarChar(191)
+  brandNameSnapshot               String?          @db.VarChar(100)
+  assignedUserId                  String?
+  assignedUser                    User?            @relation("TaskRecordAssignee", fields: [assignedUserId], references: [id])
+  assignedUserNameSnapshot        String?          @db.VarChar(50)
+  assignedRoleIdSnapshot          String?          @db.VarChar(191)
+  assignedRoleNameSnapshot        String?          @db.VarChar(50)
+  targetPersonnelId               String?
+  targetPersonnel                 Personnel?       @relation("TaskRecordTargetPersonnel", fields: [targetPersonnelId], references: [id], onDelete: SetNull)
+  targetPersonnelKey              String           @default("STORE") @db.VarChar(191)
+  targetPersonnelNameSnapshot     String?          @db.VarChar(50)
+  targetPersonnelPositionSnapshot String?          @db.VarChar(50)
+  executionDate                   DateTime?        @db.Date
+  effectiveStartAt                DateTime?
+  effectiveEndAt                  DateTime?
+  includeCompletionRate           Boolean?         @default(true)
+  status                          TaskRecordStatus @default(PENDING)
+  dueDate                         DateTime
+  triggeredAt                     DateTime         @default(now())
+  completedAt                     DateTime?
+  configVersion                   Int?
+  configSnapshot                  Json?
+  submission                      Json?
+  draftValues                     Json?
+  draftCaptureFallbacks           Json?
+  draftSavedAt                    DateTime?
+  formalSubmission                TaskSubmission?
+  aiAnalysis                      TaskAiAnalysis?
+  attachments                     TaskAttachment[]
+  createdAt                       DateTime         @default(now())
 
-  @@unique([taskId, assignedUserId, storeId, executionDate])
+  @@unique([taskId, assignedUserId, storeId, targetPersonnelKey, executionDate], map: "TaskRecord_task_assignee_store_target_date_key")
   @@index([assignedUserId, executionDate, status])
+  @@index([targetPersonnelId, executionDate])
   @@index([storeId, executionDate])
   @@index([status, dueDate])
   @@index([status, taskId])
@@ -970,6 +1270,23 @@ model TaskSchedulerRun {
   @@index([status, startedAt])
 }
 
+model ScheduledJobRun {
+  id            String    @id @default(cuid())
+  jobType       String    @db.VarChar(50)
+  executionDate DateTime  @db.Date
+  scheduledTime String    @db.VarChar(5)
+  status        String    @db.VarChar(20)
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  result        Json?
+  error         String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([jobType, executionDate])
+  @@index([status, startedAt])
+}
+
 model TaskSubmission {
   id                   String               @id @default(cuid())
   recordNo             String               @unique @db.VarChar(14)
@@ -979,6 +1296,7 @@ model TaskSubmission {
   taskSettingRecordNo  String?              @db.VarChar(24)
   taskNameSnapshot     String               @db.VarChar(100)
   taskType             TaskType
+  targetType           TaskTarget           @default(STORE)
   storeId              String
   store                Store                @relation(fields: [storeId], references: [id])
   storeNameSnapshot    String               @db.VarChar(100)
@@ -1177,6 +1495,63 @@ model OperationLogSequence {
   dateKey   String   @id @db.VarChar(8)
   nextValue Int      @default(1)
   updatedAt DateTime @updatedAt
+}
+
+model RestDay {
+  id                    String             @id @default(cuid())
+  recordNo              String             @unique @db.VarChar(12)
+  year                  Int                @db.SmallInt
+  holidayType           RestDayHolidayType
+  holidayNameSnapshot   String             @db.VarChar(10)
+  startDate             DateTime           @db.Date
+  endDate               DateTime           @db.Date
+  remark                String?            @db.VarChar(50)
+  createdByUserId       String?
+  createdBy             User?              @relation("RestDayCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUsername     String             @db.VarChar(50)
+  createdByNameSnapshot String             @db.VarChar(50)
+  updatedByUserId       String?
+  updatedBy             User?              @relation("RestDayUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  updatedByNameSnapshot String?            @db.VarChar(50)
+  version               Int                @default(1)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@unique([year, holidayType, startDate, endDate])
+  @@index([year, startDate])
+  @@index([startDate, endDate])
+  @@index([createdByUserId, createdAt])
+  @@index([updatedByUserId, updatedAt])
+}
+
+model RestDaySequence {
+  dateKey   String   @id @db.VarChar(8)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+}
+
+/// Serializes overlap checks for all writes touching the same calendar year.
+model RestDayYearLock {
+  year      Int      @id @db.SmallInt
+  updatedAt DateTime @updatedAt
+}
+
+model LaborCostPolicyVersion {
+  effectiveMonth               String   @id @db.Char(7)
+  headquartersMonthlyRestRule  String   @db.VarChar(30)
+  headquartersFixedRestDays    Int      @default(2) @db.TinyInt
+  headquartersLegalHolidayRule String   @db.VarChar(30)
+  storeMonthlyRestRule         String   @db.VarChar(30)
+  storeFixedRestDays           Int      @default(2) @db.TinyInt
+  storeLegalHolidayRule        String   @db.VarChar(30)
+  createdByUserId              String?
+  createdByUsername            String   @db.VarChar(50)
+  updatedByUserId              String?
+  updatedByUsername            String   @db.VarChar(50)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+
+  @@index([updatedAt])
 }
 
 model DailyLearningPlan {

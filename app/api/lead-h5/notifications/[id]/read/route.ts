@@ -4,7 +4,7 @@ import { markNotificationRead } from "@/lib/notifications";
 import { writeOperationLog } from "@/lib/operation-log";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getLeadH5Session();
+  const session = await getLeadH5Session("lead-h5:notifications:read");
   if (!session) return NextResponse.json({ message: "当前账号已无运营H5使用权限，请重新登录" }, { status: 401 });
   const { id } = await params;
   if (!id || !await markNotificationRead(session.userId, id)) return NextResponse.json({ message: "通知不存在、已停止或已无权查看" }, { status: 404 });

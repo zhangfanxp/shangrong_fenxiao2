@@ -12,7 +12,7 @@ import { getStoreH5Session } from "@/lib/store-h5-auth";
 const inputSchema = z.object({ uploadToken: z.string().min(1), etag: z.string().max(200).nullable().optional() });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getStoreH5Session();
+  const session = await getStoreH5Session("store-h5:daily-learning:record");
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ message: "录音上传确认参数不正确" }, { status: 400 });

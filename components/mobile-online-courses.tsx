@@ -49,7 +49,7 @@ function CourseCover({ src, alt, icon = <BookOutlined /> }: { src: string; alt: 
   return <span className="mobile-course-cover"><span>{icon}</span><img src={src} alt={alt} onError={event => { event.currentTarget.style.display = "none"; }} /></span>;
 }
 
-export function MobileOnlineCourseList({ channel, clientName }: { channel: Channel; clientName: string }) {
+export function MobileOnlineCourseList({ channel, clientName, canView }: { channel: Channel; clientName: string; canView: boolean }) {
   const router = useRouter();
   const route = paths(channel);
   const [courses, setCourses] = useState<CourseSummary[]>([]);
@@ -74,7 +74,7 @@ export function MobileOnlineCourseList({ channel, clientName }: { channel: Chann
     {loading ? <div className="mobile-course-state"><Skeleton active paragraph={{ rows: 8 }} /></div>
       : error ? <div className="mobile-course-state"><Alert type="error" showIcon message="课程列表加载失败，请稍后重试" action={<Button size="small" icon={<ReloadOutlined />} onClick={() => void load()}>重试</Button>} /></div>
         : !courses.length ? <div className="mobile-course-empty"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无已分配课程" /><p>课程分配后将在这里展示</p></div>
-          : <section className="mobile-course-list">{courses.map(course => <button type="button" className="mobile-course-card" key={course.id} onClick={() => router.push(`${route.webBase}/online-courses/${course.id}`)}>
+          : <section className="mobile-course-list">{courses.map(course => <button type="button" disabled={!canView} className="mobile-course-card" key={course.id} onClick={() => router.push(`${route.webBase}/online-courses/${course.id}`)}>
             <CourseCover src={course.coverUrl} alt={course.courseName} />
             <span className="mobile-course-card-body"><span className="mobile-course-card-heading"><strong>{course.courseName}</strong>{course.completed && <CheckCircleFilled />}</span><span className="mobile-course-description">{course.courseDescription || "暂无课程简介"}</span><span className="mobile-course-tags"><Tag color={course.status === "DISABLED" ? "default" : channel === "lead-h5" ? "blue" : "green"}>{course.status === "DISABLED" ? "已停用" : course.applicablePosition}</Tag><span>{course.lessonCount}个课时</span>{course.assignedAt && <span>{formatDate(course.assignedAt)} 分配</span>}</span><span className="mobile-course-progress"><Progress percent={course.progress} showInfo={false} size="small" /><small>{course.completedLessons}/{course.lessonCount}</small></span></span>
             <RightOutlined className="mobile-course-arrow" />
@@ -107,15 +107,15 @@ export function MobileOnlineCourseDetail({ channel, courseId }: { channel: Chann
   </main>;
 }
 
-export function MobileOnlineLessonPlayer({ channel, courseId, lessonId }: { channel: Channel; courseId: string; lessonId: string }) {
-  return <LessonPlayerEntry key={`${channel}/${courseId}/${lessonId}`} channel={channel} courseId={courseId} lessonId={lessonId} />;
+export function MobileOnlineLessonPlayer({ channel, courseId, lessonId, canLearn, canDownload }: { channel: Channel; courseId: string; lessonId: string; canLearn: boolean; canDownload: boolean }) {
+  return <LessonPlayerEntry key={`${channel}/${courseId}/${lessonId}`} channel={channel} courseId={courseId} lessonId={lessonId} canLearn={canLearn} canDownload={canDownload} />;
 }
 
-function LessonPlayerEntry({ channel, courseId, lessonId }: { channel: Channel; courseId: string; lessonId: string }) {
+function LessonPlayerEntry({ channel, courseId, lessonId, canLearn, canDownload }: { channel: Channel; courseId: string; lessonId: string; canLearn: boolean; canDownload: boolean }) {
   const router = useRouter(); const route = paths(channel);
   const [lesson, setLesson] = useState<LessonDetail>(); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
   const [completed, setCompleted] = useState(false); const savingRef = useRef(false); const lastSavedRef = useRef(0);
-  const visit = useLessonLearningVisit(`${route.apiBase}/${courseId}/lessons/${lessonId}/visits`, Boolean(lesson) && !loading && !error);
+  const visit = useLessonLearningVisit(`${route.apiBase}/${courseId}/lessons/${lessonId}/visits`, canLearn && Boolean(lesson) && !loading && !error);
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
@@ -158,14 +158,16 @@ function LessonPlayerEntry({ channel, courseId, lessonId }: { channel: Channel; 
   const completeDocument = () => { if (!completed) void saveProgress(0, true); };
   return <main className={`mobile-course-page mobile-lesson-page ${channel}`}>
     <CourseHeader channel={channel} title="课时学习" back={() => { visit.close("BACK"); router.push(`${route.webBase}/online-courses/${courseId}`); }} />
-    {loading || !error && !visit.error && !visit.visitId ? <div className="mobile-course-state"><Skeleton active paragraph={{ rows: 10 }} /></div>
+    {loading || canLearn && !error && !visit.error && !visit.visitId ? <div className="mobile-course-state"><Skeleton active paragraph={{ rows: 10 }} /></div>
       : error || visit.error || !lesson ? <div className="mobile-course-state"><Alert type="error" showIcon message={error || visit.error || "课时不存在"} action={<Button size="small" onClick={() => { if (visit.error && !error) visit.retry(); else void load(); }}>重试</Button>} /></div>
         : <><section className="mobile-lesson-title"><div><Tag color={lesson.coursewareType === "VIDEO" ? "blue" : lesson.coursewareType === "AUDIO" ? "cyan" : lesson.coursewareType === "PDF" ? "red" : "orange"}>{lesson.coursewareTypeText}</Tag>{completed && <Tag color="success" icon={<CheckCircleFilled />}>已完成</Tag>}</div><h1>{lesson.chapterName}</h1><p>{lesson.courseName}</p></section>
           <section className="mobile-lesson-viewer">
+            {!canDownload ? <Alert type="info" showIcon message="当前角色无课程资料查看/下载权限" /> : <>
             {lesson.coursewareType === "VIDEO" && <video key={lesson.fileUrl} controls playsInline preload="metadata" controlsList="nodownload" src={lesson.fileUrl} poster={lesson.coverUrl} onLoadedMetadata={restoreMediaProgress} onTimeUpdate={onMediaTime} onPause={onMediaTime} onEnded={event => void saveProgress(event.currentTarget.duration || event.currentTarget.currentTime, true)}>当前浏览器不支持视频播放。</video>}
             {lesson.coursewareType === "AUDIO" && <div className="mobile-lesson-audio"><CourseCover src={lesson.coverUrl} alt={lesson.chapterName} icon={<AudioOutlined />} /><strong>{lesson.originalFileName}</strong><audio key={lesson.fileUrl} controls preload="metadata" src={lesson.fileUrl} onLoadedMetadata={restoreMediaProgress} onTimeUpdate={onMediaTime} onPause={onMediaTime} onEnded={event => void saveProgress(event.currentTarget.duration || event.currentTarget.currentTime, true)}>当前浏览器不支持音频播放。</audio></div>}
             {lesson.coursewareType === "PDF" && <div className="mobile-lesson-document"><iframe src={lesson.fileUrl} title={lesson.chapterName} onLoad={completeDocument} /><Button type="primary" icon={<FilePdfOutlined />} href={lesson.fileUrl} target="_blank" onClick={completeDocument}>在新窗口查看PDF</Button></div>}
             {lesson.coursewareType === "PPT" && <div className="mobile-lesson-ppt"><span><FilePptOutlined /></span><h2>{lesson.originalFileName}</h2><p>点击下方按钮，使用手机浏览器或已安装的文档应用查看PPT课件。</p><Button type="primary" size="large" icon={<FilePptOutlined />} href={lesson.fileUrl} target="_blank" rel="noopener noreferrer" onClick={completeDocument}>打开PPT课件</Button></div>}
+            </>}
           </section>
           <section className="mobile-lesson-info"><h2>课时介绍</h2><p>{lesson.chapterDescription || "暂无课时介绍"}</p><dl><div><dt>课件文件</dt><dd>{lesson.originalFileName}</dd></div><div><dt>文件大小</dt><dd>{lesson.fileSizeText}</dd></div>{lesson.remark && <div><dt>备注</dt><dd>{lesson.remark}</dd></div>}</dl></section></>}
   </main>;

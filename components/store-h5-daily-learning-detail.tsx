@@ -38,11 +38,13 @@ export function MobileDailyLearningRecording({
   apiBase,
   homePath,
   loginPath,
+  canRecord,
 }: {
   planId: string;
   apiBase: string;
   homePath: string;
   loginPath: string;
+  canRecord: boolean;
 }) {
   const router = useRouter();
   const [detail, setDetail] = useState<Detail>();
@@ -205,7 +207,8 @@ export function MobileDailyLearningRecording({
         <span>{phase === "recording" ? <><i />正在录音</> : phase === "requesting" ? "正在申请麦克风权限" : phase === "encoding" ? "正在生成MP3录音" : phase === "uploading" ? "正在上传MP3录音" : phase === "completed" ? "今日学习已完成" : draft ? "录音待重新上传" : "准备录音"}</span>
         <strong>{timeText(phase === "completed" ? detail.recordingDurationSeconds || elapsed : elapsed)}</strong>
       </div>
-      {phase === "completed" ? <Button block size="large" className="store-learning-record-button success" icon={<CheckCircleFilled />} disabled>录音已上传</Button>
+      {!canRecord && phase !== "completed" ? <Button block size="large" className="store-learning-record-button" disabled>当前角色仅可查看</Button>
+        : phase === "completed" ? <Button block size="large" className="store-learning-record-button success" icon={<CheckCircleFilled />} disabled>录音已上传</Button>
         : phase === "recording" ? <Button block size="large" danger className="store-learning-record-button" icon={<PauseCircleFilled />} onClick={stopRecording}>停止录音</Button>
           : phase === "uploading" || phase === "encoding" || phase === "requesting" ? <Button block size="large" className="store-learning-record-button" icon={<LoadingOutlined spin />} loading>{phase === "uploading" ? "MP3上传中，请稍候" : phase === "encoding" ? "正在生成MP3" : "正在启动录音"}</Button>
             : draft ? <Button block size="large" className="store-learning-record-button" icon={<UploadOutlined />} onClick={() => void upload(draft)}>重新上传</Button>
@@ -215,6 +218,6 @@ export function MobileDailyLearningRecording({
   </main>;
 }
 
-export function StoreH5DailyLearningDetail({ planId }: { planId: string }) {
-  return <MobileDailyLearningRecording planId={planId} apiBase="/api/store-h5/daily-learning" homePath="/store_h5/daily-learning" loginPath="/store_h5/login" />;
+export function StoreH5DailyLearningDetail({ planId, canRecord }: { planId: string; canRecord: boolean }) {
+  return <MobileDailyLearningRecording planId={planId} apiBase="/api/store-h5/daily-learning" homePath="/store_h5/daily-learning" loginPath="/store_h5/login" canRecord={canRecord} />;
 }

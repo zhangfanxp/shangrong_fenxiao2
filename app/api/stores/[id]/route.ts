@@ -6,7 +6,9 @@ import { storeInputSchema } from "@/lib/store-validation";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
 import { storeContractSelect, validateStoreContract } from "@/lib/store-contract";
 import { synchronizeStoreLeadership } from "@/lib/store-leadership";
+import { resolveStoreSupervisor } from "@/lib/store-supervisor";
 import { writeOperationLog } from "@/lib/operation-log";
+import { getConfiguredWorkdayHours } from "@/lib/brand-day-hour-config";
 
 const details = { brand: true, contract: { select: storeContractSelect } } satisfies Prisma.StoreInclude;
 
@@ -41,11 +43,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!operationValid) return NextResponse.json({ message: "所选运营状态不存在或已停用" }, { status: 400 });
   if (!areaValid) return NextResponse.json({ message: "所选门店区域不存在或已停用" }, { status: 400 });
   if (!locationTypeValid) return NextResponse.json({ message: "所选位置类型不存在或已停用" }, { status: 400 });
+  const workdayHours = result.data.workdayHours ?? await getConfiguredWorkdayHours(brand.name);
+  if (workdayHours === undefined) return NextResponse.json({ message: "当前品牌尚未配置工作日小时，请填写后保存" }, { status: 400 });
+  const supervisor = await resolveStoreSupervisor(result.data);
+  if ((result.data.supervisorUserId || result.data.supervisorName) && !supervisor) return NextResponse.json({ message: "所选负责督导账号无效、已禁用或已不具备督导身份，请重新选择" }, { status: 400 });
   const contractCheck = await validateStoreContract(result.data.contractId, result.data, id);
   if (contractCheck.message) return NextResponse.json({ message: contractCheck.message }, { status: 400 });
   try {
     const store = await db.$transaction(async transaction => {
-      await transaction.store.update({ where: { id }, data: result.data });
+      await transaction.store.update({ where: { id }, data: { ...result.data, workdayHours, supervisorUserId: supervisor?.id || null, supervisorName: supervisor?.realName || null } });
       await synchronizeStoreLeadership([id], transaction);
       return transaction.store.findUniqueOrThrow({ where: { id }, include: details });
     });

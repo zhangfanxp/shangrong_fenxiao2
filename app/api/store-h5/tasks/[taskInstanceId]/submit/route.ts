@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
-import { getStoreH5Session } from "@/lib/store-h5-auth";
+import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
 import { dateKeyAsDbDate, isStoreTaskSnapshot, shanghaiDateKey } from "@/lib/store-h5-tasks";
 import { deleteTaskDraftFiles } from "@/lib/task-r2-upload";
 import { nextTaskSubmissionRecordNo } from "@/lib/task-records";
@@ -25,8 +25,9 @@ function valueIsEmpty(value: unknown) {
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ taskInstanceId: string }> }) {
-  const session = await getStoreH5Session();
-  if (!session) return NextResponse.json({ message: "当前账号已无门店H5使用权限，请重新登录或联系管理员" }, { status: 401 });
+  const channel = mobileH5TaskChannel(request);
+  const session = await getMobileH5TaskSession(request, "submit");
+  if (!session) return NextResponse.json({ message: mobileH5UnauthorizedMessage(channel) }, { status: 401 });
   const { taskInstanceId } = await params;
   try {
     const parsed = bodySchema.safeParse(await request.json().catch(() => null));
@@ -80,19 +81,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       if (value !== null && item.component === "input" && item.dataType !== "text") {
         if (!/^\d+(?:\.\d+)?$/.test(value) || Number(value) < 0) throw new SubmissionError(`“${item.name}”请输入大于等于0的有效数字`);
         if (item.dataType === "amount" && !/^\d+(?:\.\d{1,2})?$/.test(value)) throw new SubmissionError(`“${item.name}”最多保留2位小数`);
+        if (item.dataType === "quantity" && !/^\d+$/.test(value)) throw new SubmissionError(`“${item.name}”请输入非负整数`);
+        if (item.dataType === "quantity" && item.maxValue !== undefined && item.maxValue !== null && Number(value) > item.maxValue) throw new SubmissionError(`“${item.name}”不能超过${item.maxValue}`);
       }
       if (value !== null && item.component === "select" && !item.options.includes(value)) throw new SubmissionError(`“${item.name}”选项无效，请重新选择`);
       detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value, attachmentObjectKey: null, attachmentName: null, attachmentMimeType: null, r2StorageId: null, aiAnalysisTypeSnapshot: item.aiAnalysisType || null, aiAnalysisPromptSnapshot: item.aiAnalysisPrompt || null, sortOrder: index });
     }
     const now = new Date();
     const submission = await db.$transaction(async tx => {
-      const updated = await tx.taskRecord.updateMany({ where: { id: record.id, assignedUserId: session.userId, status: TaskRecordStatus.PENDING }, data: { status: TaskRecordStatus.COMPLETED, completedAt: now } });
+      const updated = await tx.taskRecord.updateMany({ where: { id: record.id, assignedUserId: session.userId, status: TaskRecordStatus.PENDING }, data: { status: TaskRecordStatus.COMPLETED, completedAt: now, draftValues: Prisma.DbNull, draftCaptureFallbacks: Prisma.DbNull, draftSavedAt: null } });
       if (updated.count !== 1) throw new SubmissionError("当前任务已经完成，请勿重复提交。", 409);
       const formalRecordNo = await nextTaskSubmissionRecordNo(tx, now);
       const created = await tx.taskSubmission.create({ data: {
         recordNo: formalRecordNo,
         taskRecordId: record.id, taskIdSnapshot: record.task.id, taskSettingRecordNo: record.task.recordNo,
-        taskNameSnapshot: record.taskNameSnapshot || snapshot.taskName, taskType,
+        taskNameSnapshot: record.taskNameSnapshot || snapshot.taskName, taskType, targetType: record.targetType,
         storeId: store.id, storeNameSnapshot: record.storeNameSnapshot || store.name,
         brandIdSnapshot: record.brandIdSnapshot || store.brand.id, brandNameSnapshot: record.brandNameSnapshot || store.brand.name,
         userId: session.userId, userRealNameSnapshot: session.realName, executionDate,
@@ -111,13 +114,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
         .then(() => db.taskAttachment.deleteMany({ where: { id: { in: unusedDrafts.map(attachment => attachment.id) }, consumedAt: null } }))
         .catch(() => undefined);
     }
-    await writeOperationLog({ userId: session.userId, username: session.username, client: "门店员工移动端", page: "任务详情", action: "提交", result: "成功", detail: `任务实例：${record.recordNo || record.id}；提交：${submission.id}`, request }).catch(() => undefined);
+    await writeOperationLog({ userId: session.userId, username: session.username, client: session.clientName, page: "任务详情", action: "提交", result: "成功", detail: `任务实例：${record.recordNo || record.id}；提交：${submission.id}`, request }).catch(() => undefined);
     return NextResponse.json({ message: "任务提交成功", submissionId: submission.id });
   } catch (error) {
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
     const message = duplicate ? "当前任务已经完成，请勿重复提交。" : error instanceof SubmissionError ? error.message : "任务提交失败，请检查网络后重试";
     const status = duplicate ? 409 : error instanceof SubmissionError ? error.status : 500;
-    await writeOperationLog({ userId: session.userId, username: session.username, client: "门店员工移动端", page: "任务详情", action: "提交", result: "失败", detail: message, request }).catch(() => undefined);
+    await writeOperationLog({ userId: session.userId, username: session.username, client: session.clientName, page: "任务详情", action: "提交", result: "失败", detail: message, request }).catch(() => undefined);
     return NextResponse.json({ message }, { status });
   }
 }

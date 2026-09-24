@@ -40,7 +40,7 @@ const aliases: Record<BusinessDictionaryCode, string[]> = {
 };
 
 const protectedValues: Partial<Record<BusinessDictionaryCode, Record<string, string>>> = {
-  CONTRACT_STATUS: { "待生效": "PENDING", "正常": "ACTIVE", "履约中": "ACTIVE", "待续约": "EXPIRING", "即将到期": "EXPIRING", "已解约": "TERMINATED", "已到期": "EXPIRED" },
+  CONTRACT_STATUS: { "待生效": "PENDING", "正常": "ACTIVE", "履约中": "ACTIVE", "待续约": "EXPIRING", "即将到期": "EXPIRING", "已解约": "TERMINATED", "已到期": "EXPIRED", "已过期": "EXPIRED" },
   COOPERATION_TYPE: { "直营": "DIRECT", "直营店": "DIRECT", "加盟": "FRANCHISE", "加盟店": "FRANCHISE" },
   STORE_OPERATION_STATUS: { "筹备中": "PREPARING", "试营业": "TRIAL", "正式营业": "OPENING", "营业中": "OPENING", "解约中": "TERMINATING", "暂停营业": "SUSPENDED", "已停业": "CLOSED", "已关闭": "CLOSED" },
   PERSONNEL_STATUS: { "在职": "ACTIVE", "离职": "RESIGNED", "已离职": "RESIGNED" },

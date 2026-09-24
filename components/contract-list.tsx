@@ -1,7 +1,7 @@
 "use client";
 
 import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Divider, Drawer, Form, Input, InputNumber, message, Modal, Row, Select, Space } from "antd";
+import { Alert, Button, Card, Cascader, Checkbox, Col, DatePicker, Descriptions, Divider, Drawer, Form, Input, InputNumber, message, Modal, Row, Select, Space } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useState, type ReactNode } from "react";
@@ -19,16 +19,16 @@ type Contract = {
   ownerPhone?: string; ownerIdNumber?: string; province?: string; city?: string; district?: string; address?: string; cooperationFee: number | string; brandFee: number | string;
   financeServiceFee: number | string; designFee: number | string; deposit: number | string; depositRecipient?: string;
   refundedDeposit: number | string; rebateType?: string; rebatePerson?: string; rebateAmount: number | string;
-  startDate: string; endDate: string; remark?: string; createdAt: string; brand: Brand; rebates: Rebate[];
+  startDate: string; endDate: string; remark?: string; createdAt: string; brand: Brand; rebates: Rebate[]; isExpiring?: boolean;
 };
-type Filters = { keyword: string; status: string; brandId: string; cooperationType: string; dates: [Dayjs | null, Dayjs | null] | null };
+type Filters = { keyword: string; status: string; brandId: string; cooperationType: string; dates: [Dayjs | null, Dayjs | null] | null; expiringOnly: boolean };
 type ContractForm = Omit<Contract, "id" | "recordNo" | "status" | "createdAt" | "brand" | "startDate" | "endDate" | "trialOpenDate" | "province" | "city" | "district" | "rebates"> & { status?: string; startDate: Dayjs; endDate: Dayjs; trialOpenDate?: Dayjs; location?: string[]; rebates?: Rebate[] };
 type DistrictNode = { code: string; name: string; children?: DistrictNode[] };
 
 const contractDictionaryCodes = ["BRAND", "CONTRACT_STATUS", "COOPERATION_TYPE", "REBATE_TYPE"];
 
 const moneyProps = { min: 0, precision: 2, style: { width: "100%" as const }, addonAfter: "元" };
-const emptyFilters: Filters = { keyword: "", status: "", brandId: "", cooperationType: "", dates: null };
+const emptyFilters: Filters = { keyword: "", status: "", brandId: "", cooperationType: "", dates: null, expiringOnly: false };
 const districtOptions = districtData as DistrictNode[];
 
 export function ContractList() {
@@ -61,6 +61,7 @@ export function ContractList() {
     if (nextFilters.cooperationType) params.set("cooperationType", nextFilters.cooperationType);
     if (nextFilters.dates?.[0]) params.set("startDate", nextFilters.dates[0].format("YYYY-MM-DD"));
     if (nextFilters.dates?.[1]) params.set("endDate", nextFilters.dates[1].format("YYYY-MM-DD"));
+    if (nextFilters.expiringOnly) params.set("expiringOnly", "true");
     try {
       const response = await fetch(`/api/contracts?${params.toString()}`);
       if (!response.ok) throw new Error();
@@ -68,7 +69,16 @@ export function ContractList() {
     } catch { setError(true); } finally { setLoading(false); }
   };
 
-  useEffect(() => { void load(emptyFilters); }, []);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const initialFilters: Filters = {
+      ...emptyFilters,
+      status: params.get("status") === "EXPIRED" ? "EXPIRED" : "",
+      expiringOnly: params.get("expiringOnly") === "true",
+    };
+    setFilters(initialFilters);
+    void load(initialFilters);
+  }, []);
   useEffect(() => { fetch("/api/brands").then((response) => response.ok ? response.json() : []).then(setBrands).catch(() => setBrands([])); }, []);
 
   const openCreate = () => {
@@ -140,7 +150,7 @@ export function ContractList() {
     { title: "合同编号", dataIndex: "recordNo", width: 150 },
     { title: "品牌", dataIndex: ["brand", "name"], width: 100 },
     { title: "门店名称", dataIndex: "storeName", width: 170, ellipsis: true },
-    { title: "合同状态", dataIndex: "status", width: 110, render: (value) => <StatusTag value={value} /> },
+    { title: "合同状态", dataIndex: "status", width: 120, render: (value) => <StatusTag value={value} /> },
     { title: "合作类型", dataIndex: "cooperationType", width: 100, render: (value) => value === "DIRECT" ? "直营店" : "加盟店" },
     { title: "签约业主", dataIndex: "ownerName", width: 100 },
     { title: "联系人", width: 150, render: (_, row) => row.contactName ? `${row.contactName}${row.contactPhone ? ` / ${row.contactPhone}` : ""}` : "-" },
@@ -167,6 +177,7 @@ export function ContractList() {
         <Select style={{ width: 135 }} loading={dictionariesLoading} disabled={!!dictionariesError} options={statusOptions} value={filters.status} onChange={(status) => setFilters({ ...filters, status })} />
         <Select style={{ width: 145 }} loading={dictionariesLoading} disabled={!!dictionariesError} options={cooperationOptions} value={filters.cooperationType} onChange={(cooperationType) => setFilters({ ...filters, cooperationType })} />
         <DatePicker.RangePicker placeholder={["合同开始日", "合同结束日"]} value={filters.dates} onChange={(dates) => setFilters({ ...filters, dates: dates as Filters["dates"] })} />
+        <Checkbox checked={filters.expiringOnly} onChange={(event) => setFilters({ ...filters, expiringOnly: event.target.checked })}>仅展示即将到期记录</Checkbox>
         <Button onClick={() => { setFilters(emptyFilters); void load(emptyFilters); }}>重置</Button><Button type="primary" onClick={() => void load()}>筛选</Button>
       </Space>
     </Card>
@@ -179,7 +190,7 @@ export function ContractList() {
         <Row gutter={16}><FormItem span={8} label="品牌" name="brandId" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择品牌" options={brands.map((brand) => ({ value: brand.id, label: brand.name }))} /></FormItem><FormItem span={8} label="门店名称" name="storeName" required><Input maxLength={60} /></FormItem><FormItem span={8} label="合作类型" name="cooperationType" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} options={cooperationOptions.filter((item) => item.value)} /></FormItem></Row>
         <Row gutter={16}><FormItem span={8} label="合同状态" name="status" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择" options={statusOptions.filter((item) => item.value).map((item) => ({ ...item, disabled: item.value === "TERMINATED" }))} /></FormItem><FormItem span={8} label="档案盒号" name="archiveBox" required><Input maxLength={60} /></FormItem><FormItem span={8} label="试营业日期" name="trialOpenDate"><DatePicker style={{ width: "100%" }} /></FormItem></Row>
         <Row gutter={16}>
-          <FormItem span={12} label="合同开始日期" name="startDate" required><DatePicker style={{ width: "100%" }} onChange={(date) => form.setFieldValue("endDate", date ? date.add(5, "year") : undefined)} /></FormItem>
+          <FormItem span={12} label="合同开始日期" name="startDate" required><DatePicker style={{ width: "100%" }} onChange={(date) => form.setFieldValue("endDate", date ? date.add(5, "year").subtract(1, "day") : undefined)} /></FormItem>
           <Col span={12}><Form.Item noStyle shouldUpdate={(previous, current) => previous.startDate !== current.startDate}>{() => {
             const startDate = form.getFieldValue("startDate") as Dayjs | undefined;
             return <Form.Item label="合同截止日期" name="endDate" dependencies={["startDate"]} rules={[
@@ -190,7 +201,7 @@ export function ContractList() {
         </Row>
         <FormHeading title="签约人及联系信息" />
         <Row gutter={16}><FormItem span={8} label="签约业主" name="ownerName" required><Input maxLength={30} /></FormItem><FormItem span={8} label="业主联系电话" name="ownerPhone"><Input maxLength={30} /></FormItem><FormItem span={8} label="业主身份证号" name="ownerIdNumber"><Input maxLength={30} /></FormItem></Row>
-        <Row gutter={16}><FormItem span={12} label="联系人" name="contactName" required><Input maxLength={30} /></FormItem><FormItem span={12} label="联系人电话" name="contactPhone" required><Input maxLength={30} /></FormItem></Row>
+        <Row gutter={16}><FormItem span={12} label="经办人" name="contactName" required><Input maxLength={30} /></FormItem><FormItem span={12} label="经办人电话" name="contactPhone" required><Input maxLength={30} /></FormItem></Row>
         <FormHeading title="门店地址" />
         <Row gutter={16}><FormItem span={12} label="省 / 市 / 区县" name="location"><Cascader options={districtOptions} fieldNames={{ label: "name", value: "name", children: "children" }} placeholder="请选择门店所在地区" showSearch /></FormItem><FormItem span={12} label="详细地址" name="address"><Input maxLength={200} placeholder="请输入街道、门牌号等" /></FormItem></Row>
         <FormHeading title="合同费用与返利" />
@@ -205,7 +216,7 @@ export function ContractList() {
         <FormHeading title="备注" /><Form.Item label="备注信息" name="remark"><Input.TextArea rows={3} maxLength={500} showCount /></Form.Item>
       </Form>
     </Drawer>
-    <Drawer title="合同详情" width={820} open={detailOpen} onClose={() => setDetailOpen(false)} extra={selected?.status !== "TERMINATED" ? <Button type="primary" onClick={() => { if (!selected) return; setDetailOpen(false); openEdit(selected); }}>编辑合同</Button> : null}>
+    <Drawer title="查看合同" width={820} open={detailOpen} onClose={() => setDetailOpen(false)} extra={selected?.status !== "TERMINATED" ? <Button type="primary" onClick={() => { if (!selected) return; setDetailOpen(false); openEdit(selected); }}>编辑合同</Button> : null}>
       {selected && <ContractDetails contract={selected} statusOptions={statusOptions.filter((item) => item.value)} />}
     </Drawer>
     <Modal title="确认解约" open={terminationOpen} onCancel={() => { if (!terminatingSaving) { setTerminationOpen(false); setTerminating(null); } }} onOk={() => void terminate()} okText="确认解约" cancelText="取消" okButtonProps={{ danger: true, loading: terminatingSaving }} cancelButtonProps={{ disabled: terminatingSaving }} destroyOnHidden>
@@ -226,8 +237,8 @@ function ContractDetails({ contract, statusOptions }: { contract: Contract; stat
       { key: "type", label: "合作类型", children: cooperativeLabel }, { key: "archive", label: "档案盒号", children: contract.archiveBox || "-" },
       { key: "trial", label: "试营业日期", children: displayDate(contract.trialOpenDate) }, { key: "period", label: "合同期限", children: `${displayDate(contract.startDate)} 至 ${displayDate(contract.endDate)}` },
       { key: "owner", label: "签约业主", children: contract.ownerName }, { key: "ownerPhone", label: "业主联系电话", children: contract.ownerPhone || "-" },
-      { key: "ownerId", label: "业主身份证号", children: contract.ownerIdNumber || "-" }, { key: "contact", label: "联系人", children: contract.contactName || "-" },
-      { key: "contactPhone", label: "联系人电话", children: contract.contactPhone || "-" }, { key: "location", label: "省 / 市 / 区县", children: [contract.province, contract.city, contract.district].filter(Boolean).join(" ") || "-" },
+      { key: "ownerId", label: "业主身份证号", children: contract.ownerIdNumber || "-" }, { key: "contact", label: "经办人", children: contract.contactName || "-" },
+      { key: "contactPhone", label: "经办人电话", children: contract.contactPhone || "-" }, { key: "location", label: "省 / 市 / 区县", children: [contract.province, contract.city, contract.district].filter(Boolean).join(" ") || "-" },
       { key: "address", label: "详细地址", children: contract.address || "-" },
     ]} />
     <Divider orientation="left">合同费用与返利</Divider>

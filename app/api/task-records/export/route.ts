@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       { header: "任务名称", key: "taskName", width: 28 },
       { header: "任务类型", key: "taskType", width: 14 },
       { header: "任务执行人", key: "executor", width: 22 },
+      { header: "任务对象", key: "targetEmployee", width: 22 },
       { header: "参与核算完成率", key: "includeCompletionRate", width: 18 },
       { header: "任务创建日期", key: "createdAt", width: 22 },
       { header: "任务提交日期", key: "submittedAt", width: 22 },
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
     sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1677FF" } };
     sheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
     sheet.views = [{ state: "frozen", ySplit: 1 }];
-    sheet.autoFilter = { from: "A1", to: "H1" };
+    sheet.autoFilter = { from: "A1", to: "I1" };
     const buffer = await workbook.xlsx.writeBuffer();
     const fileName = `任务记录_${timestamp()}.xlsx`;
     await writeOperationLog({ userId: session.userId, username: session.username, page: "任务记录", action: "批量导出", result: "成功", detail: `导出 ${rows.length} 条任务记录`, request }).catch(() => undefined);

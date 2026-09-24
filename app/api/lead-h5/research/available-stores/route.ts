@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 
 export async function GET(request: Request) {
-  const session = await getLeadH5Session();
+  const session = await getLeadH5Session("lead-h5:store-research:view");
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   const researchMonth = new URL(request.url).searchParams.get("researchMonth") || "";
   if (!validResearchMonth(researchMonth)) return NextResponse.json({ message: "调研月份无效" }, { status: 400 });

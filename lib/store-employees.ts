@@ -24,6 +24,7 @@ export const storeEmployeeSelect = {
   name: true,
   phone: true,
   positionLevel: true,
+  organization: true,
   laborCost: true,
   storeId: true,
   platformUserId: true,

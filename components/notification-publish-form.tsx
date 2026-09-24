@@ -8,15 +8,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Recipient = { userId: string; username: string; realName: string; roleId: string; roleName: string; phoneMasked: string };
 type RoleOption = { id: string; name: string };
-type NotificationTypeValue = "" | "GENERAL" | "MID_MONTH_OFFLINE_MEETING" | "MONTHLY_ONLINE_MEETING";
+type NotificationTypeValue = "" | "GENERAL" | "MID_MONTH_OFFLINE_MEETING" | "MONTHLY_ONLINE_MEETING" | "QUARTERLY_OFFLINE_MEETING";
 type FormValues = { title: string; content: string; releaseDate: Dayjs; publisherName: string; notificationType: NotificationTypeValue; showAfterLogin: boolean; publishImmediately: boolean };
 type SaveSuccessInfo = { releaseDate: string; immediate: boolean; showAfterLogin: boolean };
 
-const meetingNotificationTypes: NotificationTypeValue[] = ["MID_MONTH_OFFLINE_MEETING", "MONTHLY_ONLINE_MEETING"];
+const meetingNotificationTypes: NotificationTypeValue[] = ["MID_MONTH_OFFLINE_MEETING", "MONTHLY_ONLINE_MEETING", "QUARTERLY_OFFLINE_MEETING"];
 const notificationTypeOptions = [
   { value: "", label: "请选择" },
   { value: "GENERAL", label: "普通通知" },
   { value: "MID_MONTH_OFFLINE_MEETING", label: "月中线下会通知" },
+  { value: "QUARTERLY_OFFLINE_MEETING", label: "季度线下会通知" },
   { value: "MONTHLY_ONLINE_MEETING", label: "每月线上会通知" },
 ];
 

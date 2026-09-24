@@ -2,6 +2,14 @@
   "recordNo": "202609070001",
   "taskName": "开市",
   "taskType": "日任务",
+  "taskTarget": "门店",
+  "specifiedTargets": [],
+  "executorRoles": [
+    {
+      "id": "cmt6jn0cl000ctn6y5ukshkil",
+      "name": "店长"
+    }
+  ],
   "executorRole": {
     "id": "cmt6jn0cl000ctn6y5ukshkil",
     "name": "店长"
@@ -30,7 +38,7 @@
   "deadlineTime": "18:00",
   "includeCompletionRate": true,
   "status": "启用",
-  "configVersion": 9,
+  "configVersion": 11,
   "submitItems": [
     {
       "name": "开市【例会】",
@@ -59,6 +67,18 @@
     {
       "name": "店外【门口】【外摆物料】",
       "description": "展架稳固无歪斜，画面干净完好，活动海报按时更新",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": true,
+      "options": []
+    },
+    {
+      "name": "店内【门店挂件礼品展架】",
+      "description": "展架稳固无歪斜，画面干净完好",
       "required": true,
       "weight": 1,
       "aiAnalysisType": null,

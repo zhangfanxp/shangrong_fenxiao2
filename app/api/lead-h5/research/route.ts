@@ -44,7 +44,7 @@ function shanghaiDateTime(date: Date) {
 }
 
 export async function POST(request: Request) {
-  const session = await getLeadH5Session();
+  const session = await getLeadH5Session("lead-h5:store-research:submit");
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success || !validResearchMonth(parsed.data?.researchMonth || "")) {

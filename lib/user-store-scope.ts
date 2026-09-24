@@ -1,4 +1,6 @@
-export type UserScopeStore = { id: string; name: string; brandId: string; brand: { id: string; name: string } };
+import type { CooperationType } from "@prisma/client";
+
+export type UserScopeStore = { id: string; name: string; brandId: string; cooperationType?: CooperationType; brand: { id: string; name: string } };
 
 type UserWithStoreScope = {
   leadH5BrandIds: unknown;

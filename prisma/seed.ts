@@ -1,13 +1,35 @@
 import { PrismaClient, CooperationType, ContractStatus, StoreOperationStatus, TaskRecordStatus, TaskType, UserType } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { synchronizeFixedSystemRoles } from "../lib/system-role-sync";
+import { DEFAULT_LABOR_COST_POLICY, nextMonthText } from "../lib/personnel-labor-costs";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const permissions = ["*"];
-  const role = await prisma.role.upsert({ where: { code: "SUPER_ADMIN" }, update: {}, create: { code: "SUPER_ADMIN", name: "超级管理员", type: "SYSTEM", permissions } });
+  const roles = await synchronizeFixedSystemRoles(prisma);
+  const role = roles.find(item => item.code === "SUPER_ADMIN");
+  if (!role) throw new Error("超级管理员角色初始化失败");
   const passwordHash = await bcrypt.hash("Admin@123456", 12);
   await prisma.user.upsert({ where: { username: "admin" }, update: { passwordHash, realName: "系统管理员", phone: "13800138000", roleId: role.id, type: UserType.SYSTEM }, create: { username: "admin", passwordHash, realName: "系统管理员", phone: "13800138000", roleId: role.id, type: UserType.SYSTEM } });
+  const initialPolicyMonth = nextMonthText();
+  const previousPolicy = await prisma.laborCostPolicyVersion.findFirst({ where: { effectiveMonth: { lte: initialPolicyMonth } }, orderBy: { effectiveMonth: "desc" } });
+  await prisma.laborCostPolicyVersion.upsert({
+    where: { effectiveMonth: initialPolicyMonth },
+    update: {},
+    create: {
+      effectiveMonth: initialPolicyMonth,
+      ...(previousPolicy ? {
+        headquartersMonthlyRestRule: previousPolicy.headquartersMonthlyRestRule,
+        headquartersFixedRestDays: previousPolicy.headquartersFixedRestDays,
+        headquartersLegalHolidayRule: previousPolicy.headquartersLegalHolidayRule,
+        storeMonthlyRestRule: previousPolicy.storeMonthlyRestRule,
+        storeFixedRestDays: previousPolicy.storeFixedRestDays,
+        storeLegalHolidayRule: previousPolicy.storeLegalHolidayRule,
+      } : DEFAULT_LABOR_COST_POLICY),
+      createdByUsername: "系统初始化",
+      updatedByUsername: "系统初始化",
+    },
+  });
   const brands = await Promise.all([["FXE", "奋小二"], ["HJJ", "蚝家伙"], ["HMP", "禾穆婆"]].map(([code, name]) => prisma.brand.upsert({ where: { code }, update: {}, create: { code, name } })));
   await Promise.all(["实习生", "员工·一星", "员工·二星", "主管·三星", "店长·四星", "店长·五星"].map((label, sort) => prisma.dictionaryItem.upsert({ where: { type_value: { type: "POSITION_LEVEL", value: `LEVEL_${sort + 1}` } }, update: { label, sort }, create: { type: "POSITION_LEVEL", value: `LEVEL_${sort + 1}`, label, sort } })));
   const existing = await prisma.contract.count();

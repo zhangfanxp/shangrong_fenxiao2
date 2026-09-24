@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     const clearAllTaskRecords = targets.includes("taskSettings") || targets.includes("taskRecords");
     const clearTaskRecords = clearStores || clearAllTaskRecords;
     const clearPersonnel = clearStores || targets.includes("personnel");
+    const clearDailyAttendance = clearPersonnel || targets.includes("dailyAttendanceRecords");
     const clearItemRequisitions = clearPersonnel || targets.includes("workwearInventory") || targets.includes("itemRequisitions");
     const clearAssessmentSettings = targets.includes("assessmentSettings");
     const clearReviews = clearStores || clearAssessmentSettings || targets.includes("storeReviews");
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
     const clearResearchRecords = clearStores || clearResearchTemplates || targets.includes("researchRecords");
     const clearActualRevenue = clearStores || targets.includes("actualRevenue");
     const clearRevenueTargets = clearActualRevenue || targets.includes("revenueTargets");
+    const clearMonthlyPurchaseSales = clearStores || targets.includes("monthlyPurchaseSales");
     const clearDailyLearningSettings = targets.includes("dailyLearningSettings");
     const clearDailyLearningRecords = clearDailyLearningSettings || targets.includes("dailyLearningRecords");
     const clearCourseSettings = targets.includes("courseSettings");
@@ -69,6 +71,12 @@ export async function POST(request: Request) {
       recordDeleted("actualRevenueMonthly", "月度实际营业额", (await tx.actualRevenueMonthly.deleteMany()).count);
       await tx.actualRevenueSequence.deleteMany();
     }
+    if (clearMonthlyPurchaseSales) {
+      recordDeleted("monthlyPurchaseSalesImportFailures", "采销比导入失败明细", (await tx.monthlyPurchaseSalesImportFailure.deleteMany()).count);
+      recordDeleted("monthlyPurchaseSalesRatios", "门店月度采销比", (await tx.monthlyPurchaseSalesRatio.deleteMany()).count);
+      recordDeleted("monthlyPurchaseSalesImportBatches", "采销比导入批次", (await tx.monthlyPurchaseSalesImportBatch.deleteMany()).count);
+      await tx.monthlyPurchaseSalesSequence.deleteMany();
+    }
     if (clearReviews) {
       recordDeleted("leadH5ReviewPhotos", "门店评分照片记录", (await tx.leadH5ReviewPhoto.deleteMany()).count);
       recordDeleted("leadH5ReviewItems", "门店稽核及信用评分明细", (await tx.leadH5ReviewItem.deleteMany()).count);
@@ -94,7 +102,13 @@ export async function POST(request: Request) {
       recordDeleted("itemRequisitions", "领用记录", (await tx.itemRequisition.deleteMany()).count);
       await tx.itemRequisitionSequence.deleteMany();
     }
+    if (clearDailyAttendance) {
+      recordDeleted("dailyAttendanceItems", "员工考勤明细", (await tx.dailyAttendanceItem.deleteMany()).count);
+      recordDeleted("dailyAttendanceRecords", "每日考勤记录", (await tx.dailyAttendanceRecord.deleteMany()).count);
+      await tx.dailyAttendanceSequence.deleteMany();
+    }
     if (clearPersonnel) {
+      recordDeleted("birthdayReminderSchedulerRuns", "生日提醒调度记录", (await tx.scheduledJobRun.deleteMany({ where: { jobType: "PERSONNEL_BIRTHDAY_REMINDER" } })).count);
       recordDeleted("salaryHistory", "薪资调整记录", (await tx.salaryHistory.deleteMany()).count);
       recordDeleted("positionHistory", "岗位调动记录", (await tx.positionHistory.deleteMany()).count);
       recordDeleted("personnel", "人员档案", (await tx.personnel.deleteMany()).count);
@@ -150,6 +164,7 @@ export async function POST(request: Request) {
     }
     if (clearStores) recordDeleted("stores", "门店档案", (await tx.store.deleteMany()).count);
     if (targets.includes("contracts")) {
+      recordDeleted("contractExpirySchedulerRuns", "合同到期调度记录", (await tx.scheduledJobRun.deleteMany({ where: { jobType: "CONTRACT_EXPIRY" } })).count);
       recordDeleted("contractRebates", "合同返利记录", (await tx.contractRebate.deleteMany()).count);
       recordDeleted("contracts", "合同记录", (await tx.contract.deleteMany()).count);
     }

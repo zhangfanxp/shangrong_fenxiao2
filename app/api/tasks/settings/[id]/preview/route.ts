@@ -6,7 +6,7 @@ import { writeOperationLog } from "@/lib/operation-log";
 import { readTaskConfig, TaskConfigError } from "@/lib/task-config";
 import { deleteUploadedTaskFiles, TaskAttachmentError, uploadTaskFiles, type UploadedTaskFile } from "@/lib/task-r2-upload";
 
-type ConfigItem = { name: string; component: "attachment" | "input" | "select"; dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null; options: string[]; description: string; required: boolean; weight: number };
+type ConfigItem = { name: string; component: "attachment" | "input" | "select"; dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null; maxValue?: number | null; options: string[]; description: string; required: boolean; weight: number };
 type SubmittedFile = { name: string; type: string; size: number; dataUrl: string };
 type SubmittedItem = { name: string; value?: string | number; files?: SubmittedFile[] };
 
@@ -27,6 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const config = await readTaskConfig(task.configFileName);
     if (!isConfig(config)) throw new TaskConfigError("任务配置文件格式异常，请联系系统管理员。");
     if (config.storageSpace?.id !== task.r2StorageId) throw new TaskConfigError("任务配置文件与存储空间设置不一致，请联系系统管理员处理。");
+    const configSnapshot = { ...config, taskTarget: task.targetType === "STORE_EMPLOYEE" ? "门店员工" : "门店" };
     const body = await request.json() as { items?: SubmittedItem[] };
     if (!Array.isArray(body.items)) return NextResponse.json({ message: "提交内容格式不正确" }, { status: 400 });
     const attachmentEntries: { itemIndex: number; dataType: "photo" | "video" | "document"; file: SubmittedFile }[] = [];
@@ -47,6 +48,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (item.required && empty) throw new TaskConfigError(`请填写“${item.name}”`);
       if (!empty) {
         if (item.component === "input" && item.dataType !== "text" && (!Number.isFinite(Number(value)) || Number(value) < 0)) throw new TaskConfigError(`“${item.name}”请输入有效数字`);
+        if (item.component === "input" && item.dataType === "quantity" && !/^\d+$/.test(String(value))) throw new TaskConfigError(`“${item.name}”请输入非负整数`);
+        if (item.component === "input" && item.dataType === "quantity" && item.maxValue !== undefined && item.maxValue !== null && Number(value) > item.maxValue) throw new TaskConfigError(`“${item.name}”不能超过${item.maxValue}`);
         if (item.component === "select" && !item.options.includes(String(value))) throw new TaskConfigError(`“${item.name}”选项无效，请重新选择`);
       }
       const normalizedValue = empty ? "" : item.component === "input" && item.dataType !== "text" ? Number(value) : typeof value === "string" ? value.trim() : value;
@@ -59,7 +62,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const now = new Date();
     let record;
-    try { record = await db.taskRecord.create({ data: { taskId: task.id, dueDate: now, status: TaskRecordStatus.COMPLETED, completedAt: now, configVersion: task.configVersion, configSnapshot: config as Prisma.InputJsonValue, submission: { submittedBy: { id: session.userId, name: session.realName }, submittedAt: now.toISOString(), r2StorageId: task.r2StorageId, items: normalized } as Prisma.InputJsonValue } }); }
+    try { record = await db.taskRecord.create({ data: { taskId: task.id, targetType: task.targetType, dueDate: now, status: TaskRecordStatus.COMPLETED, completedAt: now, configVersion: task.configVersion, configSnapshot: configSnapshot as Prisma.InputJsonValue, submission: { submittedBy: { id: session.userId, name: session.realName }, submittedAt: now.toISOString(), r2StorageId: task.r2StorageId, items: normalized } as Prisma.InputJsonValue } }); }
     catch (error) { await deleteUploadedTaskFiles(task.r2StorageId, uploadedFiles); throw error; }
     await writeOperationLog({ userId: session.userId, username: session.username, page: "任务设置", action: "预览提交", result: "成功", detail: `任务：${task.recordNo}；任务记录：${record.id}`, request });
     return NextResponse.json({ message: "任务提交成功", recordId: record.id }, { status: 201 });

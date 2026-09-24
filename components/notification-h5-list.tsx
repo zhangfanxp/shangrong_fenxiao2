@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 
 type NotificationItem = { id: string; recordNo: string; title: string; content: string; publisherName: string; releaseAt: string; releaseAtText: string; publishedAt: string | null };
 
-export function NotificationH5List({ apiPath, backPath, title }: { apiPath: string; backPath: string; title: string }) {
+export function NotificationH5List({ apiPath, backPath, title, canMarkRead }: { apiPath: string; backPath: string; title: string; canMarkRead: boolean }) {
   const router = useRouter();
   const [rows, setRows] = useState<NotificationItem[]>([]);
   const [page, setPage] = useState(1);
@@ -33,6 +33,7 @@ export function NotificationH5List({ apiPath, backPath, title }: { apiPath: stri
 
   const acknowledgeNotification = async () => {
     if (!current || acknowledging) return;
+    if (!canMarkRead) { setCurrent(null); return; }
     setAcknowledging(true);
     try {
       const response = await fetch(`${apiPath}/${current.id}/read`, { method: "POST" });
@@ -55,7 +56,7 @@ export function NotificationH5List({ apiPath, backPath, title }: { apiPath: stri
       </button>)}
       {rows.length < total && <Button block loading={loading} onClick={() => void load(page + 1, true)}>加载更多</Button>}
     </section>}
-    <Modal title={current?.title} open={!!current} onCancel={() => !acknowledging && setCurrent(null)} closable={!acknowledging} maskClosable={!acknowledging} footer={<Button type="primary" loading={acknowledging} onClick={() => void acknowledgeNotification()}>{acknowledging ? "确认中..." : "我已知晓"}</Button>} centered>
+    <Modal title={current?.title} open={!!current} onCancel={() => !acknowledging && setCurrent(null)} closable={!acknowledging} maskClosable={!acknowledging} footer={<Button type="primary" loading={acknowledging} onClick={() => void acknowledgeNotification()}>{canMarkRead ? acknowledging ? "确认中..." : "我已知晓" : "关闭"}</Button>} centered>
       {current && <div className="notification-h5-detail"><div><UserOutlined /> 发布人：{current.publisherName}</div><div><CalendarOutlined /> 发布时间：{current.releaseAtText}</div><p>{current.content}</p><small>记录编号：{current.recordNo}</small></div>}
     </Modal>
   </main>;

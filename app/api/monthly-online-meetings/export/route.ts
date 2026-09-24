@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0]?.message || "导出参数不正确" }, { status: 400 });
   const { meetingIds, filters } = parsed.data;
-  const detail = meetingIds?.length ? `已选择 ${meetingIds.length} 条会议记录` : filterLogDetail(filters);
+  const detail = meetingIds?.length ? `已选择 ${meetingIds.length} 条会议记录` : filterLogDetail(filters, configuration.pageName);
 
   try {
     const where = meetingIds?.length
@@ -69,6 +69,6 @@ export async function POST(request: Request) {
     return new NextResponse(Buffer.from(buffer), { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}` } });
   } catch {
     await writeOperationLog({ userId: session.userId, username: session.username, page: configuration.pageName, action: "批量导出", result: "失败", detail, request }).catch(() => undefined);
-    return NextResponse.json({ message: "线上会记录导出失败，请稍后重试" }, { status: 500 });
+    return NextResponse.json({ message: `${configuration.pageName}记录导出失败，请稍后重试` }, { status: 500 });
   }
 }

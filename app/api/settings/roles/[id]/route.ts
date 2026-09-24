@@ -5,6 +5,7 @@ import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { synchronizeStoreLeadership } from "@/lib/store-leadership";
+import { getFixedSystemRole } from "@/lib/system-roles";
 
 const roleSchema = z.object({
   name: z.string().trim().min(1, "请输入角色名称").max(30, "角色名称不能超过30个字符"),
@@ -36,20 +37,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params; const role = await findRole(id);
   if (!role) return NextResponse.json({ message: "角色不存在或已被删除" }, { status: 404 });
   const body = await request.json(); const changingStatus = body.action === "status";
+  const fixedRole = getFixedSystemRole(role.code);
   let action: "编辑" | "启用" | "禁用";
   let data: { name?: string; code?: string; permissions?: string[]; status: RecordStatus };
   if (changingStatus) {
     const parsed = statusSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0].message }, { status: 400 });
     if (!sameTimestamp(role.updatedAt, parsed.data.updatedAt)) return NextResponse.json({ message: "角色已被其他用户修改，请刷新后重新操作。" }, { status: 409 });
-    if (role.code === "SUPER_ADMIN" && parsed.data.status === RecordStatus.DISABLED) return NextResponse.json({ message: "超级管理员角色不可禁用" }, { status: 400 });
+    if (fixedRole && parsed.data.status === RecordStatus.DISABLED) return NextResponse.json({ message: `${fixedRole.name}为系统固定角色，不可禁用` }, { status: 400 });
     action = parsed.data.status === RecordStatus.ENABLED ? "启用" : "禁用"; data = { status: parsed.data.status };
   } else {
     const parsed = roleSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0].message }, { status: 400 });
     if (!sameTimestamp(role.updatedAt, parsed.data.updatedAt)) return NextResponse.json({ message: "角色已被其他用户修改，请刷新后重新操作。" }, { status: 409 });
     if (role.type === "SYSTEM" && parsed.data.code !== role.code) return NextResponse.json({ message: "系统内置角色的英文名称不可修改" }, { status: 400 });
-    action = "编辑"; data = { name: parsed.data.name, code: parsed.data.code, permissions: parsed.data.permissions, status: parsed.data.status };
+    if (fixedRole && parsed.data.name !== fixedRole.name) return NextResponse.json({ message: "系统固定角色的名称不可修改" }, { status: 400 });
+    if (fixedRole && parsed.data.status !== RecordStatus.ENABLED) return NextResponse.json({ message: `${fixedRole.name}为系统固定角色，不可禁用` }, { status: 400 });
+    action = "编辑"; data = { name: fixedRole?.name ?? parsed.data.name, code: fixedRole?.code ?? parsed.data.code, permissions: role.code === "SUPER_ADMIN" ? ["*"] : parsed.data.permissions, status: fixedRole ? RecordStatus.ENABLED : parsed.data.status };
   }
   try {
     const result = await db.$transaction(async transaction => {

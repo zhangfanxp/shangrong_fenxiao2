@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { getLeadH5Session } from "@/lib/lead-h5-auth";
+import { getLeadH5Session, leadH5ReviewPermission } from "@/lib/lead-h5-auth";
 import { createLeadH5ReviewPhotoUploadToken } from "@/lib/lead-h5-review-upload-token";
 import { brandMatches, findReviewConfigItem, getReviewDefinition, loadReviewConfig, reviewDataScope, validReviewMonth } from "@/lib/lead-h5-reviews";
 import { createLeadH5ReviewPhotoDirectUpload, TaskAttachmentError } from "@/lib/task-r2-upload";
@@ -13,13 +13,13 @@ const inputSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await getLeadH5Session();
-  if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success || !validReviewMonth(parsed.data?.scoreMonth || "")) return NextResponse.json({ message: "拍照上传参数无效" }, { status: 400 });
   const input = parsed.data;
   const definition = getReviewDefinition(input.scoreType);
   if (!definition) return NextResponse.json({ message: "评分类型无效" }, { status: 400 });
+  const session = await getLeadH5Session(leadH5ReviewPermission(input.scoreType, "submit")!);
+  if (!session) return NextResponse.json({ message: "登录状态已失效或暂无该评分提交权限" }, { status: 401 });
   try {
     const [store, assessment] = await Promise.all([
       db.store.findFirst({ where: { id: input.storeId, ...reviewDataScope(session), operationStatus: { not: "CLOSED" }, brand: { status: "ENABLED" } }, include: { brand: true } }),

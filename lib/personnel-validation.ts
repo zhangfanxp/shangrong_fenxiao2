@@ -1,4 +1,4 @@
-import { PlatformAccess, PersonnelStatus, SocialSecurityStatus } from "@prisma/client";
+import { BirthdayCalendar, PlatformAccess, PersonnelStatus, SocialSecurityStatus } from "@prisma/client";
 import { z } from "zod";
 
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日期格式应为YYYY-MM-DD");
@@ -21,6 +21,7 @@ export const personnelInputSchema = z.object({
   phone: z.string().trim().regex(/^1\d{10}$/, "请输入正确的11位手机号"),
   idNumber: z.string().trim().transform(value => value.toUpperCase()).refine(isValidChineseIdNumber, "请输入正确的身份证号码"),
   birthday: z.string().regex(/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "员工生日格式不正确").nullable().optional(),
+  birthdayCalendar: z.nativeEnum(BirthdayCalendar).default(BirthdayCalendar.LUNAR),
   status: z.nativeEnum(PersonnelStatus).default(PersonnelStatus.ACTIVE),
   hireDate: dateString,
   positionLevel: z.string().trim().min(1, "请选择所属岗位星级").max(50),
@@ -34,7 +35,7 @@ export const personnelInputSchema = z.object({
   currentAddress: z.string().trim().min(1, "请输入现住址").max(50, "现住址不能超过50个字符"),
   supplementaryMaterial: z.string().trim().max(50, "需补充材料不能超过50个字符").nullable().optional(),
   baseSalary: z.number().min(0, "基本工资不能小于0").max(9999999999),
-  laborCost: z.number({ message: "请输入用工成本" }).min(0, "用工成本不能小于0").max(9999999999),
+  laborCost: z.number().min(0, "用工成本不能小于0").max(9999999999).nullable().optional(),
   workdayHours: z.number().min(0.01, "工作日小时必须大于0").max(24, "工作日小时不能超过24小时").nullable().optional(),
   socialSecurity: z.nativeEnum(SocialSecurityStatus),
   platformAccess: z.nativeEnum(PlatformAccess).nullable().optional(),
@@ -46,7 +47,7 @@ export const personnelInputSchema = z.object({
   if (data.organization === "总部" && !data.department) ctx.addIssue({ code: "custom", path: ["department"], message: "请选择总部部门" });
   if (data.organization !== "总部" && !data.storeId) ctx.addIssue({ code: "custom", path: ["storeId"], message: "请选择部门/店面" });
   if (new Date(data.contractExpiryDate) < new Date(data.contractSignDate)) ctx.addIssue({ code: "custom", path: ["contractExpiryDate"], message: "合同到期日不能早于合同签署日期" });
-  if (data.platformAccess === PlatformAccess.YES && !data.platformUserId) ctx.addIssue({ code: "custom", path: ["platformUserId"], message: "请选择平台用户" });
+  if (data.platformAccess === PlatformAccess.YES && !data.platformUserId) ctx.addIssue({ code: "custom", path: ["platformUserId"], message: "请选择本平台用户" });
 });
 
 export type PersonnelInput = z.infer<typeof personnelInputSchema>;

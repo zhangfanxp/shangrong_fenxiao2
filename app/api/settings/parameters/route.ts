@@ -5,7 +5,9 @@ import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { AI_MODEL_IDS, aiModelLabel, aiModelSupportsService, type AiServiceApiConfig } from "@/lib/ai-model-adapters";
-import { getPlatformConfig, normalizeLoginTags, platformAssetVersion, savePlatformConfig } from "@/lib/platform-config";
+import { saveNextMonthLaborCostPolicy } from "@/lib/labor-cost-policy";
+import { LEGAL_HOLIDAY_RULES, MONTHLY_REST_RULES } from "@/lib/personnel-labor-costs";
+import { getPlatformConfig, platformAssetVersion, savePlatformConfig } from "@/lib/platform-config";
 
 const imagePattern = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
 const backgroundPattern = /^data:image\/(png|jpeg);base64,([A-Za-z0-9+/]+={0,2})$/;
@@ -23,9 +25,6 @@ const platformSchema = z.object({
   platformName: z.string().trim().min(1, "请输入平台名称").max(30, "平台名称不能超过30个字符"),
   logoDataUrl: imageSchema(imagePattern, 2 * 1024 * 1024, "后台LOGO仅支持PNG、JPG或WEBP格式，且文件不能超过2MB"),
   loginBackgroundDataUrl: imageSchema(backgroundPattern, 5 * 1024 * 1024, "登录页背景图片仅支持PNG、JPG或JPEG格式，且文件不能超过5MB"),
-  leadPcLoginTags: z.string().trim().max(200, "运营PC端登录用户标签不能超过200个字符").optional().default(""),
-  leadH5LoginTags: z.string().trim().max(200, "运营H5移动端登录用户标签不能超过200个字符").optional().default(""),
-  storeH5LoginTags: z.string().trim().max(200, "门店H5移动端登录用户标签不能超过200个字符").optional().default(""),
   removeLogo: z.boolean().optional().default(false),
   removeLoginBackground: z.boolean().optional().default(false),
   automaticTaskExecutionTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的自动执行时间"),
@@ -67,7 +66,22 @@ const aiApiSchema = z.object({
   })).max(100, "Ai服务接口数量不能超过100个"),
 });
 
-const inputSchema = z.discriminatedUnion("section", [platformSchema, trainingSchema, aiApiSchema]);
+const otherSchema = z.object({
+  section: z.literal("other"),
+  contractExpiringWarningDays: z.coerce.number().int("合同即将到期天数必须为整数").min(1, "合同即将到期天数不能少于1天").max(3650, "合同即将到期天数不能超过3650天"),
+  birthdayReminderDays: z.coerce.number().int("生日提醒天数必须为整数").min(1, "生日提醒天数不能少于1天").max(365, "生日提醒天数不能超过365天"),
+  birthdayReminderCalculationTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的生日提醒计算时间"),
+  laborCostPolicy: z.object({
+    headquartersMonthlyRestRule: z.enum(MONTHLY_REST_RULES),
+    headquartersFixedRestDays: z.coerce.number().int("公司员工固定公休数必须为整数").min(0, "公司员工固定公休数不能小于0").max(31, "公司员工固定公休数不能超过31天"),
+    headquartersLegalHolidayRule: z.enum(LEGAL_HOLIDAY_RULES),
+    storeMonthlyRestRule: z.enum(MONTHLY_REST_RULES),
+    storeFixedRestDays: z.coerce.number().int("门店员工固定公休数必须为整数").min(0, "门店员工固定公休数不能小于0").max(31, "门店员工固定公休数不能超过31天"),
+    storeLegalHolidayRule: z.enum(LEGAL_HOLIDAY_RULES),
+  }),
+});
+
+const inputSchema = z.discriminatedUnion("section", [platformSchema, trainingSchema, aiApiSchema, otherSchema]);
 
 export async function GET(request: Request) {
   const platform = await getPlatformConfig();
@@ -79,6 +93,7 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const receivedAt = new Date();
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   if (!sessionHasPermission(session, "settings:parameters")) return NextResponse.json({ message: "暂无系统参数维护权限" }, { status: 403 });
@@ -94,9 +109,6 @@ export async function PUT(request: Request) {
         platformName: parsed.data.platformName,
         logoDataUrl: parsed.data.removeLogo ? null : parsed.data.logoDataUrl ?? current.logoDataUrl,
         loginBackgroundDataUrl: parsed.data.removeLoginBackground ? null : parsed.data.loginBackgroundDataUrl ?? current.loginBackgroundDataUrl,
-        leadPcLoginTags: normalizeLoginTags(parsed.data.leadPcLoginTags),
-        leadH5LoginTags: normalizeLoginTags(parsed.data.leadH5LoginTags),
-        storeH5LoginTags: normalizeLoginTags(parsed.data.storeH5LoginTags),
         automaticTaskExecutionTime: parsed.data.automaticTaskExecutionTime,
         defaultTaskDeadlineDayOffset: parsed.data.defaultTaskDeadlineDayOffset,
         defaultTaskDeadlineTime: parsed.data.defaultTaskDeadlineTime,
@@ -122,6 +134,19 @@ export async function PUT(request: Request) {
       const detail = `更新${activeServices.map(service => `【${service}】：${aiModelLabel(aiApiServices[service].selectedModel)}`).join("；") || "空"}接口`;
       await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "保存Ai API", result: "成功", detail: detail.slice(0, 800), request }).catch(() => undefined);
       return NextResponse.json({ success: true, message: "Ai API配置已保存成功" });
+    }
+
+    if (parsed.data.section === "other") {
+      const laborCostPolicy = await saveNextMonthLaborCostPolicy(parsed.data.laborCostPolicy, { userId: session.userId, username: session.username }, receivedAt);
+      await savePlatformConfig({
+        ...current,
+        contractExpiringWarningDays: parsed.data.contractExpiringWarningDays,
+        birthdayReminderDays: parsed.data.birthdayReminderDays,
+        birthdayReminderCalculationTime: parsed.data.birthdayReminderCalculationTime,
+      });
+      const { effectiveMonth, ...savedLaborCostPolicy } = laborCostPolicy;
+      await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "保存其他参数", result: "成功", detail: `合同距离截止日期不足${parsed.data.contractExpiringWarningDays}天时自动标为即将到期；仪表板生日提醒范围：${parsed.data.birthdayReminderDays}天；每日计算时间：${parsed.data.birthdayReminderCalculationTime}；员工成本参数生效月份：${effectiveMonth}；总部公休规则：${savedLaborCostPolicy.headquartersMonthlyRestRule}/${savedLaborCostPolicy.headquartersFixedRestDays}；门店公休规则：${savedLaborCostPolicy.storeMonthlyRestRule}/${savedLaborCostPolicy.storeFixedRestDays}`, request }).catch(() => undefined);
+      return NextResponse.json({ success: true, message: `其他参数已保存成功，员工成本参数将于${effectiveMonth}生效`, laborCostPolicyEffectiveMonth: effectiveMonth, laborCostPolicy: savedLaborCostPolicy });
     }
 
     const dailyLearningR2StorageId = parsed.data.dailyLearningR2StorageId === undefined ? current.dailyLearningR2StorageId : parsed.data.dailyLearningR2StorageId;

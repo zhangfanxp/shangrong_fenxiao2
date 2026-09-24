@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { getLeadH5Session } from "@/lib/lead-h5-auth";
+import { getLeadH5Session, leadH5ReviewPermission } from "@/lib/lead-h5-auth";
 import { verifyLeadH5ReviewPhotoUploadToken } from "@/lib/lead-h5-review-upload-token";
 import { brandMatches, findReviewConfigItem, getReviewDefinition, loadReviewConfig, reviewDataScope } from "@/lib/lead-h5-reviews";
 import { createTaskAttachmentReadUrl, deleteTaskDraftFiles, TaskAttachmentError, verifyStoreTaskDirectUpload } from "@/lib/task-r2-upload";
@@ -10,11 +10,12 @@ import { createTaskAttachmentReadUrl, deleteTaskDraftFiles, TaskAttachmentError,
 const inputSchema = z.object({ uploadToken: z.string().min(1), etag: z.string().max(200).nullable().optional() });
 
 export async function POST(request: Request) {
-  const session = await getLeadH5Session();
-  if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ message: "上传确认参数无效" }, { status: 400 });
   const grant = await verifyLeadH5ReviewPhotoUploadToken(parsed.data.uploadToken).catch(() => null);
+  const requiredPermission = grant ? leadH5ReviewPermission(grant.reviewType, "submit") : null;
+  const session = requiredPermission ? await getLeadH5Session(requiredPermission) : null;
+  if (!session) return NextResponse.json({ message: "登录状态已失效或暂无该评分提交权限" }, { status: 401 });
   if (!grant || grant.userId !== session.userId) return NextResponse.json({ message: "上传凭证无效或已过期，请重新上传" }, { status: 400 });
   const cleanup = () => deleteTaskDraftFiles([{ r2StorageId: grant.r2StorageId, objectKey: grant.objectKey }]).catch(() => undefined);
   try {

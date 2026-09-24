@@ -86,6 +86,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       taskType: row.taskType || row.formalSubmission.taskType,
       taskTypeLabel: taskTypeLabel(row.taskType || row.formalSubmission.taskType),
       executor: `${row.assignedRoleNameSnapshot || "未知角色"}｜${row.assignedUserNameSnapshot || row.formalSubmission.userRealNameSnapshot}`,
+      targetEmployee: row.targetPersonnelNameSnapshot ? `${row.targetPersonnelNameSnapshot}${row.targetPersonnelPositionSnapshot ? `｜${row.targetPersonnelPositionSnapshot}` : ""}` : "-",
       includeCompletionRate: row.includeCompletionRate !== false,
       createdAt: formatTaskRecordDateTime(row.triggeredAt),
       submittedAt: formatTaskRecordDateTime(row.formalSubmission.submittedAt),

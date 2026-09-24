@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createLeadH5Session, leadH5SessionCookie } from "@/lib/lead-h5-auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
-import { getPlatformConfig, userHasAnyLoginTag } from "@/lib/platform-config";
+import { hasRolePlatformAccess } from "@/lib/role-permissions";
 
 const input = z.object({ username: z.string().trim().min(1, "请输入账号"), password: z.string().min(1, "请输入密码") });
 
@@ -20,9 +20,9 @@ export async function POST(request: Request) {
     await writeOperationLog({ userId: user.id, username: user.username, client: "运营移动端", page: "登录页面", action: "登录", result: "失败", detail: "账号或角色已禁用", request }).catch(() => undefined);
     return NextResponse.json({ message: "当前账号已被禁用，请联系平台管理员" }, { status: 403 });
   }
-  const platform = await getPlatformConfig();
-  if (!userHasAnyLoginTag(user.tags, platform.leadH5LoginTags)) {
-    await writeOperationLog({ userId: user.id, username: user.username, client: "运营移动端", page: "登录页面", action: "登录", result: "失败", detail: "用户不符合运营H5登录资格", request }).catch(() => undefined);
+  const permissions = Array.isArray(user.role.permissions) ? user.role.permissions.filter((item): item is string => typeof item === "string") : [];
+  if (!hasRolePlatformAccess(permissions, "lead-h5")) {
+    await writeOperationLog({ userId: user.id, username: user.username, client: "运营移动端", page: "登录页面", action: "登录", result: "失败", detail: "所属角色未配置运营H5移动端权限", request }).catch(() => undefined);
     return NextResponse.json({ message: "当前账号暂无运营H5移动端使用权限" }, { status: 403 });
   }
   const token = await createLeadH5Session(user.id);
@@ -32,4 +32,3 @@ export async function POST(request: Request) {
   response.cookies.set(leadH5SessionCookie.name, token, leadH5SessionCookie.options);
   return response;
 }
-

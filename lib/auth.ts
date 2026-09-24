@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { canAccessPath, type PermissionRequirement, hasPermission } from "@/lib/access-control";
 import { db } from "@/lib/db";
+import { hasRolePlatformAccess } from "@/lib/role-permissions";
 import { sessionCookieSecure } from "@/lib/session-cookie";
 
 const cookieName = "canyin_session";
@@ -24,6 +25,7 @@ export const getSession = cache(async (): Promise<Session | null> => {
     const user = await db.user.findUnique({ where: { id: tokenSession.userId }, include: { role: true } });
     if (!user || user.status !== "ENABLED" || user.role.status !== "ENABLED") return null;
     const permissions = Array.isArray(user.role.permissions) ? user.role.permissions.filter((item): item is string => typeof item === "string") : [];
+    if (!hasRolePlatformAccess(permissions, "lead-pc")) return null;
     return { userId: user.id, username: user.username, realName: user.realName, role: user.role.code, permissions };
   } catch { return null; }
 });

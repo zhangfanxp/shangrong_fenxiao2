@@ -21,7 +21,7 @@ type TemplateData = {
   config: Config;
 };
 
-export function LeadH5ResearchForm() {
+export function LeadH5ResearchForm({ canSubmit }: { canSubmit: boolean }) {
   const router = useRouter();
   const search = useSearchParams();
   const researchMonth = search.get("researchMonth") || "";
@@ -97,7 +97,7 @@ export function LeadH5ResearchForm() {
     submitted.current = true; setLeaveConfirmOpen(false); router.replace("/lead_h5");
   };
   const submit = async () => {
-    if (!data) return;
+    if (!canSubmit || !data) return;
     try {
       await form.validateFields();
       setSubmitConfirmOpen(true);
@@ -137,7 +137,8 @@ export function LeadH5ResearchForm() {
   return <main className="lead-h5-review-page lead-h5-research-page">
     <header className="lead-h5-review-header"><Button type="text" icon={<ArrowLeftOutlined />} onClick={leave}>返回</Button><strong>门店调研</strong><span /></header>
     <section className="lead-h5-review-summary"><div className="lead-h5-review-title"><span><ShopOutlined /></span><div><h1>{data.store.name}</h1><p>{data.store.brandName} · {researchMonth.replace("-", "年")}月</p></div></div><div className="lead-h5-review-meta"><span><UserOutlined /> 考核督导：{data.supervisor.realName}</span><Tag color="blue"><FileSearchOutlined /> {data.template.templateType}</Tag></div></section>
-    <Form form={form} layout="vertical" className="lead-h5-research-content" onValuesChange={(_, values) => { setAnswers(values); setDirty(true); }}>
+    {!canSubmit && <Alert type="info" showIcon message="当前角色仅可查看调研表，不能填写或提交" />}
+    <Form form={form} disabled={!canSubmit} layout="vertical" className="lead-h5-research-content" onValuesChange={(_, values) => { setAnswers(values); setDirty(true); }}>
       {groups.map((section, sectionIndex) => <section key={section.name} className="lead-h5-research-section"><div className="lead-h5-score-section-title"><span>{String(sectionIndex + 1).padStart(2, "0")}</span><h2>{section.name}</h2></div>
         {section.subsections.map(subsection => <Card key={`${section.name}-${subsection.name}`} className="lead-h5-research-card" title={subsection.name}>
           {subsection.items.map((item, itemIndex) => <Form.Item key={item.id} name={item.id} label={<span><b>{itemIndex + 1}</b>{item.label}</span>} required={item.required} rules={item.required ? [{ required: true, whitespace: true, message: `请输入${item.label}` }] : undefined}>
@@ -146,7 +147,7 @@ export function LeadH5ResearchForm() {
         </Card>)}
       </section>)}
     </Form>
-    <footer className="lead-h5-review-footer lead-h5-research-footer"><div><span>已填写</span><strong>{completedCount}</strong><small>/ {data.config.items.length} 项</small></div><Button type="primary" size="large" loading={submitting} disabled={submitting} onClick={() => void submit()}>{submitting ? "提交中..." : "提交"}</Button></footer>
+    <footer className="lead-h5-review-footer lead-h5-research-footer"><div><span>已填写</span><strong>{completedCount}</strong><small>/ {data.config.items.length} 项</small></div><Button type="primary" size="large" loading={submitting} disabled={!canSubmit || submitting} onClick={() => void submit()}>{canSubmit ? submitting ? "提交中..." : "提交" : "仅可查看"}</Button></footer>
     <Modal className="lead-h5-submit-modal" title="确认提交本次门店调研？" open={submitConfirmOpen} centered maskClosable={false} closable={!submitting} okText="确认提交" cancelText="取消" confirmLoading={submitting} onCancel={() => { if (!submitting) setSubmitConfirmOpen(false); }} onOk={() => void confirmSubmit()}>
       <p>提交后本次调研将正式保存，一个店铺同一调研月份仅允许提交一次，请确认填写内容无误。</p><div className="lead-h5-submit-summary"><span>{data.store.name}</span><strong>{researchMonth.replace("-", "年")}月</strong></div>
     </Modal>

@@ -12,7 +12,7 @@ type ReviewPhoto = { id: string; itemId: string; name: string; size: number; mim
 type TemplateData = { store: { id: string; name: string; brandName: string }; reviewer: { realName: string }; assessment: { id: string; name: string; configVersion: number }; config: Config; draftPhotos?: ReviewPhoto[] };
 type ScoreState = Record<string, { result?: Result; score: number | null }>;
 
-export function LeadH5ReviewForm({ reviewType, reviewTitle }: { reviewType: "FRONT_HALL_AUDIT" | "BACK_KITCHEN_AUDIT" | "STORE_CREDIT_SCORE"; reviewTitle: string }) {
+export function LeadH5ReviewForm({ reviewType, reviewTitle, canSubmit }: { reviewType: "FRONT_HALL_AUDIT" | "BACK_KITCHEN_AUDIT" | "STORE_CREDIT_SCORE"; reviewTitle: string; canSubmit: boolean }) {
   const router = useRouter(); const search = useSearchParams();
   const scoreMonth = search.get("scoreMonth") || ""; const storeId = search.get("storeId") || "";
   const [data, setData] = useState<TemplateData>(); const [scores, setScores] = useState<ScoreState>({});
@@ -105,7 +105,7 @@ export function LeadH5ReviewForm({ reviewType, reviewTitle }: { reviewType: "FRO
     return true;
   };
   const submit = () => {
-    if (!data || !validate()) return;
+    if (!canSubmit || !data || !validate()) return;
     setSubmitConfirmOpen(true);
   };
   const confirmSubmit = async () => {
@@ -127,17 +127,18 @@ export function LeadH5ReviewForm({ reviewType, reviewTitle }: { reviewType: "FRO
   return <main className="lead-h5-review-page">
     <header className="lead-h5-review-header"><Button type="text" icon={<ArrowLeftOutlined />} onClick={leave}>返回</Button><strong>{reviewTitle}</strong><span /></header>
     <section className="lead-h5-review-summary"><div className="lead-h5-review-title"><span><ShopOutlined /></span><div><h1>{data.store.name}</h1><p>{data.store.brandName} · {scoreMonth.replace("-", "年")}月</p></div></div><div className="lead-h5-review-meta"><span><UserOutlined /> 评分人：{data.reviewer.realName}</span><Tag color="blue">满分 {data.config.totalScore}</Tag></div></section>
+    {!canSubmit && <Alert type="info" showIcon message="当前角色仅可查看评分表，不能填写、上传照片或提交评分" />}
     <section className="lead-h5-review-content">
       {data.config.sections.map((section, sectionIndex) => <section key={`${section.name}-${sectionIndex}`} className="lead-h5-score-section"><div className="lead-h5-score-section-title"><span>{String(sectionIndex + 1).padStart(2, "0")}</span><h2>{section.name}</h2></div>
         {section.children.map((subsection, subsectionIndex) => <div key={`${subsection.name}-${subsectionIndex}`} className={`lead-h5-score-subsection ${isCredit ? "credit" : ""}`}>{!isCredit && <h3>{subsection.name}</h3>}
           {subsection.items.map((item, itemIndex) => { const value = scores[item.id]; const partial = value?.result === "PARTIAL"; const invalid = partial && (value.score == null || value.score <= 0 || value.score >= item.maxScore || Math.round(value.score * 10) !== value.score * 10); return <Card id={`review-${item.id}`} key={item.id} className={`lead-h5-score-card ${value?.result ? "completed" : ""}`}>
             <div className="lead-h5-score-card-head"><span className="lead-h5-item-no">{itemIndex + 1}</span><div className="lead-h5-score-card-copy"><p>{item.description}</p>{isCredit && <div className="lead-h5-credit-meta"><span>违约金额</span><b>{item.breachAmount || "-"}</b><em>分值 {item.maxScore}</em></div>}</div>{!isCredit && <strong>{item.maxScore}分</strong>}</div>
-            <Radio.Group className={`lead-h5-score-options ${data.config.scoreMode === "BINARY" ? "two-options" : "three-options"}`} value={value?.result} onChange={event => choose(item, event.target.value)}>
+            <Radio.Group disabled={!canSubmit} className={`lead-h5-score-options ${data.config.scoreMode === "BINARY" ? "two-options" : "three-options"}`} value={value?.result} onChange={event => choose(item, event.target.value)}>
               <Radio.Button className="lead-h5-score-option pass" value="PASS"><CheckOutlined />合格</Radio.Button>{data.config.scoreMode === "CUSTOM_SCORE" && <Radio.Button className="lead-h5-score-option partial" value="PARTIAL" disabled={item.maxScore <= 0.1}><MinusOutlined />部分合格</Radio.Button>}<Radio.Button className="lead-h5-score-option fail" value="FAIL"><CloseOutlined />不合格</Radio.Button>
             </Radio.Group>
-            <div className="lead-h5-item-score"><span>实际得分</span><InputNumber value={value?.score} disabled={!partial} min={0.1} max={Math.max(0.1, item.maxScore - 0.1)} precision={1} step={0.1} status={invalid ? "error" : undefined} onChange={next => partialScore(item, next)} /><span>分</span></div>
+            <div className="lead-h5-item-score"><span>实际得分</span><InputNumber value={value?.score} disabled={!canSubmit || !partial} min={0.1} max={Math.max(0.1, item.maxScore - 0.1)} precision={1} step={0.1} status={invalid ? "error" : undefined} onChange={next => partialScore(item, next)} /><span>分</span></div>
             {invalid && <div className="lead-h5-item-error">得分须大于0且小于{item.maxScore}，最多1位小数</div>}
-            {item.supportsPhoto && <div className="lead-h5-review-photos">
+            {canSubmit && item.supportsPhoto && <div className="lead-h5-review-photos">
               <div className="lead-h5-review-photos-head"><span><CameraOutlined /> 拍照附件</span><small>{(photos[item.id] || []).length}/{data.config.photoAttachmentLimit}张</small></div>
               {!!(photos[item.id] || []).length && <div className="lead-h5-review-photo-grid">{(photos[item.id] || []).map(photo => <div className="lead-h5-review-photo" key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.name} /> : <span><CameraOutlined /></span>}<Button type="text" danger icon={<DeleteOutlined />} aria-label={`删除${photo.name}`} onClick={() => void removePhoto(item.id, photo)} /></div>)}</div>}
               <input id={`review-photo-${item.id}`} hidden type="file" accept="image/*" capture="environment" multiple onChange={event => { void uploadPhotos(item, event.target.files); event.target.value = ""; }} />
@@ -147,7 +148,7 @@ export function LeadH5ReviewForm({ reviewType, reviewTitle }: { reviewType: "FRO
         </div>)}
       </section>)}
     </section>
-    <footer className="lead-h5-review-footer"><div><span>当前得分</span><strong>{currentScore}</strong><small>/ {data.config.totalScore}</small></div><Button type="primary" size="large" loading={submitting} disabled={submitting} onClick={submit}>{submitting ? "提交中..." : "提交"}</Button></footer>
+    <footer className="lead-h5-review-footer"><div><span>当前得分</span><strong>{currentScore}</strong><small>/ {data.config.totalScore}</small></div><Button type="primary" size="large" loading={submitting} disabled={!canSubmit || submitting} onClick={submit}>{canSubmit ? submitting ? "提交中..." : "提交" : "仅可查看"}</Button></footer>
     <Modal className="lead-h5-submit-modal" title={`确认提交本次${reviewTitle}？`} open={submitConfirmOpen} centered maskClosable={false} closable={!submitting} okText="确认提交" cancelText="取消" confirmLoading={submitting} onCancel={() => { if (!submitting) setSubmitConfirmOpen(false); }} onOk={() => void confirmSubmit()}>
       <p>提交后本次评分将正式保存，一个店铺同一评分月份仅允许提交一次，请确认评分内容无误。</p>
       <div className="lead-h5-submit-summary"><span>{data.store.name}</span><strong>{currentScore} / {data.config.totalScore} 分</strong></div>

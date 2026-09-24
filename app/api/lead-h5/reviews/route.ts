@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getLeadH5Session } from "@/lib/lead-h5-auth";
+import { getLeadH5Session, leadH5ReviewPermission } from "@/lib/lead-h5-auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import {
@@ -45,13 +45,13 @@ function shanghaiDateTime(date: Date) {
 }
 
 export async function POST(request: Request) {
-  const session = await getLeadH5Session();
-  if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success || !validReviewMonth(parsed.data?.scoreMonth || "")) return NextResponse.json({ message: parsed.success ? "评分月份无效" : parsed.error.issues[0].message }, { status: 400 });
   const input = parsed.data;
   const definition = getReviewDefinition(input.scoreType);
   if (!definition) return NextResponse.json({ message: "评分类型无效" }, { status: 400 });
+  const session = await getLeadH5Session(leadH5ReviewPermission(input.scoreType, "submit")!);
+  if (!session) return NextResponse.json({ message: "登录状态已失效或暂无该评分提交权限" }, { status: 401 });
   try {
     const [store, assessment] = await Promise.all([
       db.store.findFirst({ where: { id: input.storeId, ...reviewDataScope(session), operationStatus: { not: "CLOSED" }, brand: { status: "ENABLED" } }, include: { brand: true } }),

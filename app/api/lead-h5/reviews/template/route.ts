@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server";
-import { getLeadH5Session } from "@/lib/lead-h5-auth";
+import { getLeadH5Session, leadH5ReviewPermission } from "@/lib/lead-h5-auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { brandMatches, getReviewDefinition, loadReviewConfig, reviewDataScope, validReviewMonth } from "@/lib/lead-h5-reviews";
 import { createTaskAttachmentReadUrl } from "@/lib/task-r2-upload";
 
 export async function GET(request: Request) {
-  const session = await getLeadH5Session();
-  if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   const url = new URL(request.url);
   const storeId = url.searchParams.get("storeId") || "";
   const reviewMonth = url.searchParams.get("scoreMonth") || "";
   const reviewType = url.searchParams.get("scoreType") || "";
   const definition = getReviewDefinition(reviewType);
   if (!storeId || !validReviewMonth(reviewMonth) || !definition) return NextResponse.json({ message: "评分参数无效" }, { status: 400 });
+  const session = await getLeadH5Session(leadH5ReviewPermission(reviewType, "view")!);
+  if (!session) return NextResponse.json({ message: "登录状态已失效或暂无该评分页面权限" }, { status: 401 });
   try {
     const store = await db.store.findFirst({
       where: { id: storeId, ...reviewDataScope(session), operationStatus: { not: "CLOSED" }, brand: { status: "ENABLED" } },

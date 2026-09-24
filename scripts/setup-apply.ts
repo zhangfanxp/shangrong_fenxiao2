@@ -2,6 +2,7 @@ import { loadEnvConfig } from "@next/env";
 import bcrypt from "bcryptjs";
 import { RecordStatus, UserType } from "@prisma/client";
 import { setupInputSchema, SYSTEM_DICTIONARIES } from "../lib/deployment";
+import { synchronizeFixedSystemRoles } from "../lib/system-role-sync";
 
 async function readStdin() {
   const chunks: Buffer[] = [];
@@ -18,11 +19,9 @@ async function main() {
   ]);
 
   try {
-    const role = await db.role.upsert({
-      where: { code: "SUPER_ADMIN" },
-      create: { code: "SUPER_ADMIN", name: "超级管理员", type: "SYSTEM", status: RecordStatus.ENABLED, permissions: ["*"] },
-      update: { name: "超级管理员", type: "SYSTEM", status: RecordStatus.ENABLED, permissions: ["*"] },
-    });
+    const roles = await synchronizeFixedSystemRoles(db);
+    const role = roles.find(item => item.code === "SUPER_ADMIN");
+    if (!role) throw new Error("超级管理员角色初始化失败");
     const passwordHash = await bcrypt.hash(input.administrator.password, 12);
     const administrator = await db.user.upsert({
       where: { username: input.administrator.username },
@@ -67,7 +66,7 @@ async function main() {
       ...currentPlatform,
       platformName: input.platformName,
     });
-    process.stdout.write(`${JSON.stringify({ administratorId: administrator.id })}\n`);
+    process.stdout.write(`${JSON.stringify({ administratorId: administrator.id, systemRoles: roles.length })}\n`);
   } finally {
     await db.$disconnect();
   }

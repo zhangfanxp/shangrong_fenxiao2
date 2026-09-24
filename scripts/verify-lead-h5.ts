@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import bcrypt from "bcryptjs";
 import { db } from "../lib/db";
 import { currentIsoWeek, DAILY_LEARNING_DAY_FIELDS, isoWeekStartAt, nextDailyLearningRecordNo, shanghaiNowParts } from "../lib/daily-learning";
-import { getPlatformConfig } from "../lib/platform-config";
 import { STORE_RESEARCH_TYPE } from "../lib/lead-h5-research";
 import { BACK_KITCHEN_REVIEW_TYPE, FRONT_HALL_REVIEW_TYPE, scoreReview, STORE_CREDIT_REVIEW_TYPE } from "../lib/lead-h5-reviews";
+import { leadH5PermissionGroups, storeH5PermissionGroups } from "../lib/role-permissions";
 
 const baseUrl = process.env.LEAD_H5_VERIFY_URL || "http://127.0.0.1:3001";
 const username = `h5_verify_${Date.now()}`;
 const password = "TemporaryVerify2026";
 let userId: string | undefined;
+let roleId: string | undefined;
 let learningPlanId: string | undefined;
 const reviewIds: string[] = [];
 const researchRecordIds: string[] = [];
@@ -26,15 +27,19 @@ async function main() {
   assert.equal(scoreReview(binaryConfig, [{ itemId: "item_1", result: "PASS" }]).actualScore, 2);
   assert.throws(() => scoreReview(binaryConfig, [{ itemId: "item_1", result: "PARTIAL", score: 1 }]));
 
-  const role = await db.role.findFirst({ where: { status: "ENABLED" }, orderBy: { code: "asc" } });
-  assert(role, "需要至少一个已启用角色才能进行H5验证");
-  const platform = await getPlatformConfig();
-  const loginTag = platform.leadH5LoginTags.split("｜").find(Boolean) || "H5验证";
-  const storeLoginTag = platform.storeH5LoginTags.split("｜").find(Boolean) || "门店H5验证";
+  const role = await db.role.create({ data: {
+    code: `H5_VERIFY_${Date.now()}`,
+    name: `H5自动验证角色_${Date.now()}`,
+    type: "CUSTOM",
+    permissions: [...leadH5PermissionGroups, ...storeH5PermissionGroups].flatMap(group => group.permissions.map(permission => permission.value)),
+  } });
+  roleId = role.id;
   const learningTag = `每日学习验证_${Date.now()}`;
-  const user = await db.user.create({ data: { username, passwordHash: await bcrypt.hash(password, 10), realName: "H5自动验证", tags: [...new Set([loginTag, storeLoginTag, learningTag])].join("｜"), roleId: role.id, status: "ENABLED" } });
+  const user = await db.user.create({ data: { username, passwordHash: await bcrypt.hash(password, 10), realName: "H5自动验证", tags: learningTag, roleId: role.id, status: "ENABLED" } });
   userId = user.id;
 
+  const pcLogin = await request("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+  assert.equal(pcLogin.status, 403, "仅配置H5权限的角色不应允许登录运营PC端");
   const login = await request("/api/lead-h5/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
   assert.equal(login.status, 200, `登录接口返回 ${login.status}`);
   const cookie = login.headers.get("set-cookie")?.split(";")[0];
@@ -214,7 +219,14 @@ async function main() {
     const duplicateResearch = await request("/api/lead-h5/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(researchSubmissionBody) }, cookie);
     assert.equal(duplicateResearch.status, 409, "同店同月督导巡店调研重复提交应被拒绝");
   }
-  console.log(`运营H5验证通过：每日学习、前厅、后厨、门店信用评分和门店调研链路均正常。`);
+  await db.role.update({ where: { id: role.id }, data: { permissions: ["lead-h5:home:view"] } });
+  const leadSessionAfterRevocation = await request("/api/lead-h5/me", undefined, cookie);
+  assert.equal(leadSessionAfterRevocation.status, 200, "保留运营H5端口权限后会话应继续有效");
+  const deniedReviewAfterRevocation = await request(`/api/lead-h5/reviews/available-stores?scoreMonth=${month}&scoreType=${FRONT_HALL_REVIEW_TYPE}`, undefined, cookie);
+  assert.equal(deniedReviewAfterRevocation.status, 401, "移除评分页面权限后原会话不应继续访问评分接口");
+  const storeSessionAfterRevocation = await request("/api/store-h5/me", undefined, storeCookie);
+  assert.equal(storeSessionAfterRevocation.status, 401, "移除门店H5端口权限后原会话应立即失效");
+  console.log(`运营H5验证通过：角色端口、页面、操作权限及动态撤权均正常。`);
 }
 
 main().finally(async () => {
@@ -233,5 +245,6 @@ main().finally(async () => {
     await db.operationLog.deleteMany({ where: { userId } });
     await db.user.deleteMany({ where: { id: userId } });
   }
+  if (roleId) await db.role.deleteMany({ where: { id: roleId } });
   await db.$disconnect();
 });

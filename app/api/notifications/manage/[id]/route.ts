@@ -27,14 +27,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
     const notification = await db.notification.findFirst({
       where,
-      select: { id: true, recordNo: true, title: true, showAfterLogin: true, content: true, releaseDate: true, releaseAt: true, publisherName: true, createdAt: true, createdByName: true, status: true, recipients: { select: { readAt: true } } },
+      select: { id: true, recordNo: true, title: true, type: true, showAfterLogin: true, content: true, releaseDate: true, releaseAt: true, publisherName: true, createdAt: true, createdByName: true, status: true, recipients: { select: { readAt: true } } },
     });
     if (!notification) return NextResponse.json({ message: "通知不存在或已超出数据权限" }, { status: 404 });
     const readCount = notification.recipients.filter(item => item.readAt).length;
     await writeOperationLog({ userId: session.userId, username: session.username, page: "通知管理", action, result: "成功", detail: `记录编号：${notification.recordNo}；通知标题：${notification.title}`, request }).catch(() => undefined);
     return NextResponse.json({
       id: notification.id, recordNo: notification.recordNo, title: notification.title,
-      showAfterLogin: notification.showAfterLogin, content: notification.content,
+      notificationType: notification.type, showAfterLogin: notification.showAfterLogin, content: notification.content,
       releaseDate: formatNotificationDate(notification.releaseDate), releaseAt: formatShanghaiDateTime(notification.releaseAt).slice(0, 16),
       publisherName: notification.publisherName, createdAt: formatShanghaiDateTime(notification.createdAt), createdByName: notification.createdByName,
       status: notification.status, readCount, unreadCount: notification.recipients.length - readCount,

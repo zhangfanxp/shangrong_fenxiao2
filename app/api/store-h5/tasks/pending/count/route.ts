@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { getStoreH5Session } from "@/lib/store-h5-auth";
+import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
 import { countPendingStoreTaskInstances } from "@/lib/store-h5-tasks";
 
-export async function GET() {
-  const session = await getStoreH5Session();
-  if (!session) return NextResponse.json({ message: "当前账号已无门店H5使用权限，请重新登录或联系管理员" }, { status: 401 });
+export async function GET(request: Request) {
+  const channel = mobileH5TaskChannel(request);
+  const session = await getMobileH5TaskSession(request, "query");
+  if (!session) return NextResponse.json({ message: mobileH5UnauthorizedMessage(channel) }, { status: 401 });
   try {
     const count = await countPendingStoreTaskInstances(session.userId);
     return NextResponse.json({ count }, { headers: { "Cache-Control": "no-store" } });

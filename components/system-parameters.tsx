@@ -5,17 +5,20 @@ import { Alert, Button, Card, Empty, Form, Input, InputNumber, message, Modal, R
 import type { UploadProps } from "antd";
 import { useEffect, useState } from "react";
 import { AI_MODEL_OPTIONS, aiEndpointExample, aiModelLabel, aiModelSupportsService, normalizeAiServiceApiConfig, type AiModelId, type AiServiceApiConfig } from "@/lib/ai-model-adapters";
+import type { LaborCostPolicy } from "@/lib/personnel-labor-costs";
 import type { PlatformAssetUrls, PlatformSettings } from "@/lib/platform-config";
 
 type BrandOption = { label: string; value: string };
 type R2StorageOption = { label: string; value: string };
-type BrandDayHour = { brand: string; workdayHours: number };
-type PlatformValues = { platformName: string; leadPcLoginTags: string; leadH5LoginTags: string; storeH5LoginTags: string; automaticTaskExecutionTime: string; defaultTaskDeadlineDayOffset: 0 | 1; defaultTaskDeadlineTime: string };
+type AttendanceParameter = { brand: string; workdayHours: number; attendanceStartDayOffset: 0 | 1; attendanceStartTime: string; attendanceDeadlineDayOffset: 0 | 1; attendanceDeadlineTime: string };
+type PlatformValues = { platformName: string; automaticTaskExecutionTime: string; defaultTaskDeadlineDayOffset: 0 | 1; defaultTaskDeadlineTime: string };
 type TrainingValues = { dailyLearningR2StorageId: string | null; trainingVideoR2StorageId: string | null; trainingAudioR2StorageId: string | null; trainingDocumentR2StorageId: string | null };
 type AiApiValues = { services: Record<string, AiServiceApiConfig> };
+type OtherValues = { contractExpiringWarningDays: number; birthdayReminderDays: number; birthdayReminderCalculationTime: string; laborCostPolicy: LaborCostPolicy };
+type InitialLaborCostPolicy = { effectiveMonth: string; sourceEffectiveMonth: string | null; policy: LaborCostPolicy };
 type AiApiTestResult = { service: string; model: AiModelId; modelLabel: string; label: string; ok: boolean; message: string; elapsedMilliseconds: number };
 type AiApiTestDialog = { open: boolean; phase: "testing" | "success" | "error"; message: string; results: AiApiTestResult[] };
-type BrandHourValues = { brand: string; workdayHours: number };
+type AttendanceParameterValues = AttendanceParameter;
 type SchedulerStatus = {
   scheduledTime: string;
   today: string;
@@ -31,18 +34,45 @@ type SchedulerStatus = {
   };
 };
 
-const loginAddresses: Array<{ title: string; path: string; field: "leadPcLoginTags" | "leadH5LoginTags" | "storeH5LoginTags"; adminBypass?: boolean }> = [
-  { title: "运营PC端", path: "/lead_pc/login", field: "leadPcLoginTags", adminBypass: true },
-  { title: "运营H5移动端", path: "/lead_h5/login", field: "leadH5LoginTags" },
-  { title: "门店H5移动端", path: "/store_h5/login", field: "storeH5LoginTags" },
+const loginAddresses = [
+  { title: "运营PC端", path: "/lead_pc/login" },
+  { title: "运营H5移动端", path: "/lead_h5/login" },
+  { title: "门店H5移动端", path: "/store_h5/login" },
 ];
 
-export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageOptions, aiServiceOptions, aiServiceLoadError }: { initialPlatform: PlatformSettings; initialAssetUrls: PlatformAssetUrls; r2StorageOptions: R2StorageOption[]; aiServiceOptions: R2StorageOption[]; aiServiceLoadError: boolean }) {
+const monthlyRestRuleOptions = [
+  { value: "SATURDAY_AND_SUNDAY", label: "周六+周日数" },
+  { value: "SUNDAY", label: "周日数" },
+  { value: "SATURDAY", label: "周六数" },
+  { value: "MONDAY", label: "周一数" },
+  { value: "TUESDAY", label: "周二数" },
+  { value: "WEDNESDAY", label: "周三数" },
+  { value: "THURSDAY", label: "周四数" },
+  { value: "FRIDAY", label: "周五数" },
+  { value: "FIXED_DAYS", label: "固定天数" },
+];
+
+const legalHolidayRuleOptions = [
+  { value: "ACTUAL_DATES", label: "法定放假日期" },
+  { value: "EACH_HOLIDAY_ONE_DAY", label: "当月每个法定假期+1天" },
+  { value: "ANY_HOLIDAY_ONE_DAY", label: "当月N个法定假期+1天" },
+  { value: "NONE", label: "+0天" },
+];
+
+function monthLabel(value: string) {
+  const [year, month] = value.split("-");
+  return `${year}年${Number(month)}月`;
+}
+
+export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageOptions, aiServiceOptions, aiServiceLoadError, initialLaborCostPolicy }: { initialPlatform: PlatformSettings; initialAssetUrls: PlatformAssetUrls; r2StorageOptions: R2StorageOption[]; aiServiceOptions: R2StorageOption[]; aiServiceLoadError: boolean; initialLaborCostPolicy: InitialLaborCostPolicy }) {
   const initialAiApiServices = Object.fromEntries(aiServiceOptions.map(service => [service.value, normalizeAiServiceApiConfig(initialPlatform.aiApiServices[service.value], service.value)]));
   const [platformForm] = Form.useForm<PlatformValues>();
   const [trainingForm] = Form.useForm<TrainingValues>();
   const [aiApiForm] = Form.useForm<AiApiValues>();
-  const [brandHourForm] = Form.useForm<BrandHourValues>();
+  const [otherForm] = Form.useForm<OtherValues>();
+  const headquartersMonthlyRestRule = Form.useWatch(["laborCostPolicy", "headquartersMonthlyRestRule"], otherForm) || initialLaborCostPolicy.policy.headquartersMonthlyRestRule;
+  const storeMonthlyRestRule = Form.useWatch(["laborCostPolicy", "storeMonthlyRestRule"], otherForm) || initialLaborCostPolicy.policy.storeMonthlyRestRule;
+  const [brandHourForm] = Form.useForm<AttendanceParameterValues>();
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(initialAssetUrls.logo);
   const [loginBackgroundDataUrl, setLoginBackgroundDataUrl] = useState<string | null>(initialAssetUrls.loginBackground);
   const [courseCoverDataUrl, setCourseCoverDataUrl] = useState<string | null>(initialAssetUrls.courseCover);
@@ -54,23 +84,36 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
   const [platformSaving, setPlatformSaving] = useState(false);
   const [trainingSaving, setTrainingSaving] = useState(false);
   const [aiApiSaving, setAiApiSaving] = useState(false);
+  const [otherSaving, setOtherSaving] = useState(false);
+  const [laborPolicyEffectiveMonth, setLaborPolicyEffectiveMonth] = useState(initialLaborCostPolicy.effectiveMonth);
   const [aiApiTesting, setAiApiTesting] = useState(false);
   const [aiApiTestDialog, setAiApiTestDialog] = useState<AiApiTestDialog>({ open: false, phase: "testing", message: "", results: [] });
   const [siteOrigin, setSiteOrigin] = useState("");
-  const [rows, setRows] = useState<BrandDayHour[]>([]);
+  const [rows, setRows] = useState<AttendanceParameter[]>([]);
   const [brandOptions, setBrandOptions] = useState<BrandOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingBrand, setEditingBrand] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
+
+  useEffect(() => {
+    otherForm.setFieldsValue({
+      contractExpiringWarningDays: initialPlatform.contractExpiringWarningDays,
+      birthdayReminderDays: initialPlatform.birthdayReminderDays,
+      birthdayReminderCalculationTime: initialPlatform.birthdayReminderCalculationTime,
+      laborCostPolicy: initialLaborCostPolicy.policy,
+    });
+    setLaborPolicyEffectiveMonth(initialLaborCostPolicy.effectiveMonth);
+  }, [initialLaborCostPolicy, initialPlatform.birthdayReminderCalculationTime, initialPlatform.birthdayReminderDays, initialPlatform.contractExpiringWarningDays, otherForm]);
 
   const loadSchedulerStatus = async () => {
     try {
       const response = await fetch("/api/settings/task-scheduler/status", { cache: "no-store" });
       if (response.ok) setSchedulerStatus(await response.json());
     } catch {
-      // 状态展示不影响系统参数和品牌工时的正常维护。
+      // 状态展示不影响系统参数和考勤参数的正常维护。
     }
   };
 
@@ -79,10 +122,10 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
     try {
       const response = await fetch("/api/settings/brand-day-hours", { cache: "no-store" });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "品牌工作日小时加载失败，请稍后重试");
+      if (!response.ok) throw new Error(data.message || "考勤参数加载失败，请稍后重试");
       setRows(data.rows); setBrandOptions(data.brandOptions);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "品牌工作日小时加载失败，请稍后重试");
+      setLoadError(error instanceof Error ? error.message : "考勤参数加载失败，请稍后重试");
     } finally {
       setLoading(false);
     }
@@ -222,6 +265,24 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
     }
   };
 
+  const saveOther = async () => {
+    if (otherSaving) return;
+    try {
+      const values = await otherForm.validateFields();
+      setOtherSaving(true);
+      const response = await fetch("/api/settings/parameters", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section: "other", ...values }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return void message.error(data.message || "其他参数保存失败，请稍后重试");
+      if (typeof data.laborCostPolicyEffectiveMonth === "string") setLaborPolicyEffectiveMonth(data.laborCostPolicyEffectiveMonth);
+      if (data.laborCostPolicy && typeof data.laborCostPolicy === "object") otherForm.setFieldValue("laborCostPolicy", data.laborCostPolicy);
+      Modal.success({ title: "温馨提示", content: data.message || "其他参数已保存成功。", okText: "我知道了", centered: true });
+    } catch (error) {
+      if (error instanceof Error) message.error(error.message);
+    } finally {
+      setOtherSaving(false);
+    }
+  };
+
   const testAiApi = async (targetService?: string) => {
     if (aiApiTesting) return;
     try {
@@ -261,19 +322,34 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
   };
 
   const openCreate = () => {
+    setEditingBrand(null);
     brandHourForm.resetFields();
+    brandHourForm.setFieldsValue({ attendanceStartDayOffset: 0, attendanceStartTime: "20:00", attendanceDeadlineDayOffset: 0, attendanceDeadlineTime: "23:59" });
+    setModalOpen(true);
+  };
+
+  const openEditAttendanceParameter = (row: AttendanceParameter) => {
+    setEditingBrand(row.brand);
+    brandHourForm.resetFields();
+    brandHourForm.setFieldsValue(row);
     setModalOpen(true);
   };
 
   const saveBrandHour = async () => {
     try {
       const values = await brandHourForm.validateFields();
+      const minutes = (dayOffset: 0 | 1, time: string) => dayOffset * 24 * 60 + Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+      if (minutes(values.attendanceStartDayOffset, values.attendanceStartTime) >= minutes(values.attendanceDeadlineDayOffset, values.attendanceDeadlineTime)) {
+        brandHourForm.setFields([{ name: "attendanceDeadlineTime", errors: ["考勤截止时间必须晚于考勤开始时间"] }]);
+        return;
+      }
       setSaving(true);
-      const response = await fetch("/api/settings/brand-day-hours", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
+      const response = await fetch("/api/settings/brand-day-hours", { method: editingBrand ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
       const data = await response.json();
-      if (!response.ok) return void message.error(data.message || "品牌工作日小时保存失败，请稍后重试");
-      message.success("品牌工作日小时新增成功");
+      if (!response.ok) return void message.error(data.message || "考勤参数保存失败，请稍后重试");
+      message.success(editingBrand ? "考勤参数修改成功" : "考勤参数新增成功");
       setModalOpen(false);
+      setEditingBrand(null);
       await loadBrandHours();
     } catch (error) {
       if (error instanceof Error) message.error(error.message);
@@ -297,7 +373,7 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
 
   return <>
     <Card title="平台信息" className="system-parameter-card" style={{ marginBottom: 16 }} extra={<Button type="primary" loading={platformSaving} onClick={() => void savePlatform()}>保存</Button>}>
-      <Form form={platformForm} layout="vertical" initialValues={{ platformName: initialPlatform.platformName, leadPcLoginTags: initialPlatform.leadPcLoginTags, leadH5LoginTags: initialPlatform.leadH5LoginTags, storeH5LoginTags: initialPlatform.storeH5LoginTags, automaticTaskExecutionTime: initialPlatform.automaticTaskExecutionTime, defaultTaskDeadlineDayOffset: initialPlatform.defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime: initialPlatform.defaultTaskDeadlineTime }}>
+      <Form form={platformForm} layout="vertical" initialValues={{ platformName: initialPlatform.platformName, automaticTaskExecutionTime: initialPlatform.automaticTaskExecutionTime, defaultTaskDeadlineDayOffset: initialPlatform.defaultTaskDeadlineDayOffset, defaultTaskDeadlineTime: initialPlatform.defaultTaskDeadlineTime }}>
         <div className="platform-parameter-grid">
           <Form.Item label="平台名称" name="platformName" rules={[{ required: true, whitespace: true, message: "请输入平台名称" }, { max: 30, message: "平台名称不能超过30个字符" }]} extra="将显示在运营端登录页“欢迎登录”下方及登录后的页面左上角">
             <Input maxLength={30} showCount placeholder="请输入平台名称" />
@@ -325,10 +401,7 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
             <div className="platform-login-address-list">
               {loginAddresses.map(item => <div className="platform-login-address-card" key={item.path}>
                 <strong>{item.title}</strong>
-                <Form.Item label="登录地址" style={{ marginBottom: 14 }}><Input readOnly value={`${siteOrigin || "当前域名"}${item.path}`} /></Form.Item>
-                <Form.Item label="登录用户标签" name={item.field} rules={[{ max: 200, message: `${item.title}登录用户标签不能超过200个字符` }]} extra={item.adminBypass ? "多个标签之间用｜分割；系统管理员角色无需设置标签也可以登录" : "多个标签之间用｜分割"}>
-                  <Input maxLength={200} placeholder="例如：运营人员｜区域经理" />
-                </Form.Item>
+                <Form.Item label="登录地址" style={{ marginBottom: 0 }} extra="端口及页面访问范围由《角色管理》的权限配置决定"><Input readOnly value={`${siteOrigin || "当前域名"}${item.path}`} /></Form.Item>
               </div>)}
             </div>
           </section>
@@ -393,18 +466,24 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
       </Form>
     </Card>
 
-    <Card title="品牌工作日小时" className="system-parameter-card" style={{ marginBottom: 16 }} extra={<Button type="primary" icon={<PlusOutlined />} disabled={Boolean(loadError)} onClick={openCreate}>新增</Button>}>
-      {loadError ? <Alert type="error" showIcon message={loadError} action={<Button size="small" onClick={() => void loadBrandHours()}>重新加载</Button>} /> : <Table<BrandDayHour>
+    <Card title="考勤参数" className="system-parameter-card" style={{ marginBottom: 16 }} extra={<Button type="primary" icon={<PlusOutlined />} disabled={Boolean(loadError)} onClick={openCreate}>新增</Button>}>
+      {loadError ? <Alert type="error" showIcon message={loadError} action={<Button size="small" onClick={() => void loadBrandHours()}>重新加载</Button>} /> : <Table<AttendanceParameter>
         rowKey="brand"
-        columns={[{ title: "品牌", dataIndex: "brand" }, { title: "工作日小时（小时/日）", dataIndex: "workdayHours", render: value => Number(value).toFixed(Number.isInteger(value) ? 0 : 1) }]}
+        columns={[
+          { title: "品牌", dataIndex: "brand" },
+          { title: "工作日小时（小时/日）", dataIndex: "workdayHours", render: value => Number(value).toFixed(Number.isInteger(value) ? 0 : 1) },
+          { title: "考勤开始时间", key: "attendanceStart", render: (_, row) => `${row.attendanceStartDayOffset === 1 ? "次日" : "当日"} ${row.attendanceStartTime}` },
+          { title: "考勤截止时间", key: "attendanceDeadline", render: (_, row) => `${row.attendanceDeadlineDayOffset === 1 ? "次日" : "当日"} ${row.attendanceDeadlineTime}` },
+          { title: "操作", key: "action", width: 90, render: (_, row) => <Button type="link" size="small" onClick={() => openEditAttendanceParameter(row)}>编辑</Button> },
+        ]}
         dataSource={rows}
         loading={loading}
         pagination={false}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无品牌工作日小时配置" /> }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无考勤参数配置" /> }}
       />}
     </Card>
 
-    <Card title="Ai API" className="system-parameter-card" extra={<Space><Button loading={aiApiTesting} disabled={aiApiSaving || aiServiceLoadError || !aiServiceOptions.length} onClick={() => void testAiApi()}>接口测试</Button><Button type="primary" loading={aiApiSaving} disabled={aiApiTesting || aiServiceLoadError || !aiServiceOptions.length} onClick={() => void saveAiApi()}>保存</Button></Space>}>
+    <Card title="Ai API" className="system-parameter-card" style={{ marginBottom: 16 }} extra={<Space><Button loading={aiApiTesting} disabled={aiApiSaving || aiServiceLoadError || !aiServiceOptions.length} onClick={() => void testAiApi()}>接口测试</Button><Button type="primary" loading={aiApiSaving} disabled={aiApiTesting || aiServiceLoadError || !aiServiceOptions.length} onClick={() => void saveAiApi()}>保存</Button></Space>}>
       <Form form={aiApiForm} layout="vertical" disabled={aiApiTesting} initialValues={{ services: initialAiApiServices }}>
         <div className="platform-ai-api-grid">
           {aiServiceLoadError
@@ -430,6 +509,66 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
       </Form>
     </Card>
 
+    <Card title="其他参数" className="system-parameter-card" extra={<Button type="primary" loading={otherSaving} onClick={() => void saveOther()}>保存</Button>}>
+      <Form form={otherForm} layout="vertical" initialValues={{ contractExpiringWarningDays: initialPlatform.contractExpiringWarningDays, birthdayReminderDays: initialPlatform.birthdayReminderDays, birthdayReminderCalculationTime: initialPlatform.birthdayReminderCalculationTime, laborCostPolicy: initialLaborCostPolicy.policy }}>
+        <div className="platform-other-parameter">
+          <span>合同记录距离“合同截止日期”不足</span>
+          <Form.Item name="contractExpiringWarningDays" className="platform-other-parameter-input" rules={[{ required: true, message: "请输入合同即将到期天数" }, { type: "number", min: 1, max: 3650, message: "请输入1至3650之间的整数" }]}>
+            <InputNumber min={1} max={3650} step={1} precision={0} addonAfter="天" aria-label="合同即将到期天数" />
+          </Form.Item>
+          <span>时，自动标为「即将到期」记录。</span>
+        </div>
+        <div className="platform-other-parameter-tip">系统统一调度器按北京时间每日凌晨 02:00 自动检查当前处于「正常」状态的合同；达到条件后更新合同状态，同一天不会重复处理。</div>
+        <div className="platform-other-parameter">
+          <span>仪表板生日提醒为</span>
+          <Form.Item name="birthdayReminderDays" className="platform-other-parameter-input" rules={[{ required: true, message: "请输入生日提醒天数" }, { type: "number", min: 1, max: 365, message: "请输入1至365之间的整数" }]}>
+            <InputNumber min={1} max={365} step={1} precision={0} addonAfter="天" aria-label="仪表板生日提醒天数" />
+          </Form.Item>
+          <span>内的员工数量，系统自动计算生日提醒任务的时间为每日</span>
+          <Form.Item name="birthdayReminderCalculationTime" className="platform-other-parameter-time-input" rules={[{ required: true, message: "请选择生日提醒计算时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的生日提醒计算时间" }]}>
+            <Input type="time" step={60} aria-label="生日提醒每日计算时间" />
+          </Form.Item>
+          <span>。</span>
+        </div>
+        <div className="platform-other-parameter-tip">系统只统计处于「在职」状态且已维护生日的员工；农历生日会先换算为对应公历日期后再纳入提醒人数。</div>
+        <section className="labor-cost-policy-settings">
+          <Alert
+            showIcon
+            type="info"
+            message={`员工成本参数将于${monthLabel(laborPolicyEffectiveMonth)}生效`}
+            description="本月可多次修改，最后一次成功保存的参数覆盖此前设置；当前月及历史月份不会重新计算。"
+          />
+          <div className="labor-cost-policy-grid">
+            <div className="labor-cost-policy-card">
+              <div className="labor-cost-policy-heading"><strong>公司员工</strong><span>适用于人员归属为“总部”的员工</span></div>
+              <Form.Item label="公司员工每月公休数" name={["laborCostPolicy", "headquartersMonthlyRestRule"]} rules={[{ required: true, message: "请选择公司员工每月公休数" }]}>
+                <Select options={monthlyRestRuleOptions} />
+              </Form.Item>
+              {headquartersMonthlyRestRule === "FIXED_DAYS" && <Form.Item label="固定天数" name={["laborCostPolicy", "headquartersFixedRestDays"]} rules={[{ required: true, message: "请输入公司员工固定公休数" }, { type: "number", min: 0, max: 31, message: "请输入0至31之间的整数" }]} extra="固定公休天数与法定假期数直接相加，不进行日期去重。">
+                <InputNumber min={0} max={31} step={1} precision={0} addonAfter="天/月" style={{ width: "100%" }} />
+              </Form.Item>}
+              <Form.Item label="总部员工法定假期数" name={["laborCostPolicy", "headquartersLegalHolidayRule"]} rules={[{ required: true, message: "请选择总部员工法定假期数" }]}>
+                <Select options={legalHolidayRuleOptions} />
+              </Form.Item>
+            </div>
+            <div className="labor-cost-policy-card">
+              <div className="labor-cost-policy-heading"><strong>门店员工</strong><span>适用于人员归属非“总部”且关联门店的员工</span></div>
+              <Form.Item label="门店员工每月公休数" name={["laborCostPolicy", "storeMonthlyRestRule"]} rules={[{ required: true, message: "请选择门店员工每月公休数" }]}>
+                <Select options={monthlyRestRuleOptions} />
+              </Form.Item>
+              {storeMonthlyRestRule === "FIXED_DAYS" && <Form.Item label="固定天数" name={["laborCostPolicy", "storeFixedRestDays"]} rules={[{ required: true, message: "请输入门店员工固定公休数" }, { type: "number", min: 0, max: 31, message: "请输入0至31之间的整数" }]} extra="固定公休天数与法定假期数直接相加，不进行日期去重。">
+                <InputNumber min={0} max={31} step={1} precision={0} addonAfter="天/月" style={{ width: "100%" }} />
+              </Form.Item>}
+              <Form.Item label="门店员工法定假期数" name={["laborCostPolicy", "storeLegalHolidayRule"]} rules={[{ required: true, message: "请选择门店员工法定假期数" }]}>
+                <Select options={legalHolidayRuleOptions} />
+              </Form.Item>
+            </div>
+          </div>
+          <div className="platform-other-parameter-tip">“法定放假日期”读取《设置 / 休息日管理》的日期；与按星期计算的公休日重合时自动去重。“当月每个法定假期+1天”按节日个数计算，每个节日计1天；“当月N个法定假期+1天”表示当月只要有法定节日就统一计1天。</div>
+        </section>
+      </Form>
+    </Card>
+
     <Modal
       title="温馨提示"
       open={aiApiTestDialog.open}
@@ -451,13 +590,33 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
         </>}
     </Modal>
 
-    <Modal title="新增品牌工作日小时" open={modalOpen} onCancel={() => setModalOpen(false)} maskClosable={false} destroyOnHidden footer={<Space><Button onClick={() => setModalOpen(false)}>取消</Button><Button type="primary" loading={saving} onClick={() => void saveBrandHour()}>保存</Button></Space>}>
+    <Modal title={editingBrand ? "编辑考勤参数" : "新增考勤参数"} open={modalOpen} onCancel={() => { setModalOpen(false); setEditingBrand(null); }} maskClosable={false} destroyOnHidden footer={<Space><Button onClick={() => { setModalOpen(false); setEditingBrand(null); }}>取消</Button><Button type="primary" loading={saving} onClick={() => void saveBrandHour()}>保存</Button></Space>}>
       <Form form={brandHourForm} layout="vertical" style={{ paddingTop: 8 }}>
         <Form.Item label="品牌" name="brand" rules={[{ required: true, message: "请选择品牌" }]}>
-          <Select placeholder="请选择" options={selectOptions} showSearch optionFilterProp="label" />
+          <Select disabled={Boolean(editingBrand)} placeholder="请选择" options={selectOptions} showSearch optionFilterProp="label" />
         </Form.Item>
         <Form.Item label="工作日小时" name="workdayHours" rules={[{ required: true, message: "请输入工作日小时" }, { type: "number", min: 0.1, max: 24, message: "请输入0.1至24之间的数字" }]} extra="最多支持小数点后一位，例如1.5、8.6">
           <InputNumber min={0.1} max={24} step={0.1} precision={1} style={{ width: "100%" }} placeholder="请输入工作日小时" addonAfter="小时/日" />
+        </Form.Item>
+        <Form.Item label="考勤开始时间" required extra="可设置为当日或次日的具体时间，例如当日20:00">
+          <Space.Compact block>
+            <Form.Item name="attendanceStartDayOffset" noStyle rules={[{ required: true, message: "请选择考勤开始日期" }]}>
+              <Select style={{ width: 110 }} options={[{ value: 0, label: "当日" }, { value: 1, label: "次日" }]} />
+            </Form.Item>
+            <Form.Item name="attendanceStartTime" noStyle rules={[{ required: true, message: "请选择考勤开始时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的考勤开始时间" }]}>
+              <Input type="time" step={60} style={{ width: "calc(100% - 110px)" }} />
+            </Form.Item>
+          </Space.Compact>
+        </Form.Item>
+        <Form.Item label="考勤截止时间" required extra="可设置为当日或次日的具体时间，例如次日05:00">
+          <Space.Compact block>
+            <Form.Item name="attendanceDeadlineDayOffset" noStyle rules={[{ required: true, message: "请选择考勤截止日期" }]}>
+              <Select style={{ width: 110 }} options={[{ value: 0, label: "当日" }, { value: 1, label: "次日" }]} />
+            </Form.Item>
+            <Form.Item name="attendanceDeadlineTime" noStyle rules={[{ required: true, message: "请选择考勤截止时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的考勤截止时间" }]}>
+              <Input type="time" step={60} style={{ width: "calc(100% - 110px)" }} />
+            </Form.Item>
+          </Space.Compact>
         </Form.Item>
       </Form>
     </Modal>

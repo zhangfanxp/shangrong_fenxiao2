@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createStoreH5Session, storeH5SessionCookie } from "@/lib/store-h5-auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
-import { getPlatformConfig, userHasAnyLoginTag } from "@/lib/platform-config";
+import { hasRolePlatformAccess } from "@/lib/role-permissions";
 
 const input = z.object({ username: z.string().trim().min(1, "请输入账号"), password: z.string().min(1, "请输入密码") });
 
@@ -20,9 +20,9 @@ export async function POST(request: Request) {
     await writeOperationLog({ userId: user.id, username: user.username, client: "门店员工移动端", page: "登录页面", action: "登录", result: "失败", detail: "账号或角色已禁用", request }).catch(() => undefined);
     return NextResponse.json({ message: "当前账号已被禁用，请联系平台管理员" }, { status: 403 });
   }
-  const platform = await getPlatformConfig();
-  if (!userHasAnyLoginTag(user.tags, platform.storeH5LoginTags)) {
-    await writeOperationLog({ userId: user.id, username: user.username, client: "门店员工移动端", page: "登录页面", action: "登录", result: "失败", detail: "用户不符合门店H5登录资格", request }).catch(() => undefined);
+  const permissions = Array.isArray(user.role.permissions) ? user.role.permissions.filter((item): item is string => typeof item === "string") : [];
+  if (!hasRolePlatformAccess(permissions, "store-h5")) {
+    await writeOperationLog({ userId: user.id, username: user.username, client: "门店员工移动端", page: "登录页面", action: "登录", result: "失败", detail: "所属角色未配置门店H5移动端权限", request }).catch(() => undefined);
     return NextResponse.json({ message: "当前账号暂无门店H5移动端使用权限" }, { status: 403 });
   }
   const token = await createStoreH5Session(user.id);

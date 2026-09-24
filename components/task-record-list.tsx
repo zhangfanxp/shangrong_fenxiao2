@@ -21,6 +21,7 @@ type TaskRecordRow = {
   taskType: TaskType | null;
   taskTypeLabel: string;
   executor: string;
+  targetEmployee: string;
   includeCompletionRate: boolean;
   createdAt: string;
   submittedAt: string;
@@ -60,6 +61,7 @@ type TaskDetail = {
   taskName: string;
   taskTypeLabel: string;
   executor: string;
+  targetEmployee: string;
   includeCompletionRate: boolean;
   createdAt: string;
   submittedAt: string;
@@ -412,6 +414,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     { title: "任务名称", dataIndex: "taskName", width: 220, ellipsis: true },
     { title: "任务类型", dataIndex: "taskTypeLabel", width: 100 },
     { title: "任务执行人", dataIndex: "executor", width: 180, ellipsis: true },
+    { title: "任务对象", dataIndex: "targetEmployee", width: 180, ellipsis: true },
     { title: "参与核算完成率", dataIndex: "includeCompletionRate", width: 145, render: value => <Tag color={value ? "blue" : "default"}>{value ? "参与" : "不参与"}</Tag> },
     { title: "任务创建日期", dataIndex: "createdAt", width: 170 },
     { title: "任务提交日期", dataIndex: "submittedAt", width: 170 },
@@ -503,7 +506,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
       {detailLoading ? <Skeleton active paragraph={{ rows: 10 }} /> : detailError ? <Alert type="error" showIcon message="任务详情加载失败，请稍后重试" action={<Button size="small" onClick={() => detailId && void openDetail(detailId)}>重新加载</Button>} /> : detail && <div className="task-record-detail">
         <h3>任务信息</h3>
         <Descriptions bordered size="small" column={4}>
-          <Descriptions.Item label="记录编号">{detail.recordNo}</Descriptions.Item><Descriptions.Item label="任务名称">{detail.taskName}</Descriptions.Item><Descriptions.Item label="任务类型">{detail.taskTypeLabel}</Descriptions.Item><Descriptions.Item label="任务执行人">{detail.executor}</Descriptions.Item>
+          <Descriptions.Item label="记录编号">{detail.recordNo}</Descriptions.Item><Descriptions.Item label="任务名称">{detail.taskName}</Descriptions.Item><Descriptions.Item label="任务类型">{detail.taskTypeLabel}</Descriptions.Item><Descriptions.Item label="任务执行人">{detail.executor}</Descriptions.Item><Descriptions.Item label="任务对象">{detail.targetEmployee}</Descriptions.Item>
           <Descriptions.Item label="参与核算完成率"><Tag color={detail.includeCompletionRate ? "blue" : "default"}>{detail.includeCompletionRate ? "参与" : "不参与"}</Tag></Descriptions.Item><Descriptions.Item label="任务创建日期">{detail.createdAt}</Descriptions.Item><Descriptions.Item label="任务提交日期">{detail.submittedAt}</Descriptions.Item><Descriptions.Item label="任务状态"><Tag color="success">已完成</Tag></Descriptions.Item>
         </Descriptions>
         <div className="task-record-detail-heading"><h3>提交内容</h3><Tag color="blue">配置版本 V{detail.configVersion}</Tag></div>
@@ -531,7 +534,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
         <Alert className="task-record-edit-tip" type="info" showIcon message="仅图片、视频附件支持重新上传；点击保存后才会正式替换原附件。" />
         <h3>任务信息</h3>
         <Descriptions bordered size="small" column={4}>
-          <Descriptions.Item label="记录编号">{editDetail.recordNo}</Descriptions.Item><Descriptions.Item label="任务名称">{editDetail.taskName}</Descriptions.Item><Descriptions.Item label="任务类型">{editDetail.taskTypeLabel}</Descriptions.Item><Descriptions.Item label="任务执行人">{editDetail.executor}</Descriptions.Item>
+          <Descriptions.Item label="记录编号">{editDetail.recordNo}</Descriptions.Item><Descriptions.Item label="任务名称">{editDetail.taskName}</Descriptions.Item><Descriptions.Item label="任务类型">{editDetail.taskTypeLabel}</Descriptions.Item><Descriptions.Item label="任务执行人">{editDetail.executor}</Descriptions.Item><Descriptions.Item label="任务对象">{editDetail.targetEmployee}</Descriptions.Item>
           <Descriptions.Item label="参与核算完成率"><Tag color={editDetail.includeCompletionRate ? "blue" : "default"}>{editDetail.includeCompletionRate ? "参与" : "不参与"}</Tag></Descriptions.Item><Descriptions.Item label="任务创建日期">{editDetail.createdAt}</Descriptions.Item><Descriptions.Item label="任务提交日期">{editDetail.submittedAt}</Descriptions.Item><Descriptions.Item label="任务状态"><Tag color="success">已完成</Tag></Descriptions.Item>
         </Descriptions>
         <div className="task-record-detail-heading"><h3>提交内容</h3><Tag color="blue">配置版本 V{editDetail.configVersion}</Tag></div>

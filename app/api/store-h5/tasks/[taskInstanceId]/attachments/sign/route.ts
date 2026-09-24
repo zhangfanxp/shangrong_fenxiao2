@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { getStoreH5Session } from "@/lib/store-h5-auth";
+import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
 import { dateKeyAsDbDate, isStoreTaskSnapshot, shanghaiDateKey } from "@/lib/store-h5-tasks";
 import { createStoreH5UploadToken } from "@/lib/store-h5-upload-token";
 import { createStoreTaskDirectUpload, TaskAttachmentError } from "@/lib/task-r2-upload";
@@ -15,8 +15,9 @@ const inputSchema = z.object({
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ taskInstanceId: string }> }) {
-  const session = await getStoreH5Session();
-  if (!session) return NextResponse.json({ message: "当前账号已无门店H5使用权限，请重新登录或联系管理员" }, { status: 401 });
+  const channel = mobileH5TaskChannel(request);
+  const session = await getMobileH5TaskSession(request, "attachment");
+  if (!session) return NextResponse.json({ message: mobileH5UnauthorizedMessage(channel) }, { status: 401 });
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0].message || "附件参数不正确" }, { status: 400 });
   const { taskInstanceId } = await params;

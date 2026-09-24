@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const relation = await validatePersonnelRelations(parsed.data);
     const row = await db.$transaction(async tx => {
       const recordNo = await nextPersonnelRecordNo(tx);
-      return tx.personnel.create({ data: { ...personnelData(parsed.data, relation.positionLevel, relation.workdayHours), recordNo, createdByUserId: session.userId }, include: personnelInclude });
+      return tx.personnel.create({ data: { ...personnelData(parsed.data, relation.positionLevel, relation.workdayHours, relation.laborCost), recordNo, createdByUserId: session.userId }, include: personnelInclude });
     });
     await personnelLog(session.userId, "新增", "成功", `新增人员档案：${row.recordNo} ${row.name}`);
     return NextResponse.json(row, { status: 201 });
