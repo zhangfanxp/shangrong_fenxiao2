@@ -11,16 +11,18 @@ const cookieName = "canyin_session";
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "development-secret-change-me");
 
 export type Session = { userId: string; username: string; realName: string; role: string; permissions: string[] };
+type SessionToken = Pick<Session, "userId">;
+type SessionInput = SessionToken & Partial<Omit<Session, keyof SessionToken>>;
 
-export async function createSession(session: Session) {
-  return new SignJWT(session).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("8h").sign(secret);
+export async function createSession(session: SessionInput) {
+  return new SignJWT({ userId: session.userId } satisfies SessionToken).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("8h").sign(secret);
 }
 
 export const getSession = cache(async (): Promise<Session | null> => {
   const token = (await cookies()).get(cookieName)?.value;
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, secret); const tokenSession = payload as unknown as Session;
+    const { payload } = await jwtVerify(token, secret); const tokenSession = payload as unknown as SessionToken;
     if (!tokenSession.userId) return null;
     const user = await db.user.findUnique({ where: { id: tokenSession.userId }, include: { role: true } });
     if (!user || user.status !== "ENABLED" || user.role.status !== "ENABLED") return null;

@@ -16,11 +16,12 @@ type Employee = {
   overtime: boolean;
   overtimeHours: number | null;
 };
-type Submission = { recordNo: string; createdByName: string; createdAt: string; partTimeHeadcount?: number | null; partTimeHours?: number | null };
+type Submission = { recordNo: string; createdByName: string; createdAt: string; partTimeHeadcount?: number | null; partTimeHours?: number | null; partTimeLaborCost?: number | null; partTimeActualLaborCost?: number | null };
 type AttendanceData = {
   attendanceDate: string;
   attendanceDateLabel: string;
   storeName: string;
+  partTimeLaborCost: number | null;
   employees: Employee[];
   availability: {
     status: "OPEN" | "NOT_OPEN" | "CLOSED" | "SUBMITTED";
@@ -43,6 +44,10 @@ function validHours(value: number | null) {
   return validPositiveOneDecimal(value, 24);
 }
 
+function validMoney(value: number | null) {
+  return value !== null && value >= 0 && value <= 9999999999.99 && Math.abs(value * 100 - Math.round(value * 100)) < 1e-8;
+}
+
 function deadlineText(value: string) {
   return new Date(value).toLocaleString("zh-CN", {
     timeZone: "Asia/Shanghai", hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
@@ -55,6 +60,7 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
   const [answers, setAnswers] = useState<Record<string, Employee>>({});
   const [partTimeHeadcount, setPartTimeHeadcount] = useState<number | null>(null);
   const [partTimeHours, setPartTimeHours] = useState<number | null>(null);
+  const [partTimeLaborCost, setPartTimeLaborCost] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [submitError, setSubmitError] = useState("");
@@ -76,6 +82,7 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
       setAnswers(Object.fromEntries(next.employees.map(employee => [employee.id, employee])));
       setPartTimeHeadcount(next.submission?.partTimeHeadcount ?? null);
       setPartTimeHours(next.submission?.partTimeHours ?? null);
+      setPartTimeLaborCost(next.partTimeLaborCost);
       setNow(Date.now());
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "每日考勤加载失败，请稍后重试");
@@ -99,7 +106,10 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
   }), [answers, data]);
   const partTimeComplete = (partTimeHeadcount === null || partTimeHeadcount === 0)
     ? partTimeHours === null
-    : Number.isInteger(partTimeHeadcount) && partTimeHeadcount > 0 && validPositiveOneDecimal(partTimeHours, 9999.9);
+    : Number.isInteger(partTimeHeadcount) && partTimeHeadcount > 0 && validPositiveOneDecimal(partTimeHours, 9999.9) && validMoney(partTimeLaborCost);
+  const partTimeActualLaborCost = partTimeHours === null || partTimeLaborCost === null
+    ? null
+    : Math.round((partTimeHours * partTimeLaborCost + Number.EPSILON) * 100) / 100;
   const canSubmit = hasSubmitPermission && withinWindow && allEmployeesComplete && partTimeComplete && !submitting;
 
   const changeAnswer = (employeeId: string, changes: Partial<Employee>) => {
@@ -128,6 +138,7 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
           }),
           partTimeHeadcount,
           partTimeHours,
+          partTimeLaborCost,
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -182,9 +193,11 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
       <div className="store-h5-attendance-heading"><div><TeamOutlined /><strong>兼职用工</strong></div><span>选填</span></div>
       <label><span>今日兼职人数</span><InputNumber value={partTimeHeadcount} disabled={!hasSubmitPermission || !withinWindow || submitted} min={0} max={9999} precision={0} inputMode="numeric" placeholder="请输入正整数" addonAfter="人" onChange={value => { setSubmitError(""); setPartTimeHeadcount(value); if (!value) setPartTimeHours(null); }} /></label>
       <label><span>今日兼职工时{Boolean(partTimeHeadcount) && <b>*</b>}</span><InputNumber value={partTimeHours} disabled={!hasSubmitPermission || !withinWindow || submitted || !partTimeHeadcount} min={0.1} max={9999.9} precision={1} step={0.1} inputMode="decimal" placeholder={partTimeHeadcount ? "必填，最多一位小数" : "填写兼职人数后录入"} addonAfter="小时" onChange={value => { setSubmitError(""); setPartTimeHours(value); }} /></label>
+      <label><span>兼职用工成本{Boolean(partTimeHeadcount) && <b>*</b>}</span><InputNumber value={partTimeLaborCost} disabled={!hasSubmitPermission || !withinWindow || submitted} min={0} max={9999999999.99} precision={2} step={0.01} inputMode="decimal" placeholder="读取门店档案，可修改" addonAfter="元/小时" onChange={value => { setSubmitError(""); setPartTimeLaborCost(value); }} /></label>
+      <label><span>今日兼职用工成本</span><InputNumber value={partTimeActualLaborCost} readOnly controls={false} precision={2} placeholder="根据工时和单价自动计算" addonAfter="元" /></label>
     </section>
     <div className="store-h5-submit-space" /><footer className="store-h5-submit-bar"><Button block type="primary" size="large" disabled={!canSubmit} loading={submitting} onClick={() => setConfirmOpen(true)}>{!hasSubmitPermission ? "仅可查看" : submitted ? "今日考勤已提交" : submitting ? "提交中..." : data.correctionRequired ? "提交补正" : "提交"}</Button></footer>
-    <Modal title={data.correctionRequired ? "确认提交考勤补正？" : "确认提交今日考勤？"} open={confirmOpen} centered maskClosable={false} closable={!submitting} okText={data.correctionRequired ? "确认补正" : "确认提交"} cancelText="取消" confirmLoading={submitting} onCancel={() => !submitting && setConfirmOpen(false)} onOk={() => void submit()}><p>{data.correctionRequired ? "将保留原有记录编号并补全遗漏员工，请确认考勤信息无误。" : "提交后不能重复填报，请确认所有员工考勤及兼职工时填写无误。"}</p></Modal>
+    <Modal title={data.correctionRequired ? "确认提交考勤补正？" : "确认提交今日考勤？"} open={confirmOpen} centered maskClosable={false} closable={!submitting} okText={data.correctionRequired ? "确认补正" : "确认提交"} cancelText="取消" confirmLoading={submitting} onCancel={() => !submitting && setConfirmOpen(false)} onOk={() => void submit()}><p>{data.correctionRequired ? "将保留原有记录编号并补全遗漏员工，请确认考勤信息无误。" : "提交后不能重复填报，请确认所有员工考勤、兼职工时及兼职用工成本填写无误。"}</p></Modal>
     <Modal title="提交成功" open={successOpen} centered closable={false} maskClosable={false} footer={<Button block type="primary" onClick={() => { setSuccessOpen(false); router.push("/store_h5"); router.refresh(); }}>我知道了</Button>}><div className="store-h5-success"><CheckCircleFilled /><strong>今日考勤已成功上报</strong><span>记录编号：{data.submission?.recordNo}</span><small>创建人：{data.submission?.createdByName}<br />创建时间：{data.submission?.createdAt}</small></div></Modal>
   </main>;
 }

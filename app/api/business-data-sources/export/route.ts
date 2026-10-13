@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiSession } from "@/lib/auth";
 import {
-  businessDataSourceFilterWhere, canBusinessDataSource, formatBusinessDataSourceDate,
+  businessDataSystemSourceSummary, businessDataSourceFilterWhere, canBusinessDataSource, formatBusinessDataSourceDate,
   sourceTypeLabels,
 } from "@/lib/business-data-sources";
 import { db } from "@/lib/db";
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   try {
     const rows = await db.businessDataSource.findMany({
       where,
-      select: { id: true, recordNo: true, businessName: true, sourceType: true, templateRecordNoSnapshot: true, createdByNameSnapshot: true, createdAt: true },
+      select: { id: true, recordNo: true, businessName: true, sourceType: true, templateRecordNoSnapshot: true, systemSources: true, createdByNameSnapshot: true, createdAt: true },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
     if (recordIds.length && rows.length !== recordIds.length) return NextResponse.json({ message: "部分记录已不存在，请刷新列表后重试" }, { status: 400 });
@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       { header: "业务名称", key: "businessName", width: 26 },
       { header: "来源类型", key: "sourceType", width: 18 },
       { header: "模版记录编号", key: "templateRecordNo", width: 20 },
+      { header: "组合系统来源", key: "systemSources", width: 24 },
       { header: "创建人", key: "createdBy", width: 16 },
       { header: "创建时间", key: "createdAt", width: 22 },
     ];
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
       businessName: row.businessName,
       sourceType: sourceTypeLabels[row.sourceType],
       templateRecordNo: row.templateRecordNoSnapshot,
+      systemSources: businessDataSystemSourceSummary(row.systemSources),
       createdBy: row.createdByNameSnapshot,
       createdAt: row.createdAt,
     });
@@ -65,7 +67,7 @@ export async function POST(request: Request) {
     sheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
     sheet.getColumn("createdAt").numFmt = "yyyy-mm-dd hh:mm:ss";
     sheet.views = [{ state: "frozen", ySplit: 1 }];
-    sheet.autoFilter = { from: "A1", to: "F1" };
+    sheet.autoFilter = { from: "A1", to: "G1" };
     const buffer = await workbook.xlsx.writeBuffer();
     const fileName = `业务数据源_${timestamp()}.xlsx`;
     await writeOperationLog({ userId: session.userId, username: session.username, page: "业务数据源", action: "批量导出", result: "成功", detail: `导出${rows.length}条业务数据源；范围：${recordIds.length ? "已选择记录" : "当前筛选结果"}；生成时间：${formatBusinessDataSourceDate(new Date())}`, request }).catch(() => undefined);

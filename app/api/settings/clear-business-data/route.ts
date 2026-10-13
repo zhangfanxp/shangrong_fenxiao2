@@ -38,6 +38,8 @@ export async function POST(request: Request) {
     const clearCourseSettings = targets.includes("courseSettings");
     const clearCourseRecords = clearCourseSettings || targets.includes("courseRecords");
 
+    if (clearStores) recordDeleted("storeLaborRecords", "用工记录", (await tx.storeLaborRecord.deleteMany()).count);
+
     if (clearTaskRecords) {
       const taskRecordWhere = clearAllTaskRecords ? {} : { storeId: { not: null } };
       const taskRecordIds = (await tx.taskRecord.findMany({ where: taskRecordWhere, select: { id: true } })).map(row => row.id);
@@ -57,6 +59,24 @@ export async function POST(request: Request) {
       if (clearAllTaskRecords) {
         recordDeleted("taskSchedulerRuns", "任务调度记录", (await tx.taskSchedulerRun.deleteMany()).count);
         await tx.taskSubmissionSequence.deleteMany();
+      }
+      if (!clearStores) {
+        await tx.storeLaborRecord.deleteMany({ where: { attendanceRecordId: null, salesSubmissionId: null } });
+        await tx.storeLaborRecord.updateMany({
+          where: { salesSubmissionId: null },
+          data: {
+            actualSalesAmount: null,
+            receivedAmount: null,
+            assessedAmount: null,
+            standardRecordIdSnapshot: null,
+            lowerAmountSnapshot: null,
+            upperAmountSnapshot: null,
+            standardHeadcountSnapshot: null,
+            laborStatus: "UNABLE_TO_CALCULATE",
+            unavailableReason: "缺少每日销售数据上报",
+            calculatedAt: new Date(),
+          },
+        });
       }
     }
 
@@ -106,6 +126,18 @@ export async function POST(request: Request) {
       recordDeleted("dailyAttendanceItems", "员工考勤明细", (await tx.dailyAttendanceItem.deleteMany()).count);
       recordDeleted("dailyAttendanceRecords", "每日考勤记录", (await tx.dailyAttendanceRecord.deleteMany()).count);
       await tx.dailyAttendanceSequence.deleteMany();
+      if (!clearStores) {
+        await tx.storeLaborRecord.deleteMany({ where: { attendanceRecordId: null, salesSubmissionId: null } });
+        await tx.storeLaborRecord.updateMany({
+          where: { attendanceRecordId: null },
+          data: {
+            actualHeadcount: null,
+            laborStatus: "UNABLE_TO_CALCULATE",
+            unavailableReason: "缺少考勤记录",
+            calculatedAt: new Date(),
+          },
+        });
+      }
     }
     if (clearPersonnel) {
       recordDeleted("birthdayReminderSchedulerRuns", "生日提醒调度记录", (await tx.scheduledJobRun.deleteMany({ where: { jobType: "PERSONNEL_BIRTHDAY_REMINDER" } })).count);

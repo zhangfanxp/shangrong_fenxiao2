@@ -35,7 +35,7 @@ type TaskDetailItem = {
   id: string;
   itemName: string;
   componentType: "attachment" | "input" | "select";
-  dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null;
+  dataType: "photo" | "video" | "document" | "amount" | "quantity" | "score" | "text" | null;
   description: string;
   required: boolean;
   weight: number;

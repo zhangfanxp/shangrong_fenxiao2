@@ -80,6 +80,11 @@ const TABLE_META: Record<string, TableMeta> = {
   RestDay: { chineseName: "休息日", purpose: "存储品牌或门店年度休息日、节假日类型和备注。" },
   RestDaySequence: { chineseName: "休息日编号序列", purpose: "维护休息日记录编号的顺序值。" },
   RestDayYearLock: { chineseName: "休息日年度锁", purpose: "存储年度休息日生成或维护时使用的并发锁。" },
+  StoreLaborStandard: { chineseName: "门店用工标准", purpose: "存储各品牌按考核金额区间配置的标准用工人数。" },
+  StoreLaborStandardSequence: { chineseName: "门店用工标准编号序列", purpose: "维护门店用工标准记录编号的每日顺序值。" },
+  StoreLaborStandardBrandLock: { chineseName: "门店用工标准品牌锁", purpose: "存储按品牌维护用工标准时使用的并发锁。" },
+  StoreLaborStandardPolicyVersion: { chineseName: "门店用工标准版本", purpose: "保存品牌用工标准的不可变版本快照，供历史用工记录引用。" },
+  StoreLaborRecord: { chineseName: "用工记录", purpose: "按门店和日期保存销售、考勤与标准快照及用工状态。" },
   LaborCostPolicyVersion: { chineseName: "人工成本政策版本", purpose: "存储人工成本核算政策的版本、配置和生效范围。" },
   DailyLearningPlan: { chineseName: "每日学习计划", purpose: "存储每日学习任务的主题、内容、适用范围和发布时间。" },
   DailyLearningAssignee: { chineseName: "每日学习指派", purpose: "存储学习计划与指定学习人员的关联关系。" },
@@ -117,6 +122,8 @@ const FIELD_LABELS: Record<string, string> = {
   id: "主键ID", code: "编码", name: "名称", type: "类型", status: "状态", version: "版本号", recordNo: "记录编号",
   createdAt: "创建时间", updatedAt: "更新时间", deletedAt: "删除时间", startedAt: "开始时间", completedAt: "完成时间",
   createdByUserId: "创建人用户ID", createdByName: "创建人姓名", updatedByUserId: "更新人用户ID", updatedByName: "更新人姓名",
+  partTimeHeadcount: "今日兼职人数", partTimeHours: "今日兼职工时", partTimeLaborCost: "兼职用工成本",
+  partTimeLaborCostSnapshot: "兼职用工成本快照", partTimeActualLaborCost: "今日兼职用工成本",
   username: "登录账号", passwordHash: "密码哈希", realName: "真实姓名", phone: "手机号码", permissions: "权限集合",
   remark: "备注", description: "说明", detail: "详细信息", result: "执行结果", error: "错误信息", errorMessage: "错误信息",
   dateKey: "日期键", nextValue: "下一个序号", sortOrder: "排序序号", sort: "排序序号", activeKey: "有效记录键",
@@ -133,7 +140,7 @@ const FIELD_LABELS: Record<string, string> = {
   year: "年份", month: "月份", day: "日期", date: "日期", executionTime: "执行时间", publishedAt: "发布时间", submittedAt: "提交时间",
   amount: "金额", actualAmount: "实际金额", targetAmount: "目标金额", totalAmount: "总金额", score: "得分", totalScore: "总分", actualTotalScore: "实际总分",
   itemCount: "项目数量", sectionCount: "章节数量", subsectionCount: "子章节数量", totalCount: "总数量", successCount: "成功数量", failureCount: "失败数量",
-  source: "数据来源", sourceType: "来源类型", value: "数据值", label: "显示标签", content: "内容", title: "标题", subject: "主题",
+  source: "数据来源", sourceType: "来源类型", systemSources: "组合系统来源", value: "数据值", label: "显示标签", content: "内容", title: "标题", subject: "主题",
   address: "地址", longitude: "经度", latitude: "纬度", email: "电子邮箱", gender: "性别", birthday: "出生日期",
   joinedAt: "入职时间", resignedAt: "离职时间", effectiveDate: "生效日期", operationDate: "操作日期", operationTime: "操作时间",
   ip: "IP地址", client: "客户端", page: "页面", action: "操作动作", required: "是否必填", isRequired: "是否必填",
@@ -151,6 +158,7 @@ const FIELD_MEANINGS: Record<string, string> = {
   objectKey: "文件在 R2 存储桶中的唯一对象路径。", configSnapshot: "业务发生时固化的配置 JSON，避免后续配置变化影响历史记录。",
   activeLockKey: "用于限制同一时刻只能运行一个数据库备份任务的唯一锁。", scheduleKey: "用于防止同一个定时时点被重复执行的唯一标识。",
   executionTimes: "以 JSON 数组保存每天需要触发备份的 HH:mm 时间。", weekdays: "以 JSON 数组保存每周需要执行的星期序号（1至7）。",
+  systemSources: "以 JSON 数组保存业务数据源组合使用的系统来源标识。",
 };
 
 const TOKEN_LABELS: Record<string, string> = {

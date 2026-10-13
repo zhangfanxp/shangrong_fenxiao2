@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getLaborCostPolicyVersions } from "@/lib/labor-cost-policy";
+import { synchronizeLaborRecord } from "@/lib/labor-records";
 import { writeOperationLog } from "@/lib/operation-log";
 import { buildPersonnelLaborCostReport } from "@/lib/personnel-labor-costs";
 import { getStoreH5Session } from "@/lib/store-h5-auth";
@@ -25,6 +26,7 @@ const bodySchema = z.object({
   })).max(500),
   partTimeHeadcount: z.number().int().min(0).max(9999).nullable().optional(),
   partTimeHours: z.number().finite().positive().max(9999.9).refine(value => Math.abs(value * 10 - Math.round(value * 10)) < 1e-8, "今日兼职工时最多保留一位小数").nullable().optional(),
+  partTimeLaborCost: z.number().finite().min(0, "兼职用工成本不能小于0").max(9999999999.99, "兼职用工成本数值过大").refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "兼职用工成本最多保留两位小数").nullable().optional(),
 });
 
 class AttendanceError extends Error {
@@ -40,6 +42,7 @@ const storeSelect = {
   chefName: true,
   cooperationType: true,
   workdayHours: true,
+  partTimeLaborCost: true,
   brand: { select: { id: true, name: true } },
   personnel: {
     where: { status: PersonnelStatus.ACTIVE, deletedAt: null },
@@ -112,10 +115,16 @@ export async function GET() {
         overtimeHours: item?.overtimeHours === null || item?.overtimeHours === undefined ? null : Number(item.overtimeHours),
       };
     });
+    const effectivePartTimeLaborCost = existing
+      ? existing.partTimeLaborCostSnapshot === null && existing.partTimeHours !== null && correctionRequired
+        ? store.partTimeLaborCost
+        : existing.partTimeLaborCostSnapshot
+      : store.partTimeLaborCost;
     return NextResponse.json({
       attendanceDate: dateKey,
       attendanceDateLabel: attendanceDateLabel(dateKey),
       storeName: store.name,
+      partTimeLaborCost: effectivePartTimeLaborCost === null ? null : Number(effectivePartTimeLaborCost),
       employees,
       availability: {
         status: existing && !correctionRequired ? "SUBMITTED" : availability.status,
@@ -133,6 +142,8 @@ export async function GET() {
         createdAt: formatShanghaiDateTime(existing.createdAt),
         partTimeHeadcount: existing.partTimeHeadcount,
         partTimeHours: existing.partTimeHours === null ? null : Number(existing.partTimeHours),
+        partTimeLaborCost: existing.partTimeLaborCostSnapshot === null ? null : Number(existing.partTimeLaborCostSnapshot),
+        partTimeActualLaborCost: existing.partTimeActualLaborCost === null ? null : Number(existing.partTimeActualLaborCost),
       } : null,
     }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
@@ -180,8 +191,13 @@ export async function POST(request: Request) {
     }
     const partTimeHeadcount = parsed.data.partTimeHeadcount ?? null;
     const partTimeHours = parsed.data.partTimeHours ?? null;
+    const partTimeLaborCost = parsed.data.partTimeLaborCost ?? null;
     if ((partTimeHeadcount ?? 0) > 0 && partTimeHours === null) throw new AttendanceError("今日兼职人数非零时，今日兼职工时为必填项");
     if ((partTimeHeadcount === null || partTimeHeadcount === 0) && partTimeHours !== null) throw new AttendanceError("填写今日兼职工时前，请先填写非零的今日兼职人数");
+    if (partTimeHours !== null && partTimeLaborCost === null) throw new AttendanceError("填写今日兼职工时后，兼职用工成本为必填项");
+    const partTimeActualLaborCost = partTimeHours === null || partTimeLaborCost === null
+      ? null
+      : new Prisma.Decimal(partTimeHours).times(partTimeLaborCost).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
     const submittedByPersonnel = new Map(parsed.data.items.map(item => [item.personnelId, item]));
     const currentPersonnelById = new Map(store.personnel.map(personnel => [personnel.id, personnel]));
@@ -223,6 +239,8 @@ export async function POST(request: Request) {
           data: {
             partTimeHeadcount,
             partTimeHours: partTimeHours === null ? null : new Prisma.Decimal(partTimeHours),
+            partTimeLaborCostSnapshot: partTimeLaborCost === null ? null : new Prisma.Decimal(partTimeLaborCost),
+            partTimeActualLaborCost,
             items: { create: attendanceItems },
           },
         });
@@ -239,12 +257,26 @@ export async function POST(request: Request) {
         deadlineAt: availability.deadlineAt,
         partTimeHeadcount,
         partTimeHours: partTimeHours === null ? null : new Prisma.Decimal(partTimeHours),
+        partTimeLaborCostSnapshot: partTimeLaborCost === null ? null : new Prisma.Decimal(partTimeLaborCost),
+        partTimeActualLaborCost,
         createdByUserId: session.userId,
         createdByUsername: session.username,
         createdByNameSnapshot: session.realName,
         createdAt: now,
         items: { create: attendanceItems },
       } });
+    });
+    await synchronizeLaborRecord(store.id, parsed.data.attendanceDate).catch(async error => {
+      await writeOperationLog({
+        userId: session.userId,
+        username: session.username,
+        client: "门店员工移动端",
+        page: "用工记录",
+        action: "同步",
+        result: "失败",
+        detail: `考勤日期：${parsed.data.attendanceDate}；门店：${store.name}；${error instanceof Error ? error.message : "同步失败"}`,
+        request,
+      }).catch(() => undefined);
     });
     await writeOperationLog({
       userId: session.userId, username: session.username, client: "门店员工移动端", page: "每日考勤", action: existing ? "补正" : "提交", result: "成功",
@@ -255,6 +287,10 @@ export async function POST(request: Request) {
       recordNo: saved.recordNo,
       createdByName: saved.createdByNameSnapshot,
       createdAt: formatShanghaiDateTime(saved.createdAt),
+      partTimeHeadcount: saved.partTimeHeadcount,
+      partTimeHours: saved.partTimeHours === null ? null : Number(saved.partTimeHours),
+      partTimeLaborCost: saved.partTimeLaborCostSnapshot === null ? null : Number(saved.partTimeLaborCostSnapshot),
+      partTimeActualLaborCost: saved.partTimeActualLaborCost === null ? null : Number(saved.partTimeActualLaborCost),
     });
   } catch (error) {
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";

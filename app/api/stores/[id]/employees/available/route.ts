@@ -30,10 +30,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const where: Prisma.PersonnelWhereInput = {
     storeId: null,
     organization: { not: "总部" },
+    positionLevel: positionLevels.length ? { in: positionLevels, notIn: ["店长", "主管", "厨师长"] } : { notIn: ["店长", "主管", "厨师长"] },
     status: PersonnelStatus.ACTIVE,
     deletedAt: null,
     ...(name ? { name: { contains: name } } : {}),
-    ...(positionLevels.length ? { positionLevel: { in: positionLevels } } : {}),
     ...(exclusions.length ? { NOT: exclusions } : {}),
   };
   const [total, rows] = await db.$transaction([

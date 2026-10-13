@@ -53,17 +53,26 @@ export async function POST(request: Request) {
       { header: "门店名称", key: "storeName", width: 28 },
       { header: "合作类型", key: "cooperationType", width: 14 },
       { header: "当日兼职用工（人）", key: "partTimeWorkerCount", width: 20 },
+      { header: "当日兼职工时", key: "partTimeWorkHours", width: 18 },
+      { header: "兼职用工成本（元/小时）", key: "partTimeLaborCost", width: 24 },
+      { header: "今日兼职用工成本（元）", key: "partTimeActualLaborCost", width: 24 },
       { header: "考勤日期", key: "attendanceDate", width: 14 },
       { header: "创建人", key: "createdByName", width: 14 },
       { header: "创建时间", key: "createdAt", width: 22 },
     ];
-    for (const record of records.map(serializeAttendanceRecord)) sheet.addRow({ ...record, partTimeWorkerCount: record.partTimeWorkerCount ?? "-" });
+    for (const record of records.map(serializeAttendanceRecord)) sheet.addRow({
+      ...record,
+      partTimeWorkerCount: record.partTimeWorkerCount ?? "-",
+      partTimeWorkHours: record.partTimeWorkHours === null ? "-" : Number(record.partTimeWorkHours),
+      partTimeLaborCost: record.partTimeLaborCost === null ? "-" : Number(record.partTimeLaborCost),
+      partTimeActualLaborCost: record.partTimeActualLaborCost === null ? "-" : Number(record.partTimeActualLaborCost),
+    });
     sheet.getRow(1).height = 24;
     sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
     sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1677FF" } };
     sheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
     sheet.views = [{ state: "frozen", ySplit: 1 }];
-    sheet.autoFilter = { from: "A1", to: "H1" };
+    sheet.autoFilter = { from: "A1", to: "K1" };
     const buffer = await workbook.xlsx.writeBuffer();
     const fileName = `考勤记录_${timestamp()}.xlsx`;
     await writeOperationLog({ userId: session.userId, username: session.username, client: "运营PC端", page: "考勤记录", action: "批量导出", result: "成功", detail: `${recordIds.length ? "按勾选记录" : "按当前筛选条件"}导出 ${records.length} 条`, request }).catch(() => undefined);

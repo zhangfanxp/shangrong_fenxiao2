@@ -2,6 +2,7 @@ import { Prisma, RecordStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/auth";
 import {
+  businessDataSystemSourceSummary,
   businessDataSourceFilterWhere, businessDataSourceInputSchema, businessDataSourceListSelect,
   canBusinessDataSource, nextBusinessDataSourceRecordNo, readBusinessDataSourceFilters,
   serializeBusinessDataSourceListRow, validateSourceAndBuildFields,
@@ -11,6 +12,10 @@ import { writeOperationLog } from "@/lib/operation-log";
 
 function uniqueConflict(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function fieldConflict(error: unknown) {
+  return uniqueConflict(error) && JSON.stringify((error as Prisma.PrismaClientKnownRequestError).meta || {}).includes("BusinessDSField");
 }
 
 export async function GET(request: Request) {
@@ -52,6 +57,7 @@ export async function POST(request: Request) {
         templateId: resolved.template.templateId,
         templateRecordNoSnapshot: resolved.template.templateRecordNo,
         templateNameSnapshot: resolved.template.templateName,
+        systemSources: parsed.data.systemSources,
         remark: parsed.data.remark || null,
         createdByUserId: session.userId,
         createdByUsername: session.username,
@@ -59,10 +65,10 @@ export async function POST(request: Request) {
         fields: { create: resolved.fields },
       }, select: { id: true, recordNo: true } });
     });
-    await writeOperationLog({ userId: session.userId, username: session.username, page: "业务数据源", action: "新增", result: "成功", detail: `新增业务数据源：${created.recordNo}；业务名称：${parsed.data.businessName}；字段：${parsed.data.fields.length}项`, request }).catch(() => undefined);
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "业务数据源", action: "新增", result: "成功", detail: `新增业务数据源：${created.recordNo}；业务名称：${parsed.data.businessName}；组合来源：${businessDataSystemSourceSummary(parsed.data.systemSources)}；字段：${parsed.data.fields.length}项`, request }).catch(() => undefined);
     return NextResponse.json({ message: "业务数据源新增成功", ...created }, { status: 201 });
   } catch (error) {
-    const message = uniqueConflict(error) ? "当前模版已配置业务数据源，请勿重复创建" : error instanceof Error && error.message ? error.message : "业务数据源保存失败，请稍后重试";
+    const message = fieldConflict(error) ? "当前数据源已存在相同业务字段" : uniqueConflict(error) ? "保存数据与现有记录冲突，请刷新后重试" : error instanceof Error && error.message ? error.message : "业务数据源保存失败，请稍后重试";
     await writeOperationLog({ userId: session.userId, username: session.username, page: "业务数据源", action: "新增", result: "失败", detail: message, request }).catch(() => undefined);
     return NextResponse.json({ message }, { status: uniqueConflict(error) ? 409 : 400 });
   }

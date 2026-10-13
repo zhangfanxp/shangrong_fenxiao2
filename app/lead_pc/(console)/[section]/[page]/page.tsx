@@ -22,13 +22,18 @@ import { CourseAssignmentList } from "@/components/course-assignment-list";
 import { WorkwearInventoryList } from "@/components/workwear-inventory-list";
 import { ItemRequisitionList } from "@/components/item-requisition-list";
 import { AttendanceRecordList } from "@/components/attendance-record-list";
+import { LaborCostList } from "@/components/labor-cost-list";
+import { LaborRecordList } from "@/components/labor-record-list";
 import { RestDayList } from "@/components/rest-day-list";
+import { StoreLaborStandardList } from "@/components/store-labor-standard-list";
 import { BusinessDataSourceList } from "@/components/business-data-source-list";
 import { PersonnelRosterList } from "@/components/personnel-roster-list";
 import { MonthlyPurchaseSalesRatioList } from "@/components/monthly-purchase-sales-ratio-list";
 import { ProductCategorySalesRatioList } from "@/components/product-category-sales-ratio-list";
 import { WechatPrivateDailyNewList } from "@/components/wechat-private-daily-new-list";
+import { HundredDaysFoundationList } from "@/components/hundred-days-foundation-list";
 import { DailySalesReportList } from "@/components/daily-sales-report-list";
+import { DailyBreakEvenList } from "@/components/daily-break-even-list";
 import { getPlatformConfig } from "@/lib/platform-config";
 import { requirePageAccess } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -38,6 +43,7 @@ import { serializeStoreResearch, storeResearchDataScope, storeResearchSelect } f
 import { actualRevenueDataScope, actualRevenueListSelect, serializeActualRevenue } from "@/lib/actual-revenue";
 import { revenueTargetDataScope, revenueTargetListSelect, serializeRevenueTarget } from "@/lib/revenue-targets";
 import { attendanceRecordDataScope, attendanceRecordListSelect, serializeAttendanceRecord } from "@/lib/attendance-records";
+import { canLaborCost, laborCostDataScope, laborCostRecordSelect, serializeLaborCostRecord } from "@/lib/labor-costs";
 import { canPersonnelRoster, personnelRosterDataScope, personnelRosterSelect, serializePersonnelRoster } from "@/lib/personnel-roster";
 import { canMonthlyPurchaseSales, monthlyPurchaseSalesDataScope, monthlyPurchaseSalesSelect, serializeMonthlyPurchaseSales } from "@/lib/monthly-purchase-sales-ratios";
 import { canProductCategorySales, productCategorySalesDataScope, productCategorySalesListSelect, serializeProductCategorySales } from "@/lib/product-category-sales-ratios";
@@ -48,10 +54,14 @@ const titles: Record<string, { title: string; description: string }> = {
   "inspection/3": { title: "门店信用得分", description: "查询和管理运营移动端正式提交的门店信用评分结果" },
   "operations/0": { title: "目标营业额", description: "管理门店月度营业目标及每日目标分解" },
   "operations/1": { title: "实际营业额", description: "管理门店月度实际经营数据及目标" },
+  "operations/2": { title: "人力成本", description: "按门店和考勤日期汇总全职、兼职及当日用工成本" },
+  "operations/3": { title: "用工记录", description: "按门店和日期对比实际用工与品牌用工标准" },
+  "operations/5": { title: "保本营业额", description: "按品牌、门店和业务日期查询每日保本营业额及达标情况" },
   "operations/6": { title: "每日销售数据上报", description: "按品牌、门店和业务日期查询每日销售及渠道业绩数据" },
   "operations/7": { title: "产品类别销售占比", description: "查询门店月度菜品大类销售结构" },
   "operations/8": { title: "微信私域每日新增", description: "按门店和业务日期查询每日新增微信好友数据" },
   "operations/11": { title: "每月采销比", description: "查询并维护门店月度销售额、要货金额及采销比" },
+  "operations/12": { title: "百日筑基表", description: "按门店、周次和团购平台查询百日筑基经营数据" },
   "inspection/4": { title: "巡店调研表", description: "查询、查看及管理运营 H5 正式提交的门店调研记录" },
   "inspection/assessments": { title: "考核表格", description: "配置平台检查、督导及运营考核评分模板" },
   "inspection/research-templates": { title: "调研模版", description: "配置门店调研、竞品调研等标准化调研表单" },
@@ -69,6 +79,7 @@ const titles: Record<string, { title: string; description: string }> = {
   "meetings/2": { title: "季度线下会", description: "查询和管理季度线下会议及实际参会情况" },
   "tasks/settings": { title: "任务设置", description: "管理每日、每周、每月及临时任务模板" }, "tasks/records": { title: "任务记录", description: "查看门店任务执行与完成情况" }, "tasks/analysis": { title: "智能分析", description: "查看任务执行结果的AI智能分析记录" },
   "settings/rest-days": { title: "休息日管理", description: "管理法定节假日及系统特殊休息日期" },
+  "settings/store-labor-standards": { title: "门店用工标准", description: "按品牌和金额区间维护门店标准用工人数" },
   "settings/roles": { title: "角色管理", description: "管理系统角色以及页面、功能按钮权限" }, "settings/users": { title: "用户列表", description: "维护平台用户账号、角色和使用状态" }, "settings/business-data-sources": { title: "业务数据源", description: "管理任务、考核及调研模版的数据字段映射" }, "settings/dictionaries": { title: "数据字典", description: "统一维护业务枚举及下拉选项" }, "settings/storage": { title: "R2存储空间", description: "管理平台 Cloudflare R2 存储桶及访问参数" }, "settings/parameters": { title: "系统参数", description: "维护平台信息与考勤参数" }, "settings/operation-logs": { title: "操作日志", description: "追溯系统关键操作及执行结果" }, "settings/clear-data": { title: "清空业务数据", description: "仅限超级管理员执行的系统维护操作" },
 };
 const pageTitle = (section: string, page: string) => titles[`${section}/${page}`] ?? { title: "功能模块", description: "该模块已接入统一导航、权限和页面规范，可按业务规则逐步配置数据字段。" };
@@ -93,8 +104,23 @@ export default async function GenericPage({ params }: { params: Promise<{ sectio
     ]);
     return <main className="page-wrap"><PageHeader {...meta} /><ActualRevenueList permissions={session.permissions} initialRows={initialRows.map(serializeActualRevenue)} initialTotal={initialTotal} /></main>;
   }
+  if (key === "operations/2") {
+    const [initialRows, initialTotal] = canLaborCost(session, "query")
+      ? await (async () => {
+        const where = await laborCostDataScope(session);
+        return db.$transaction([
+          db.dailyAttendanceRecord.findMany({ where, select: laborCostRecordSelect, orderBy: [{ attendanceDate: "desc" }, { createdAt: "desc" }], take: 20 }),
+          db.dailyAttendanceRecord.count({ where }),
+        ]);
+      })()
+      : [[], 0] as const;
+    return <main className="page-wrap"><PageHeader {...meta} /><LaborCostList permissions={session.permissions} initialRows={initialRows.map(serializeLaborCostRecord)} initialTotal={initialTotal} /></main>;
+  }
+  if (key === "operations/3") return <main className="page-wrap"><PageHeader {...meta} /><LaborRecordList permissions={session.permissions} /></main>;
+  if (key === "operations/5") return <main className="page-wrap"><PageHeader {...meta} /><DailyBreakEvenList permissions={session.permissions} /></main>;
   if (key === "operations/6") return <main className="page-wrap"><PageHeader {...meta} /><DailySalesReportList permissions={session.permissions} /></main>;
   if (key === "operations/8") return <main className="page-wrap"><PageHeader {...meta} /><WechatPrivateDailyNewList permissions={session.permissions} /></main>;
+  if (key === "operations/12") return <main className="page-wrap"><PageHeader {...meta} /><HundredDaysFoundationList permissions={session.permissions} /></main>;
   if (key === "operations/7") {
     const [initialRows, initialTotal] = canProductCategorySales(session, "query")
       ? await (async () => {
@@ -181,6 +207,7 @@ export default async function GenericPage({ params }: { params: Promise<{ sectio
   if (key === "settings/backups") return <main className="page-wrap"><PageHeader {...meta} /><DatabaseBackup permissions={session.permissions} /></main>;
   if (key === "settings/dictionaries") return <main className="page-wrap"><PageHeader {...meta} /><DictionaryManagement permissions={session.permissions} /></main>;
   if (key === "settings/rest-days") return <main className="page-wrap"><PageHeader {...meta} /><RestDayList permissions={session.permissions} currentUserName={session.realName} /></main>;
+  if (key === "settings/store-labor-standards") return <main className="page-wrap"><PageHeader {...meta} /><StoreLaborStandardList permissions={session.permissions} /></main>;
   if (key === "settings/operation-logs") return <main className="page-wrap"><PageHeader {...meta} /><OperationLogList permissions={session.permissions} /></main>;
   return <main className="page-wrap"><PageHeader {...meta} /><Card><Descriptions title="模块状态" column={1}><Descriptions.Item label="页面框架">已接入统一导航、登录会话与权限边界</Descriptions.Item><Descriptions.Item label="下一步">根据该模块的业务规则配置字段、数据采集来源和审批流程</Descriptions.Item></Descriptions></Card></main>;
 }

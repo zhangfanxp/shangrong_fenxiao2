@@ -1,6 +1,6 @@
 # 数据库数据字典
 
-> 数据源：当前项目所连接的 MySQL 数据库；生成时间（Asia/Shanghai）：2026-09-24 17:36:28。
+> 数据源：当前项目所连接的 MySQL 数据库；生成时间（Asia/Shanghai）：2026-10-09 14:42:03。
 > 页面会直接读取本文件。后续数据库结构变化时，只需按现有章节和六列表格格式更新本文件，无需修改页面代码。
 
 ## ActualRevenueDaily | 每日实际营业额
@@ -138,10 +138,11 @@
 | id | 主键ID | varchar(191) NOT NULL | 数据库记录的唯一主键标识。 | 是 | 普通：BusinessDataSource_createdAt_id_idx（第2列）；主键：PRIMARY |
 | recordNo | 记录编号 | varchar(12) NOT NULL | 业务数据源记录中的记录编号。 | 否 | 唯一：BusinessDataSource_recordNo_key |
 | businessName | 业务名称 | varchar(20) NOT NULL | 业务数据源记录中的业务名称。 | 否 | 普通：BusinessDataSource_businessName_idx |
-| sourceType | 来源类型 | enum('TASK_TEMPLATE','ASSESSMENT_TEMPLATE','RESEARCH_TEMPLATE') NOT NULL | 业务数据源记录中的来源类型。 | 否 | 唯一：BusinessDataSource_sourceType_templateId_key |
-| templateId | 模板ID | varchar(191) NOT NULL | 关联记录的模板ID。 | 否 | 唯一：BusinessDataSource_sourceType_templateId_key（第2列） |
+| sourceType | 来源类型 | enum('TASK_TEMPLATE','ASSESSMENT_TEMPLATE','RESEARCH_TEMPLATE') NOT NULL | 业务数据源记录中的来源类型。 | 否 | 普通：BusinessDataSource_sourceType_templateId_idx |
+| templateId | 模板ID | varchar(191) NOT NULL | 关联记录的模板ID。 | 否 | 普通：BusinessDataSource_sourceType_templateId_idx（第2列） |
 | templateRecordNoSnapshot | 模板记录编号快照 | varchar(24) NOT NULL | 业务发生时固化的模板记录编号快照，避免源数据后续变化影响历史记录。 | 否 | 普通：BusinessDataSource_templateRecordNoSnapshot_idx |
 | templateNameSnapshot | 模板名称快照 | varchar(100) NOT NULL | 业务发生时固化的模板名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
+| systemSources | 组合系统来源 | json NULL | 以 JSON 数组保存业务数据源组合使用的系统来源标识。 | 否 | — |
 | remark | 备注 | varchar(200) NULL | 业务数据源记录中的备注。 | 否 | — |
 | createdByUserId | 创建人用户ID | varchar(191) NOT NULL | 关联记录的创建人用户ID。 | 否 | — |
 | createdByUsername | 创建人用户名 | varchar(50) NOT NULL | 业务数据源记录中的创建人用户名。 | 否 | — |
@@ -524,8 +525,10 @@
 | brandNameSnapshot | 品牌名称快照 | varchar(100) NOT NULL | 业务发生时固化的品牌名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
 | cooperationTypeSnapshot | 合作类型快照 | varchar(30) NOT NULL | 业务发生时固化的合作类型快照，避免源数据后续变化影响历史记录。 | 否 | — |
 | deadlineAt | 截止时间 | datetime NOT NULL | 截止时间对应的时间点。 | 否 | — |
-| partTimeHeadcount | 兼职时间人数 | int NULL | 每日考勤记录记录中的兼职时间人数。 | 否 | — |
-| partTimeHours | 兼职时间小时 | decimal(6,1) NULL | 每日考勤记录记录中的兼职时间小时。 | 否 | — |
+| partTimeHeadcount | 今日兼职人数 | int NULL | 每日考勤记录记录中的今日兼职人数。 | 否 | — |
+| partTimeHours | 今日兼职工时 | decimal(6,1) NULL | 每日考勤记录记录中的今日兼职工时。 | 否 | — |
+| partTimeLaborCostSnapshot | 兼职用工成本快照 | decimal(12,2) NULL | 业务发生时固化的兼职用工成本快照，避免源数据后续变化影响历史记录。 | 否 | — |
+| partTimeActualLaborCost | 今日兼职用工成本 | decimal(18,2) NULL | 每日考勤记录记录中的今日兼职用工成本。 | 否 | — |
 | createdByUserId | 创建人用户ID | varchar(191) NULL | 关联记录的创建人用户ID。 | 否 | 普通：DailyAttendanceRecord_createdByUserId_createdAt_idx |
 | createdByUsername | 创建人用户名 | varchar(100) NOT NULL | 每日考勤记录记录中的创建人用户名。 | 否 | — |
 | createdByNameSnapshot | 创建人名称快照 | varchar(100) NOT NULL | 业务发生时固化的创建人名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
@@ -1538,6 +1541,7 @@
 | trialOpenDate | 试营业开台日期 | datetime(3) NULL | 试营业开台日期对应的业务日期。 | 否 | — |
 | formalOpenDate | 正式开台日期 | datetime(3) NULL | 正式开台日期对应的业务日期。 | 否 | — |
 | workdayHours | 工作日小时 | decimal(5,2) NULL | 门店记录中的工作日小时。 | 否 | — |
+| partTimeLaborCost | 兼职用工成本 | decimal(12,2) NULL | 门店记录中的兼职用工成本。 | 否 | — |
 | managerUserId | 负责人用户ID | varchar(191) NULL | 关联记录的负责人用户ID。 | 否 | — |
 | managerName | 负责人名称 | varchar(191) NULL | 门店记录中的负责人名称。 | 否 | — |
 | chefUserId | 厨师长用户ID | varchar(191) NULL | 关联记录的厨师长用户ID。 | 否 | — |
@@ -1582,6 +1586,48 @@
 | targetDate | 目标日期 | date NOT NULL | 目标日期对应的业务日期。 | 否 | 普通：StoreDailyTarget_monthlyTargetId_targetDate_idx（第2列）；唯一：StoreDailyTarget_storeId_targetDate_key（第2列） |
 | targetAmount | 目标金额 | decimal(18,2) NOT NULL | 门店每日目标记录中的目标金额。 | 否 | — |
 | createdAt | 创建时间 | datetime(3) NOT NULL | 创建时间对应的时间点。 | 否 | — |
+
+## StoreLaborStandard | 门店用工标准
+
+> 作用：存储各品牌按考核金额区间配置的标准用工人数。
+
+| 字段英文名 | 中文名 | 字段类型 | 数据内容（意义） | 是否主键 | 索引 |
+| --- | --- | --- | --- | --- | --- |
+| id | 主键ID | varchar(191) NOT NULL | 数据库记录的唯一主键标识。 | 是 | 主键：PRIMARY |
+| recordNo | 记录编号 | varchar(12) NOT NULL | 门店用工标准记录中的记录编号。 | 否 | 唯一：StoreLaborStandard_recordNo_key |
+| brandValue | 品牌值 | varchar(100) NOT NULL | 门店用工标准记录中的品牌值。 | 否 | 普通：StoreLaborStandard_brandValue_lowerAmount_idx；普通：StoreLaborStandard_brandValue_upperAmount_idx |
+| assessmentMetric | 考核Metric | enum('RECEIVED_AMOUNT','ACTUAL_SALES_AMOUNT') NOT NULL | 门店用工标准记录中的考核Metric。 | 否 | — |
+| lowerAmount | lower金额 | decimal(18,2) NULL | 门店用工标准记录中的lower金额。 | 否 | 普通：StoreLaborStandard_brandValue_lowerAmount_idx（第2列） |
+| upperAmount | upper金额 | decimal(18,2) NULL | 门店用工标准记录中的upper金额。 | 否 | 普通：StoreLaborStandard_brandValue_upperAmount_idx（第2列） |
+| standardHeadcount | standard人数 | smallint unsigned NOT NULL | 门店用工标准记录中的standard人数。 | 否 | — |
+| remark | 备注 | varchar(100) NULL | 门店用工标准记录中的备注。 | 否 | — |
+| createdByUserId | 创建人用户ID | varchar(191) NULL | 关联记录的创建人用户ID。 | 否 | 普通：StoreLaborStandard_createdByUserId_createdAt_idx |
+| createdByUsername | 创建人用户名 | varchar(50) NOT NULL | 门店用工标准记录中的创建人用户名。 | 否 | — |
+| createdByNameSnapshot | 创建人名称快照 | varchar(50) NOT NULL | 业务发生时固化的创建人名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
+| updatedByUserId | 更新人用户ID | varchar(191) NULL | 关联记录的更新人用户ID。 | 否 | 普通：StoreLaborStandard_updatedByUserId_updatedAt_idx |
+| updatedByNameSnapshot | 更新人名称快照 | varchar(50) NULL | 业务发生时固化的更新人名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
+| version | 版本号 | int NOT NULL | 门店用工标准记录中的版本号。 | 否 | — |
+| createdAt | 创建时间 | datetime(3) NOT NULL | 创建时间对应的时间点。 | 否 | 普通：StoreLaborStandard_createdByUserId_createdAt_idx（第2列） |
+| updatedAt | 更新时间 | datetime(3) NOT NULL | 更新时间对应的时间点。 | 否 | 普通：StoreLaborStandard_updatedByUserId_updatedAt_idx（第2列） |
+
+## StoreLaborStandardBrandLock | 门店用工标准品牌锁
+
+> 作用：存储按品牌维护用工标准时使用的并发锁。
+
+| 字段英文名 | 中文名 | 字段类型 | 数据内容（意义） | 是否主键 | 索引 |
+| --- | --- | --- | --- | --- | --- |
+| brandValue | 品牌值 | varchar(100) NOT NULL | 门店用工标准品牌锁记录中的品牌值。 | 是 | 主键：PRIMARY |
+| updatedAt | 更新时间 | datetime(3) NOT NULL | 更新时间对应的时间点。 | 否 | — |
+
+## StoreLaborStandardSequence | 门店用工标准编号序列
+
+> 作用：维护门店用工标准记录编号的每日顺序值。
+
+| 字段英文名 | 中文名 | 字段类型 | 数据内容（意义） | 是否主键 | 索引 |
+| --- | --- | --- | --- | --- | --- |
+| dateKey | 日期键 | varchar(8) NOT NULL | 门店用工标准编号序列记录中的日期键。 | 是 | 主键：PRIMARY |
+| nextValue | 下一个序号 | int NOT NULL | 门店用工标准编号序列记录中的下一个序号。 | 否 | — |
+| updatedAt | 更新时间 | datetime(3) NOT NULL | 更新时间对应的时间点。 | 否 | — |
 
 ## StoreMonthlyTarget | 门店月度目标
 
@@ -1815,7 +1861,7 @@
 | --- | --- | --- | --- | --- | --- |
 | id | 主键ID | varchar(191) NOT NULL | 数据库记录的唯一主键标识。 | 是 | 主键：PRIMARY |
 | taskRecordId | 任务实例ID | varchar(191) NOT NULL | 关联记录的任务实例ID。 | 否 | 唯一：TaskSubmission_taskRecordId_key |
-| taskIdSnapshot | 任务ID快照 | varchar(191) NOT NULL | 业务发生时固化的任务ID快照，避免源数据后续变化影响历史记录。 | 否 | — |
+| taskIdSnapshot | 任务ID快照 | varchar(191) NOT NULL | 业务发生时固化的任务ID快照，避免源数据后续变化影响历史记录。 | 否 | 普通：TaskSubmission_taskIdSnapshot_executionDate_idx |
 | taskSettingRecordNo | 任务设置记录编号 | varchar(24) NULL | 任务提交记录中的任务设置记录编号。 | 否 | — |
 | taskNameSnapshot | 任务名称快照 | varchar(100) NOT NULL | 业务发生时固化的任务名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
 | taskType | 任务类型 | enum('DAILY','WEEKLY','MONTHLY','TEMPORARY') NOT NULL | 任务提交记录中的任务类型。 | 否 | — |
@@ -1826,7 +1872,7 @@
 | brandNameSnapshot | 品牌名称快照 | varchar(100) NOT NULL | 业务发生时固化的品牌名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
 | userId | 用户ID | varchar(191) NOT NULL | 关联记录的用户ID。 | 否 | 普通：TaskSubmission_userId_submittedAt_idx |
 | userRealNameSnapshot | 用户真实名称快照 | varchar(50) NOT NULL | 业务发生时固化的用户真实名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
-| executionDate | 执行日期 | date NOT NULL | 执行日期对应的业务日期。 | 否 | 普通：TaskSubmission_storeId_executionDate_idx（第2列） |
+| executionDate | 执行日期 | date NOT NULL | 执行日期对应的业务日期。 | 否 | 普通：TaskSubmission_storeId_executionDate_idx（第2列）；普通：TaskSubmission_taskIdSnapshot_executionDate_idx（第2列） |
 | configVersion | 配置版本 | int NOT NULL | 任务提交记录中的配置版本。 | 否 | — |
 | configSnapshot | 配置快照 | json NOT NULL | 业务发生时固化的配置 JSON，避免后续配置变化影响历史记录。 | 否 | — |
 | submittedAt | 提交时间 | datetime(3) NOT NULL | 提交时间对应的时间点。 | 否 | 普通：TaskSubmission_userId_submittedAt_idx（第2列） |

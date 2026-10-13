@@ -33,6 +33,7 @@ export const storeInputSchema = z.object({
   trialOpenDate: optionalDate,
   formalOpenDate: optionalDate,
   workdayHours: z.number({ message: "请输入工作日小时" }).min(0.1, "工作日小时必须大于0").max(24, "工作日小时不能超过24小时").refine(value => Math.abs(value * 10 - Math.round(value * 10)) < 1e-8, "工作日小时最多支持小数点后一位").nullish().transform(value => value ?? null),
+  partTimeLaborCost: z.number({ message: "请输入兼职用工成本" }).min(0, "兼职用工成本不能小于0").max(9999999999.99, "兼职用工成本数值过大").refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "兼职用工成本最多支持小数点后两位").nullish().transform(value => value ?? null),
   ownerName: optionalText(30),
   ownerPhone: z.string().trim().regex(/^$|^1\d{10}$/, "请输入正确的 11 位手机号码").nullish().transform((value) => value || null),
   ownerIdNumber: optionalText(30),

@@ -390,6 +390,9 @@ async function repair(job: Job, originalState: DeploymentState) {
       const result = parsedJson(value); return `${Array.isArray(result.applied) ? result.applied.length : 0}个新迁移`;
     });
     parsedJson(migrationOutput);
+    await runStep(job, "回填并同步用工记录", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "backfill-labor-records.ts")], env: childEnv, timeoutMs: 20 * 60 * 1000 }), value => {
+      const result = parsedJson(value); return `${String(result.synchronized || 0)}条用工记录已同步`;
+    });
     await runStep(job, "同步系统权限和必要字典", () => runProcess({ command: process.execPath, args: ["--import", "tsx", path.join(projectDirectory, "scripts", "sync-deployment-reference-data.ts")], env: childEnv, timeoutMs: 5 * 60 * 1000 }), value => {
       const result = parsedJson(value); return `${String(result.dictionaries || 0)}项数据字典`;
     });

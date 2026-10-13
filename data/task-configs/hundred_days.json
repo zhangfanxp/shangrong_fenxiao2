@@ -1,0 +1,455 @@
+{
+  "recordNo": "202610080001",
+  "taskName": "百日筑基表",
+  "taskType": "周任务",
+  "taskTarget": "门店",
+  "specifiedTargets": [],
+  "executorRoles": [
+    {
+      "id": "cmt6jn0cl000ctn6y5ukshkil",
+      "name": "店长"
+    }
+  ],
+  "executorRole": {
+    "id": "cmt6jn0cl000ctn6y5ukshkil",
+    "name": "店长"
+  },
+  "brands": [
+    {
+      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "name": "奋小二"
+    }
+  ],
+  "storageSpace": {
+    "id": "cmt0xbey80005tncek1xtase8",
+    "name": "R2-test",
+    "bucketName": "videolist"
+  },
+  "executionDays": [
+    "周日"
+  ],
+  "weeklyExecutionDay": "周日",
+  "deadlineDayOffset": 1,
+  "deadlineTime": "23:59",
+  "includeCompletionRate": true,
+  "status": "启用",
+  "configVersion": 4,
+  "submitItems": [
+    {
+      "name": "快手团购_店铺分",
+      "description": "请输入快手店铺分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "快手团购_评分",
+      "description": "请输入快手评分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "score",
+      "options": []
+    },
+    {
+      "name": "快手团购_周单量",
+      "description": "请输入快手本周的订单数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "快手团购_周评价数",
+      "description": "请输入快手本周的订单评价数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "快手团购_周好评数",
+      "description": "请输入快手本周的订单好评数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "快手团购_周差评数",
+      "description": "请输入快手本周的订单差评数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "快手团购_产品质量(内容)",
+      "description": "请输入产品质量评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "快手团购_服务体验(内容)",
+      "description": "请输入服务体验评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "快手团购_环境卫生体验(内容)",
+      "description": "请输入环境卫生评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "美团团购_店铺分",
+      "description": "请输入美团店铺分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "美团团购_评分",
+      "description": "请输入美团评分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "score",
+      "options": []
+    },
+    {
+      "name": "美团团购_周单量",
+      "description": "请输入美团本周的订单数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "美团团购_周评价数",
+      "description": "请输入美团本周的订单评价数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "美团团购_周好评数",
+      "description": "请输入美团本周的订单好评数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "美团团购_周差评数",
+      "description": "请输入美团本周的订单差评数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "美团团购_产品质量(内容)",
+      "description": "请输入产品质量评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "美团团购_服务体验(内容)",
+      "description": "请输入服务体验评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "美团团购_环境卫生体验(内容)",
+      "description": "请输入环境卫生评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "抖音团购_店铺分",
+      "description": "请输入抖音店铺分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "抖音团购_评分",
+      "description": "请输入抖音评分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "score",
+      "options": []
+    },
+    {
+      "name": "抖音团购_周单量",
+      "description": "请输入抖音本周的订单数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "抖音团购_周评价数",
+      "description": "请输入抖音本周的订单评价数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "抖音团购_周好评数",
+      "description": "请输入抖音本周的订单好评数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "抖音团购_周差评数",
+      "description": "请输入抖音本周的订单差评数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "抖音团购_产品质量(内容)",
+      "description": "请输入产品质量评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "抖音团购_服务体验(内容)",
+      "description": "请输入服务体验评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "抖音团购_环境卫生体验(内容)",
+      "description": "请输入环境卫生评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "高德团购_店铺分",
+      "description": "请输入高德店铺分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "高德团购_评分",
+      "description": "请输入高德评分",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "score",
+      "options": []
+    },
+    {
+      "name": "高德团购_周单量",
+      "description": "请输入高德本周的订单数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "高德团购_周评价数",
+      "description": "请输入高德本周的订单评价数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "高德团购_周好评数",
+      "description": "请输入高德本周的订单好评数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "高德团购_周差评数",
+      "description": "请输入高德本周的订单差评数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "高德团购_产品质量(内容)",
+      "description": "请输入产品质量评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "高德团购_服务体验(内容)",
+      "description": "请输入服务体验评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    },
+    {
+      "name": "高德团购_环境卫生体验(内容)",
+      "description": "请输入环境卫生评价文字",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "text",
+      "options": []
+    }
+  ]
+}

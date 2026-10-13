@@ -2,10 +2,12 @@ import { Prisma, TaskRecordStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { synchronizeLaborRecordForTaskSubmission } from "@/lib/labor-records";
 import { writeOperationLog } from "@/lib/operation-log";
 import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
 import { dateKeyAsDbDate, isStoreTaskSnapshot, shanghaiDateKey } from "@/lib/store-h5-tasks";
 import { deleteTaskDraftFiles } from "@/lib/task-r2-upload";
+import { taskInputValueError } from "@/lib/task-input-values";
 import { nextTaskSubmissionRecordNo } from "@/lib/task-records";
 
 const bodySchema = z.object({
@@ -78,12 +80,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       }
       if (item.required && valueIsEmpty(submitted.value)) throw new SubmissionError(`请完成“${item.name}”`);
       let value = valueIsEmpty(submitted.value) ? null : String(submitted.value).trim();
-      if (value !== null && item.component === "input" && item.dataType !== "text") {
-        if (!/^\d+(?:\.\d+)?$/.test(value) || Number(value) < 0) throw new SubmissionError(`“${item.name}”请输入大于等于0的有效数字`);
-        if (item.dataType === "amount" && !/^\d+(?:\.\d{1,2})?$/.test(value)) throw new SubmissionError(`“${item.name}”最多保留2位小数`);
-        if (item.dataType === "quantity" && !/^\d+$/.test(value)) throw new SubmissionError(`“${item.name}”请输入非负整数`);
-        if (item.dataType === "quantity" && item.maxValue !== undefined && item.maxValue !== null && Number(value) > item.maxValue) throw new SubmissionError(`“${item.name}”不能超过${item.maxValue}`);
-      }
+      const inputError = value !== null && item.component === "input" ? taskInputValueError(item, value) : null;
+      if (inputError) throw new SubmissionError(inputError);
       if (value !== null && item.component === "select" && !item.options.includes(value)) throw new SubmissionError(`“${item.name}”选项无效，请重新选择`);
       detailRows.push({ itemName: item.name, componentType: item.component, dataType: item.dataType, description: item.description, required: item.required, weight: item.weight, value, attachmentObjectKey: null, attachmentName: null, attachmentMimeType: null, r2StorageId: null, aiAnalysisTypeSnapshot: item.aiAnalysisType || null, aiAnalysisPromptSnapshot: item.aiAnalysisPrompt || null, sortOrder: index });
     }
@@ -114,6 +112,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
         .then(() => db.taskAttachment.deleteMany({ where: { id: { in: unusedDrafts.map(attachment => attachment.id) }, consumedAt: null } }))
         .catch(() => undefined);
     }
+    await synchronizeLaborRecordForTaskSubmission(submission.id).catch(async error => {
+      await writeOperationLog({
+        userId: session.userId,
+        username: session.username,
+        client: session.clientName,
+        page: "用工记录",
+        action: "同步",
+        result: "失败",
+        detail: `销售上报：${submission.id}；${error instanceof Error ? error.message : "同步失败"}`,
+        request,
+      }).catch(() => undefined);
+    });
     await writeOperationLog({ userId: session.userId, username: session.username, client: session.clientName, page: "任务详情", action: "提交", result: "成功", detail: `任务实例：${record.recordNo || record.id}；提交：${submission.id}`, request }).catch(() => undefined);
     return NextResponse.json({ message: "任务提交成功", submissionId: submission.id });
   } catch (error) {

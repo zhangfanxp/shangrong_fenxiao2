@@ -45,12 +45,14 @@ async function employeeSnapshot(storeId: string, database: Prisma.TransactionCli
     getLaborCostPolicyVersions(database),
   ]);
   const workdayHours = store.workdayHours === null ? null : Number(store.workdayHours);
+  const managerNames = [...new Set(store.personnel.filter(personnel => ["店长", "主管"].includes(personnel.positionLevel)).map(personnel => personnel.name))];
+  const chefNames = [...new Set(store.personnel.filter(personnel => personnel.positionLevel === "厨师长").map(personnel => personnel.name))];
   return {
     id: store.id,
     recordNo: store.recordNo,
     name: store.name,
-    managerName: store.managerName,
-    chefName: store.chefName,
+    managerName: managerNames.join("、") || null,
+    chefName: chefNames.join("、") || null,
     employees: store.personnel.filter(personnel => !isStoreLeader(personnel, store)).map(personnel => {
       const costs = buildPersonnelLaborCostReport({ year: current.year, baseSalary: Number(personnel.baseSalary), workdayHours, organization: personnel.organization, hireDate: personnel.hireDate, resignationDate: personnel.resignationDate, salaryHistory: personnel.salaryHistory, positionHistory: personnel.positionHistory, restDays, policyVersions })[current.month - 1];
       const { baseSalary: _baseSalary, hireDate: _hireDate, resignationDate: _resignationDate, salaryHistory: _salaryHistory, positionHistory: _positionHistory, ...safePersonnel } = personnel;

@@ -22,7 +22,7 @@ type Store = {
   id: string; recordNo: string; contractId?: string; brandId: string; name: string; operationStatus: string; cooperationType: string;
   region?: string; supervisorUserId?: string; supervisorName?: string; province?: string; city?: string; district?: string; address?: string;
   startDate?: string; endDate?: string; businessDistrict?: string; locationType?: string; trialOpenDate?: string;
-  formalOpenDate?: string; workdayHours?: number | string | null; managerUserId?: string; managerName?: string; chefUserId?: string; chefName?: string; ownerName?: string; ownerPhone?: string;
+  formalOpenDate?: string; workdayHours?: number | string | null; partTimeLaborCost?: number | string | null; managerUserId?: string; managerName?: string; chefUserId?: string; chefName?: string; ownerName?: string; ownerPhone?: string;
   ownerIdNumber?: string; douyinLaikeName?: string; kuaishouName?: string; meituanManagerName?: string; meituanBusinessName?: string;
   createdAt: string; brand: Brand; contract?: Contract;
 };
@@ -30,7 +30,7 @@ type Filters = { keyword: string; status: string; brandId: string; cooperationTy
 type StoreForm = {
   contractId?: string; brandId: string; name: string; cooperationType: string; operationStatus: string; region?: string; supervisorUserId?: string; supervisorName?: string;
   location?: string[]; address?: string; startDate?: Dayjs; endDate?: Dayjs; businessDistrict?: string; locationType?: string;
-  trialOpenDate?: Dayjs; formalOpenDate?: Dayjs; workdayHours?: number; managerName?: string; chefName?: string; ownerName?: string;
+  trialOpenDate?: Dayjs; formalOpenDate?: Dayjs; workdayHours?: number; partTimeLaborCost?: number; managerName?: string; chefName?: string; ownerName?: string;
   ownerPhone?: string; ownerIdNumber?: string;
 };
 type StaffRole = "supervisor";
@@ -220,6 +220,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
       trialOpenDate: trialOpenDate ? dayjs(trialOpenDate) : undefined,
       formalOpenDate: store.formalOpenDate ? dayjs(store.formalOpenDate) : undefined,
       workdayHours: store.workdayHours === null || store.workdayHours === undefined ? brandDayHours[store.brand.name] : Number(store.workdayHours),
+      partTimeLaborCost: store.partTimeLaborCost === null || store.partTimeLaborCost === undefined ? undefined : Number(store.partTimeLaborCost),
       ownerName: store.contract?.ownerName || store.ownerName,
       ownerPhone: (store.contract ? store.contract.ownerPhone : store.ownerPhone) ?? "",
       ownerIdNumber: (store.contract ? store.contract.ownerIdNumber : store.ownerIdNumber) ?? "",
@@ -384,7 +385,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
     }
   };
   const openEmployees = (store: Store) => {
-    setEmployeeData({ id: store.id, recordNo: store.recordNo, name: store.name, managerName: store.managerName, chefName: store.chefName, employees: [] });
+    setEmployeeData({ id: store.id, recordNo: store.recordNo, name: store.name, managerName: null, chefName: null, employees: [] });
     setEmployeeDraft([]);
     setEmployeeMode("view");
     void loadStoreEmployees(store.id);
@@ -535,7 +536,8 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
         <FormHeading title="基础信息" />
         <Row gutter={16}><Col span={24}><Form.Item label="关联合同"><Space wrap><Button onClick={openContractModal}>选择合同</Button>{selectedContract ? <span>当前关联合同：{selectedContract.recordNo}</span> : <span className="store-form-hint">未关联合同，可直接维护门店档案。</span>}</Space></Form.Item></Col></Row>
         <Row gutter={16}><FormItem span={8} label="品牌" name="brandId" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} placeholder="请选择品牌" options={brands.map((brand) => ({ value: brand.id, label: brand.name }))} onChange={(brandId) => form.setFieldValue("workdayHours", configuredWorkdayHoursForBrand(brandId))} /></FormItem><FormItem span={8} label="门店名称" name="name" required><Input disabled={!!selectedContract} maxLength={60} placeholder="请输入门店名称" /></FormItem><FormItem span={8} label="合作类型" name="cooperationType" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} options={cooperationOptions.filter((option) => option.value)} /></FormItem></Row>
-        <Row gutter={16}><FormItem span={6} label="运营状态" name="operationStatus" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} options={statusOptions.filter((option) => option.value)} /></FormItem><FormItem span={6} label="营运大区" name="region"><Select allowClear loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择营运大区" options={areaOptions} /></FormItem><FormItem span={6} label="负责督导" name="supervisorName"><Input readOnly placeholder="请选择督导" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "supervisor", title: "督导", field: "supervisorName", idField: "supervisorUserId" })}>选择</Button>} /></FormItem><FormItem span={6} label="工作日小时" name="workdayHours" required rules={[{ required: true, message: "请输入工作日小时" }, { type: "number", min: 0.1, max: 24, message: "请输入0.1至24之间的工作日小时" }]}><InputNumber min={0.1} max={24} step={0.1} precision={1} suffix="小时/日" style={{ width: "100%" }} placeholder="读取品牌考勤参数，可修改" /></FormItem></Row>
+        <Row gutter={16}><FormItem span={8} label="运营状态" name="operationStatus" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} options={statusOptions.filter((option) => option.value)} /></FormItem><FormItem span={8} label="营运大区" name="region"><Select allowClear loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择营运大区" options={areaOptions} /></FormItem><FormItem span={8} label="负责督导" name="supervisorName"><Input readOnly placeholder="请选择督导" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "supervisor", title: "督导", field: "supervisorName", idField: "supervisorUserId" })}>选择</Button>} /></FormItem></Row>
+        <Row gutter={16}><FormItem span={12} label="工作日小时" name="workdayHours" required rules={[{ required: true, message: "请输入工作日小时" }, { type: "number", min: 0.1, max: 24, message: "请输入0.1至24之间的工作日小时" }]}><InputNumber min={0.1} max={24} step={0.1} precision={1} suffix="小时/日" style={{ width: "100%" }} placeholder="读取品牌考勤参数，可修改" /></FormItem><FormItem span={12} label="兼职用工成本" name="partTimeLaborCost" rules={[{ type: "number", min: 0, max: 9999999999.99, message: "请输入不小于0的兼职用工成本" }]}><InputNumber min={0} max={9999999999.99} step={0.01} precision={2} suffix="元/小时" style={{ width: "100%" }} placeholder="选填，请输入兼职用工成本" /></FormItem></Row>
         <FormHeading title="门店地址与商圈" />
         <Row gutter={16}><FormItem span={12} label="省 / 市 / 区县" name="location"><Cascader disabled={!!selectedContract} options={districtOptions} fieldNames={{ label: "name", value: "name", children: "children" }} placeholder="请选择门店所在地区" showSearch /></FormItem><FormItem span={12} label="详细地址" name="address"><Input disabled={!!selectedContract} maxLength={200} placeholder="请输入街道、门牌号等" /></FormItem></Row>
         <Row gutter={16}><FormItem span={8} label="商圈" name="businessDistrict"><Input maxLength={60} placeholder="如：静安寺商圈" /></FormItem><FormItem span={8} label="选址类型" name="locationType"><Select allowClear loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择门店位置类型" options={locationTypeOptions} /></FormItem></Row>
@@ -730,6 +732,7 @@ function StoreDetails({ store, brandDayHours }: { store: Store; brandDayHours: R
       { key: "brand", label: "品牌", children: store.brand.name }, { key: "name", label: "门店名称", children: store.name },
       { key: "cooperation", label: "合作类型", children: cooperationLabel(store.cooperationType) }, { key: "contract", label: "关联合同", children: store.contract ? <>{store.contract.recordNo} <StatusTag value={store.contract.status} /></> : "未关联" },
       { key: "workdayHours", label: "工作日小时", children: workdayHours === undefined ? "-" : `${Number(workdayHours)}小时/日` },
+      { key: "partTimeLaborCost", label: "兼职用工成本", children: store.partTimeLaborCost === null || store.partTimeLaborCost === undefined ? "-" : `${Number(store.partTimeLaborCost).toFixed(2)}元/小时` },
       { key: "region", label: "营运大区", children: text(store.region) }, { key: "supervisor", label: "负责督导", children: text(store.supervisorName) },
       { key: "location", label: "省 / 市 / 区县", children: locationLabel(store) }, { key: "address", label: "详细地址", children: text(store.address) },
       { key: "businessDistrict", label: "商圈", children: text(store.businessDistrict) }, { key: "locationType", label: "选址类型", children: text(store.locationType) },

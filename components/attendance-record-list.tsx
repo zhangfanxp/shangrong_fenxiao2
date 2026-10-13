@@ -14,6 +14,9 @@ export type AttendanceRecordRow = {
   storeName: string;
   cooperationType: string;
   partTimeWorkerCount: number | null;
+  partTimeWorkHours: string | null;
+  partTimeLaborCost: string | null;
+  partTimeActualLaborCost: string | null;
   attendanceDate: string;
   createdByName: string;
   createdAt: string;
@@ -31,6 +34,8 @@ type AttendanceDetail = {
     attendanceDate: string;
     partTimeWorkerCount: number | null;
     partTimeWorkHours: string | null;
+    partTimeLaborCost: string | null;
+    partTimeActualLaborCost: string | null;
     createdByName: string;
     createdAt: string;
   };
@@ -245,6 +250,8 @@ export function AttendanceRecordList({ permissions, initialRows = [], initialTot
           <Descriptions.Item label="创建人">{detail.overview.createdByName}</Descriptions.Item>
           <Descriptions.Item label="当日兼职人数">{detail.overview.partTimeWorkerCount === null ? "-" : `${detail.overview.partTimeWorkerCount} 人`}</Descriptions.Item>
           <Descriptions.Item label="当日兼职工时">{decimalText(detail.overview.partTimeWorkHours, " 小时")}</Descriptions.Item>
+          <Descriptions.Item label="兼职用工成本">{detail.overview.partTimeLaborCost === null ? "-" : `${moneyText(detail.overview.partTimeLaborCost)} / 小时`}</Descriptions.Item>
+          <Descriptions.Item label="今日兼职用工成本"><strong className="attendance-record-actual-cost">{moneyText(detail.overview.partTimeActualLaborCost)}</strong></Descriptions.Item>
           <Descriptions.Item label="创建时间">{detail.overview.createdAt}</Descriptions.Item>
         </Descriptions>
         <div className="attendance-record-detail-heading"><strong>员工考勤明细</strong><span>共 {detail.details.length} 人</span></div>

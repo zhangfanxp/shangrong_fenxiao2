@@ -6,7 +6,7 @@ export const TASK_CONFIG_DIRECTORY = path.join(process.cwd(), "data", "task-conf
 export type SubmitItem = {
   name: string;
   component: "attachment" | "input" | "select";
-  dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null;
+  dataType: "photo" | "video" | "document" | "amount" | "quantity" | "score" | "text" | null;
   maxValue?: number | null;
   captureOnly?: boolean;
   options: string[];
@@ -34,6 +34,7 @@ function parseComponent(value: string, lineNumber: number): Pick<SubmitItem, "co
   if (value === "[附件]录像") return { component: "attachment", dataType: "video", captureOnly: true, options: [] };
   if (value === "[附件]文档") return { component: "attachment", dataType: "document", captureOnly: false, options: [] };
   if (value === "[输入框]金额") return { component: "input", dataType: "amount", options: [] };
+  if (value === "[输入框]评分") return { component: "input", dataType: "score", options: [] };
   const quantityInput = value.match(/^\[输入框(?:_(\d+))?\](?:数量|数字)$/);
   if (quantityInput) {
     const maxValue = quantityInput[1] === undefined ? null : Number(quantityInput[1]);

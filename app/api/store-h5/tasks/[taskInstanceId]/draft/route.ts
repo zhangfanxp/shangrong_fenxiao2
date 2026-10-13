@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
 import { isStoreTaskSnapshot } from "@/lib/store-h5-tasks";
+import { taskInputValueError } from "@/lib/task-input-values";
 
 const bodySchema = z.object({
   items: z.array(z.object({
@@ -38,6 +39,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       if (values.has(submitted.index)) throw new DraftError("暂存内容存在重复项目");
       const item = record.configSnapshot.submitItems[submitted.index];
       if (!item || item.component === "attachment") throw new DraftError("暂存内容包含无效任务项");
+      const inputError = item.component === "input" ? taskInputValueError(item, submitted.value) : null;
+      if (inputError) throw new DraftError(inputError);
+      if (item.component === "select" && String(submitted.value).trim() && !item.options.includes(String(submitted.value).trim())) throw new DraftError(`“${item.name}”选项无效，请重新选择`);
       values.set(submitted.index, submitted.value);
     }
     const fallbackItemIndexes = [...new Set(parsed.data.fallbackItemIndexes)];

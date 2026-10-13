@@ -10,7 +10,7 @@ import { jsonIdArray } from "@/lib/user-store-scope";
 export type StoreTaskItem = {
   name: string;
   component: "attachment" | "input" | "select";
-  dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null;
+  dataType: "photo" | "video" | "document" | "amount" | "quantity" | "score" | "text" | null;
   maxValue?: number | null;
   captureOnly?: boolean;
   options: string[];

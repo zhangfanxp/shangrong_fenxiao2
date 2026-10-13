@@ -1,9 +1,9 @@
 {
   "deploymentVersion": 2,
-  "databaseSchemaVersion": 34,
-  "databaseSchemaChecksum": "44ebc3e5e96db13343902af6d1ea53a9acd1c69f4b0dd81bdefa0a3af73faba5",
-  "latestMigration": "202609241900_add_task_submission_source_date_index.sql",
-  "configSchemaVersion": 5,
+  "databaseSchemaVersion": 40,
+  "databaseSchemaChecksum": "7d0ca90d4e137a416d75a612ff081de170b5a57cc478338e1d8c6b730a111e37",
+  "latestMigration": "202610091600_add_store_labor_records.sql",
+  "configSchemaVersion": 6,
   "requiredEnvironment": [
     "DATABASE_URL",
     "AUTH_SECRET",

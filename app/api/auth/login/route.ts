@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "当前账号不具备运营PC端登录权限，请联系平台管理员" }, { status: 403 });
   }
   const sessionStartedAt = performance.now();
-  const token = await createSession({ userId: user.id, username: user.username, realName: user.realName, role: user.role.code, permissions });
+  const token = await createSession({ userId: user.id });
   const sessionDuration = duration(sessionStartedAt);
   const writesStartedAt = performance.now();
   await Promise.all([

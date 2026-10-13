@@ -34,6 +34,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         attendanceDate: businessDateText(row.attendanceDate),
         partTimeWorkerCount: row.partTimeHeadcount,
         partTimeWorkHours: row.partTimeHours === null ? null : row.partTimeHours.toString(),
+        partTimeLaborCost: row.partTimeLaborCostSnapshot === null ? null : row.partTimeLaborCostSnapshot.toFixed(2),
+        partTimeActualLaborCost: row.partTimeActualLaborCost === null ? null : row.partTimeActualLaborCost.toFixed(2),
         createdByName: row.createdByNameSnapshot,
         createdAt: formatShanghaiDateTime(row.createdAt),
       },

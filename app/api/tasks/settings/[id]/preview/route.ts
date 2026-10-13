@@ -4,9 +4,10 @@ import { db } from "@/lib/db";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { writeOperationLog } from "@/lib/operation-log";
 import { readTaskConfig, TaskConfigError } from "@/lib/task-config";
+import { taskInputValueError } from "@/lib/task-input-values";
 import { deleteUploadedTaskFiles, TaskAttachmentError, uploadTaskFiles, type UploadedTaskFile } from "@/lib/task-r2-upload";
 
-type ConfigItem = { name: string; component: "attachment" | "input" | "select"; dataType: "photo" | "video" | "document" | "amount" | "quantity" | "text" | null; maxValue?: number | null; options: string[]; description: string; required: boolean; weight: number };
+type ConfigItem = { name: string; component: "attachment" | "input" | "select"; dataType: "photo" | "video" | "document" | "amount" | "quantity" | "score" | "text" | null; maxValue?: number | null; options: string[]; description: string; required: boolean; weight: number };
 type SubmittedFile = { name: string; type: string; size: number; dataUrl: string };
 type SubmittedItem = { name: string; value?: string | number; files?: SubmittedFile[] };
 
@@ -47,9 +48,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const empty = value === undefined || value === null || String(value).trim() === "";
       if (item.required && empty) throw new TaskConfigError(`请填写“${item.name}”`);
       if (!empty) {
-        if (item.component === "input" && item.dataType !== "text" && (!Number.isFinite(Number(value)) || Number(value) < 0)) throw new TaskConfigError(`“${item.name}”请输入有效数字`);
-        if (item.component === "input" && item.dataType === "quantity" && !/^\d+$/.test(String(value))) throw new TaskConfigError(`“${item.name}”请输入非负整数`);
-        if (item.component === "input" && item.dataType === "quantity" && item.maxValue !== undefined && item.maxValue !== null && Number(value) > item.maxValue) throw new TaskConfigError(`“${item.name}”不能超过${item.maxValue}`);
+        const inputError = item.component === "input" ? taskInputValueError(item, value) : null;
+        if (inputError) throw new TaskConfigError(inputError);
         if (item.component === "select" && !item.options.includes(String(value))) throw new TaskConfigError(`“${item.name}”选项无效，请重新选择`);
       }
       const normalizedValue = empty ? "" : item.component === "input" && item.dataType !== "text" ? Number(value) : typeof value === "string" ? value.trim() : value;

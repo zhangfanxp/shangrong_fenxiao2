@@ -16,10 +16,14 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (pathname === "/lead_pc/stores/list") return hasPermission(permissions, "stores:list:view");
   if (pathname === "/lead_pc/operations/0") return hasPermission(permissions, ["operations:view", "actual-revenue:set-monthly-target"]) || anyPrefix(permissions, "revenue-targets:");
   if (pathname === "/lead_pc/operations/1") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "actual-revenue:");
+  if (pathname === "/lead_pc/operations/2") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "labor-costs:");
+  if (pathname === "/lead_pc/operations/3") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "labor-records:");
+  if (pathname === "/lead_pc/operations/5") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "daily-break-even:");
   if (pathname === "/lead_pc/operations/6") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "daily-sales-report:");
   if (pathname === "/lead_pc/operations/7") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "product-category-sales:");
   if (pathname === "/lead_pc/operations/8") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "wechat-private-daily-new:");
   if (pathname === "/lead_pc/operations/11") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "monthly-purchase-sales:");
+  if (pathname === "/lead_pc/operations/12") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "hundred-days:");
   if (pathname.startsWith("/lead_pc/operations/")) return hasPermission(permissions, "operations:view");
   if (pathname === "/lead_pc/inspection/2") return hasPermission(permissions, ["inspection:view", "store-reviews:query"]);
   if (pathname === "/lead_pc/inspection/3") return hasPermission(permissions, ["inspection:view", "store-credit-scores:query"]);
@@ -52,6 +56,7 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (pathname === "/lead_pc/settings/business-data-sources") return anyPrefix(permissions, "business-data-sources:");
   if (pathname === "/lead_pc/settings/dictionaries") return hasPermission(permissions, "settings:dictionaries") || anyPrefix(permissions, "dictionaries:");
   if (pathname === "/lead_pc/settings/rest-days") return hasPermission(permissions, ["settings:rest-days", "rest-days:query"]);
+  if (pathname === "/lead_pc/settings/store-labor-standards") return hasPermission(permissions, ["settings:store-labor-standards", "store-labor-standards:query"]);
   if (pathname === "/lead_pc/settings/storage") return anyPrefix(permissions, "r2-storage:");
   if (pathname === "/lead_pc/settings/backups") return anyPrefix(permissions, "database-backups:");
   if (pathname === "/lead_pc/settings/parameters") return hasPermission(permissions, "settings:parameters");
@@ -60,10 +65,10 @@ export function canAccessPath(pathname: string, permissions: string[]) {
 }
 
 export const accessibleLandingPaths = [
-  "/lead_pc/dashboard", "/lead_pc/stores/contracts", "/lead_pc/stores/list", "/lead_pc/operations/0", "/lead_pc/operations/1", "/lead_pc/operations/6", "/lead_pc/operations/7", "/lead_pc/operations/8", "/lead_pc/operations/11", "/lead_pc/inspection/2", "/lead_pc/inspection/3", "/lead_pc/inspection/4", "/lead_pc/inspection/assessments", "/lead_pc/inspection/research-templates",
+  "/lead_pc/dashboard", "/lead_pc/stores/contracts", "/lead_pc/stores/list", "/lead_pc/operations/0", "/lead_pc/operations/1", "/lead_pc/operations/2", "/lead_pc/operations/3", "/lead_pc/operations/5", "/lead_pc/operations/6", "/lead_pc/operations/7", "/lead_pc/operations/8", "/lead_pc/operations/11", "/lead_pc/operations/12", "/lead_pc/inspection/2", "/lead_pc/inspection/3", "/lead_pc/inspection/4", "/lead_pc/inspection/assessments", "/lead_pc/inspection/research-templates",
   "/lead_pc/tasks/records", "/lead_pc/tasks/analysis", "/lead_pc/tasks/settings", "/lead_pc/staff/0", "/lead_pc/staff/2", "/lead_pc/staff/3", "/lead_pc/staff/4", "/lead_pc/training/0", "/lead_pc/training/1", "/lead_pc/training/3", "/lead_pc/meetings/0", "/lead_pc/meetings/1", "/lead_pc/meetings/2",
   "/lead_pc/notifications/publish", "/lead_pc/notifications/manage", "/lead_pc/statistics/roster", "/lead_pc/statistics/labor-contract-expiry", "/lead_pc/settings/roles", "/lead_pc/settings/users",
-  "/lead_pc/settings/business-data-sources", "/lead_pc/settings/dictionaries", "/lead_pc/settings/rest-days", "/lead_pc/settings/storage", "/lead_pc/settings/backups", "/lead_pc/settings/parameters", "/lead_pc/settings/operation-logs",
+  "/lead_pc/settings/business-data-sources", "/lead_pc/settings/dictionaries", "/lead_pc/settings/rest-days", "/lead_pc/settings/store-labor-standards", "/lead_pc/settings/storage", "/lead_pc/settings/backups", "/lead_pc/settings/parameters", "/lead_pc/settings/operation-logs",
 ] as const;
 
 export function firstAccessiblePath(permissions: string[]) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { BellOutlined, BookOutlined, CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined, LogoutOutlined, ReadOutlined } from "@ant-design/icons";
+import { BellOutlined, BookOutlined, CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined, LogoutOutlined, ReadOutlined, ShopOutlined } from "@ant-design/icons";
 import { Alert, Button, message, Modal } from "antd";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -14,6 +14,7 @@ const entries = [
   { name: "通知", icon: <BellOutlined />, href: "/store_h5/notifications", permission: "store-h5:notifications:view" },
   { name: "线上课堂", icon: <ReadOutlined />, href: "/store_h5/online-courses", permission: "store-h5:courses:query" },
   { name: "每日考勤", icon: <CalendarOutlined />, href: "/store_h5/daily-attendance", permission: "store-h5:daily-attendance:view", attendance: true },
+  { name: "我的门店", icon: <ShopOutlined />, href: "/store_h5/my-store", permission: "store-h5:my-store:view", myStore: true },
 ];
 
 export function StoreH5Home({ realName, storeName, permissions, initialPendingCount, initialDailyLearningPending, canAccessDailyAttendance }: { realName: string; storeName: string | null; permissions: string[]; initialPendingCount: number; initialDailyLearningPending: boolean; canAccessDailyAttendance: boolean }) {
@@ -27,7 +28,7 @@ export function StoreH5Home({ realName, storeName, permissions, initialPendingCo
   const canQueryDailyLearning = hasRolePermission(permissions, "store-h5:daily-learning:query");
   const canViewNotifications = hasRolePermission(permissions, "store-h5:notifications:view");
   const canReadNotifications = hasRolePermission(permissions, "store-h5:notifications:read");
-  const visibleEntries = entries.filter(entry => hasRolePermission(permissions, entry.permission) && (!entry.attendance || canAccessDailyAttendance));
+  const visibleEntries = entries.filter(entry => hasRolePermission(permissions, entry.permission) && (!entry.attendance || canAccessDailyAttendance) && (!entry.myStore || Boolean(storeName)));
   const refreshPendingCount = useCallback(async () => {
     if (!canQueryTasks) return;
     try {

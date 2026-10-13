@@ -9,3 +9,6 @@ their SHA-256 checksums in `DeploymentMigration`.
   be rolled back as one transaction.
 - Fresh databases are created from `prisma/schema.prisma` and receive the current
   baseline before later files are considered.
+- `npm run deploy:migrations` and the setup repair workflow automatically run
+  the idempotent labor-record reconciliation after migrations. When applying SQL
+  files outside those workflows, run `npm run labor-records:backfill` afterward.
