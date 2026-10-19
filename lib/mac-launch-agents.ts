@@ -67,6 +67,7 @@ export function renderCanyinLaunchAgentPlists(projectDirectory: string, appPort:
   const nodePath = process.execPath;
   const nextCli = path.join(projectDirectory, "node_modules", "next", "dist", "bin", "next");
   const tsxCli = path.join(projectDirectory, "node_modules", "tsx", "dist", "cli.mjs");
+  const startScript = path.join(projectDirectory, "scripts", "start-production.ts");
   const schedulerScript = path.join(projectDirectory, "scripts", "run-task-scheduler.ts");
   const logDirectory = path.join(projectDirectory, "data", "logs");
   const pathValue = `${path.dirname(nodePath)}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`;
@@ -74,10 +75,11 @@ export function renderCanyinLaunchAgentPlists(projectDirectory: string, appPort:
     nodePath,
     nextCli,
     tsxCli,
+    startScript,
     schedulerScript,
     web: plist({
       label: WEB_AGENT_LABEL,
-      args: [nodePath, nextCli, "start", "--hostname", SETUP_HOST, "--port", String(appPort)],
+      args: [nodePath, tsxCli, startScript, "--hostname", SETUP_HOST, "--port", String(appPort)],
       cwd: projectDirectory,
       stdout: path.join(logDirectory, "web.log"),
       stderr: path.join(logDirectory, "web.error.log"),
@@ -99,7 +101,7 @@ export function renderCanyinLaunchAgentPlists(projectDirectory: string, appPort:
 export async function installCanyinLaunchAgents(projectDirectory: string, appPort: number) {
   if (process.platform !== "darwin") throw new Error("LaunchAgent只能在macOS上安装");
   const documents = renderCanyinLaunchAgentPlists(projectDirectory, appPort);
-  for (const required of [documents.nodePath, documents.nextCli, documents.tsxCli, documents.schedulerScript, path.join(projectDirectory, ".next", "BUILD_ID")]) {
+  for (const required of [documents.nodePath, documents.nextCli, documents.tsxCli, documents.startScript, documents.schedulerScript, path.join(projectDirectory, ".next", "BUILD_ID")]) {
     if (!existsSync(required)) throw new Error(`缺少运行文件：${required}`);
   }
 

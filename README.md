@@ -218,6 +218,8 @@ tail -f data/logs/scheduler.log
 tail -f data/logs/scheduler.error.log
 ```
 
+主站通过 `npm run start` 或 LaunchAgent 启动时，会先检查并应用尚未执行的部署迁移；迁移失败时主站不会启动，因此不会等到用户登录后才出现数据库字段缺失错误。生产升级仍建议通过 Setup 的“检查升级并修复部署”入口执行，以便在迁移前完成已配置的数据库备份。
+
 `com.canyin.web` 在异常退出后会自动重启；`com.canyin.scheduler` 每 60 秒运行一次。统一调度器没有到期工作时通常不输出日志，这是正常现象；只有执行了任务、更新了合同到期状态、计算了员工生日提醒、发布了通知、完成了备份或发生错误时才记录内容。
 
 最后应重启一次 Mac，登录同一 macOS 用户，不打开终端，重新执行健康检查并确认系统可登录。这个步骤可以验证 LaunchAgent、项目路径和 Node.js 路径在真实重启后仍然有效。

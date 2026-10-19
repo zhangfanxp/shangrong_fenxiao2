@@ -5,9 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "npm run verify:deployment && prisma generate && next build",
-    "start": "next start --hostname 127.0.0.1",
+    "start": "tsx scripts/start-production.ts --hostname 127.0.0.1",
     "setup": "tsx scripts/setup-server.ts",
-    "deploy:migrations": "tsx scripts/run-deployment-migrations.ts && tsx scripts/backfill-labor-records.ts",
+    "db:migrate": "tsx scripts/run-deployment-migrations.ts",
+    "deploy:migrations": "npm run db:migrate && tsx scripts/backfill-labor-records.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",

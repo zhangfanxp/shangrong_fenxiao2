@@ -295,7 +295,7 @@ export function PersonnelList({ permissions, currentUserName }: { permissions: s
         </Row>
       </Form>}
     </Modal>
-    <Modal title="批量导入人员档案" width={720} open={importOpen} onCancel={() => setImportOpen(false)} onOk={() => void startImport()} okText="开始导入" cancelText="取消" confirmLoading={importing} okButtonProps={{ disabled: !importFiles.length }}>
+    <Modal title="批量导入人员档案" width={720} open={importOpen} onCancel={() => setImportOpen(false)} onOk={() => importResult ? setImportOpen(false) : void startImport()} okText={importResult ? "关闭" : "开始导入"} cancelText="取消" confirmLoading={importing} okButtonProps={{ disabled: !importResult && !importFiles.length }}>
       <Alert type="info" showIcon message="逐条校验，合法数据导入，错误数据返回明细" description="模板表头已标注必填、选填和条件必填字段，红色 * 表示必填或条件必填。记录编号、创建人和创建时间由系统自动生成，仅支持 .xlsx 文件。" style={{ marginBottom: 16 }} />
       <Space direction="vertical" style={{ width: "100%" }} size="middle"><Button icon={<DownloadOutlined />} href="/api/personnel/import">下载导入模板</Button><Upload.Dragger accept=".xlsx" maxCount={1} fileList={importFiles} beforeUpload={() => false} onChange={({ fileList }) => { setImportFiles(fileList.slice(-1)); setImportResult(null); }}><p className="ant-upload-drag-icon"><UploadOutlined /></p><p>点击或拖拽 .xlsx 文件到此处</p></Upload.Dragger>{importResult && <Alert type={importResult.failed ? "warning" : "success"} showIcon message={`导入成功 ${importResult.success} 条，导入失败 ${importResult.failed} 条`} description={importResult.errors.length ? <div className="personnel-import-errors">{importResult.errors.map(item => <div key={item}>{item}</div>)}</div> : "全部数据导入成功"} />}</Space>
     </Modal>
