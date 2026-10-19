@@ -223,6 +223,7 @@ model User {
   id                           String                            @id @default(cuid())
   username                     String                            @unique
   passwordHash                 String
+  mustChangePassword           Boolean                           @default(false)
   realName                     String
   phone                        String?
   tags                         String?                           @db.VarChar(200)

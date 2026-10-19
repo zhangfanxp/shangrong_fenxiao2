@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
+import { requireApiSession } from "@/lib/auth";
 import { businessDataTargetLabels, businessDataTargetValues } from "@/lib/business-data-targets";
 import { db } from "@/lib/db";
 import { writeOperationLogWithTransaction } from "@/lib/operation-log";
@@ -11,7 +11,7 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await getSession();
+  const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   if (session.role !== "SUPER_ADMIN") return NextResponse.json({ message: "当前账号暂无执行清空业务数据的权限" }, { status: 403 });
   const parsed = schema.safeParse(await request.json());

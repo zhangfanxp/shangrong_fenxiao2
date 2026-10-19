@@ -29,6 +29,7 @@ async function main() {
       create: {
         username: input.administrator.username,
         passwordHash,
+        mustChangePassword: true,
         realName: input.administrator.realName,
         phone: input.administrator.phone || null,
         type: UserType.SYSTEM,
@@ -37,6 +38,7 @@ async function main() {
       },
       update: {
         passwordHash,
+        mustChangePassword: true,
         realName: input.administrator.realName,
         phone: input.administrator.phone || null,
         type: UserType.SYSTEM,

@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     await writeOperationLog({ userId: user.id, username: user.username, client: "运营移动端", page: "登录页面", action: "登录", result: "失败", detail: "账号或角色已禁用", request }).catch(() => undefined);
     return NextResponse.json({ message: "当前账号已被禁用，请联系平台管理员" }, { status: 403 });
   }
+  if (user.mustChangePassword) return NextResponse.json({ message: "请先在运营管理系统完成首次密码修改，再登录移动端" }, { status: 403 });
   const permissions = Array.isArray(user.role.permissions) ? user.role.permissions.filter((item): item is string => typeof item === "string") : [];
   if (!hasRolePlatformAccess(permissions, "lead-h5")) {
     await writeOperationLog({ userId: user.id, username: user.username, client: "运营移动端", page: "登录页面", action: "登录", result: "失败", detail: "所属角色未配置运营H5移动端权限", request }).catch(() => undefined);

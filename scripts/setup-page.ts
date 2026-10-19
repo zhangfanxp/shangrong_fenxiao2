@@ -169,7 +169,7 @@ function renderJob(job){
   $("jobError").textContent=job.error||"";
   if(job.status==="success"){
     $("jobResult").classList.remove("hidden");
-    $("jobResult").innerHTML='<h3>部署和验证全部完成</h3><div>访问地址：<a href="'+esc(job.result.appUrl)+'/lead_pc/login" target="_blank">'+esc(job.result.appUrl)+'/lead_pc/login</a></div><div>主站与调度器将在每次登录 macOS 后自动启动。</div><div class="muted">R2 和数据库自动备份可在登录系统后按需配置。</div>';
+    $("jobResult").innerHTML='<h3>部署和验证全部完成</h3><div>访问地址：<a href="'+esc(job.result.appUrl)+'/lead_pc/login" target="_blank">'+esc(job.result.appUrl)+'/lead_pc/login</a></div><div>主站与调度器将在每次登录 macOS 后自动启动。</div><div class="notice" style="margin-top:14px"><b>首次登录后的下一步</b><ol><li>使用账号 admin 和 Setup 中设置的初始密码（默认预填 1qaz2wsx）登录；系统会强制要求先修改密码。</li><li>如需迁移旧系统基础资料，登录并修改密码后进入「设置 → 数据导入导出 → 数据导入」，上传旧系统导出的 .cspkg 资料包并输入导出时设置的口令。</li></ol>资料包不在 Setup 页面直接导入。R2 对象文件不会随资料包迁移。</div><div class="muted">R2 和数据库自动备份可在登录系统后按需配置。</div>';
     $("progressTitle").textContent="部署完成";
   }else if(job.status==="failed"){
     $("progressTitle").textContent="部署需要处理";

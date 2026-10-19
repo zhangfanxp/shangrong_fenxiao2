@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     writeOperationLog({ userId: user.id, username: user.username, page: "登录页面", action: "登录", result: "成功", detail: "登录运营管理PC端", request }).catch(() => undefined),
   ]);
   const writesDuration = duration(writesStartedAt);
-  const response = NextResponse.json({ realName: user.realName, redirectTo: firstAccessiblePath(permissions) });
+  const response = NextResponse.json({ realName: user.realName, redirectTo: user.mustChangePassword ? "/lead_pc/change-password" : firstAccessiblePath(permissions) });
   response.cookies.set(sessionCookie.name, token, sessionCookie.options);
   response.headers.set("Server-Timing", serverTiming({ user_lookup: userLookupDuration, password_verify: passwordDuration, session_sign: sessionDuration, login_writes: writesDuration, total: duration(totalStartedAt) }));
   return response;

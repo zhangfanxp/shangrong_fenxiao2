@@ -40,7 +40,7 @@ export async function getLeadH5Session(requirement?: RolePermissionRequirement):
     const tokenSession = payload as unknown as LeadH5Token;
     if (!tokenSession.userId || tokenSession.channel !== "lead_h5") return null;
     const user = await db.user.findUnique({ where: { id: tokenSession.userId }, include: { role: true } });
-    if (!user || user.status !== "ENABLED" || user.role.status !== "ENABLED") return null;
+    if (!user || user.status !== "ENABLED" || user.role.status !== "ENABLED" || user.mustChangePassword) return null;
     const permissions = Array.isArray(user.role.permissions)
       ? user.role.permissions.filter((item): item is string => typeof item === "string")
       : [];

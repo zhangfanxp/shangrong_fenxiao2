@@ -55,7 +55,7 @@ export async function getStoreH5Session(requirement?: RolePermissionRequirement)
         },
       },
     });
-    if (!user || user.status !== "ENABLED" || user.role.status !== "ENABLED") return null;
+    if (!user || user.status !== "ENABLED" || user.role.status !== "ENABLED" || user.mustChangePassword) return null;
     const permissions = Array.isArray(user.role.permissions) ? user.role.permissions.filter((item): item is string => typeof item === "string") : [];
     if (!hasRolePlatformAccess(permissions, "store-h5")) return null;
     if (requirement && !hasRolePermission(permissions, requirement)) return null;

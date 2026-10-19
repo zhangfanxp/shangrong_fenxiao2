@@ -14,7 +14,7 @@ async function main() {
   const { db } = await import("../lib/db");
   try {
     const [administrator, userCount, roles, dictionaries, database] = await Promise.all([
-      db.user.findUnique({ where: { id: input.administratorId }, select: { id: true, username: true, realName: true } }),
+      db.user.findUnique({ where: { id: input.administratorId }, select: { id: true, username: true, realName: true, mustChangePassword: true } }),
       db.user.count(),
       db.role.findMany({ where: { code: { in: fixedSystemRoles.map(role => role.code) }, type: "SYSTEM", status: "ENABLED" }, select: { code: true, name: true } }),
       db.dataDictionary.findMany({
@@ -27,7 +27,7 @@ async function main() {
     const rolesComplete = fixedSystemRoles.every(role => roleIdentities.has(`${role.code}:${role.name}`));
     const dictionaryIdentities = new Set(dictionaries.map(dictionary => `${dictionary.recordNo}:${dictionary.name}:${dictionary.code}:${dictionary.fileName}`));
     const dictionariesComplete = SYSTEM_DICTIONARIES.every(dictionary => dictionaryIdentities.has(`${dictionary.recordNo}:${dictionary.name}:${dictionary.code}:${dictionary.fileName}`));
-    if (!administrator || administrator.username !== "admin" || userCount !== 1 || !rolesComplete || !dictionariesComplete || Number(database[0]?.ok) !== 1) throw new Error("数据库初始化结果不完整，必须只创建admin超级管理员用户");
+    if (!administrator || administrator.username !== "admin" || !administrator.mustChangePassword || userCount !== 1 || !rolesComplete || !dictionariesComplete || Number(database[0]?.ok) !== 1) throw new Error("数据库初始化结果不完整，必须只创建首次登录需修改密码的admin超级管理员用户");
     process.stdout.write(`${JSON.stringify({ database: true, administrator: true, users: userCount, systemRoles: roles.length, dictionaries: dictionaries.length })}\n`);
   } finally {
     await db.$disconnect();

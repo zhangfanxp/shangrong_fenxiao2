@@ -10,7 +10,7 @@ import { sessionCookieSecure } from "@/lib/session-cookie";
 const cookieName = "canyin_session";
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "development-secret-change-me");
 
-export type Session = { userId: string; username: string; realName: string; role: string; permissions: string[] };
+export type Session = { userId: string; username: string; realName: string; role: string; permissions: string[]; mustChangePassword?: boolean };
 type SessionToken = Pick<Session, "userId">;
 type SessionInput = SessionToken & Partial<Omit<Session, keyof SessionToken>>;
 
@@ -28,13 +28,14 @@ export const getSession = cache(async (): Promise<Session | null> => {
     if (!user || user.status !== "ENABLED" || user.role.status !== "ENABLED") return null;
     const permissions = Array.isArray(user.role.permissions) ? user.role.permissions.filter((item): item is string => typeof item === "string") : [];
     if (!hasRolePlatformAccess(permissions, "lead-pc")) return null;
-    return { userId: user.id, username: user.username, realName: user.realName, role: user.role.code, permissions };
+    return { userId: user.id, username: user.username, realName: user.realName, role: user.role.code, permissions, mustChangePassword: user.mustChangePassword };
   } catch { return null; }
 });
 
 export async function requireSession() {
   const session = await getSession();
   if (!session) redirect("/lead_pc/login");
+  if (session.mustChangePassword) redirect("/lead_pc/change-password");
   return session;
 }
 
@@ -49,7 +50,8 @@ export function sessionHasPermission(session: Session, requirement: PermissionRe
 }
 
 export async function requireApiSession() {
-  return getSession();
+  const session = await getSession();
+  return session?.mustChangePassword ? null : session;
 }
 
 export const sessionCookie = { name: cookieName, options: { httpOnly: true, secure: sessionCookieSecure(), sameSite: "lax" as const, path: "/", maxAge: 60 * 60 * 8 } };

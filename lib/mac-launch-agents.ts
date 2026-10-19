@@ -62,7 +62,9 @@ export async function launchAgentStatus(label: string) {
 }
 
 export function renderCanyinLaunchAgentPlists(projectDirectory: string, appPort: number) {
-  const nodePath = ["/opt/homebrew/bin/node", "/usr/local/bin/node", process.execPath].find(candidate => existsSync(candidate)) || process.execPath;
+  // Keep the services on the exact Node binary that passed Setup's version check.
+  // A different Homebrew binary may be older than the Node used by npm (for example with nvm).
+  const nodePath = process.execPath;
   const nextCli = path.join(projectDirectory, "node_modules", "next", "dist", "bin", "next");
   const tsxCli = path.join(projectDirectory, "node_modules", "tsx", "dist", "cli.mjs");
   const schedulerScript = path.join(projectDirectory, "scripts", "run-task-scheduler.ts");
