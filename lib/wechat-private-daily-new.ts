@@ -4,9 +4,9 @@ import type { Session } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dateKeyAsDbDate } from "@/lib/store-h5-tasks";
 
-export const WECHAT_PRIVATE_DAILY_NEW_SOURCE_RECORD_NO = "202609180001";
+export const WECHAT_PRIVATE_DAILY_NEW_SOURCE_RECORD_NO = "202610190001";
 export const WECHAT_PRIVATE_DAILY_NEW_PAGE_SIZES = [10, 20, 50, 100] as const;
-export const WECHAT_PRIVATE_DAILY_NEW_FIELD_NAME = "今日新增微信好友";
+export const WECHAT_PRIVATE_DAILY_NEW_FIELD_NAME = "【微信新增】今日新增好友";
 
 export type WechatPrivateDailyNewAction = "query" | "export";
 

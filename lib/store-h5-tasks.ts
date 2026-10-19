@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma, RecordStatus, TaskRecordStatus, TaskTarget, TaskType } from "@prisma/client";
 import { db } from "@/lib/db";
+import { availableMobileTaskWhere } from "@/lib/mobile-task-availability";
 import { isStoreLeader } from "@/lib/store-employees";
 import { readTaskConfig } from "@/lib/task-config";
 import { deleteTaskDraftFiles } from "@/lib/task-r2-upload";
@@ -28,6 +29,8 @@ export type StoreTaskSnapshot = {
   taskTarget?: "门店" | "门店员工";
   specifiedTargets?: string[];
   targetPersonnel?: { id: string; name: string; positionLevel: string };
+  calendarDescription?: string | null;
+  calendarRemark?: string | null;
   configVersion: number;
   storageSpace?: { id?: string; name?: string; bucketName?: string };
   submitItems: StoreTaskItem[];
@@ -39,7 +42,7 @@ const STORE_MANAGER_EXECUTOR_ROLE = "店长";
 const STORE_SUPERVISOR_EXECUTOR_ROLE = "督导";
 
 const typeLabels: Record<TaskType, string> = {
-  DAILY: "日任务", WEEKLY: "周任务", MONTHLY: "月任务", TEMPORARY: "临时任务",
+  DAILY: "日任务", WEEKLY: "周任务", MONTHLY: "月任务", TEMPORARY: "临时任务", CALENDAR: "日历任务",
 };
 
 const targetLabels: Record<TaskTarget, StoreTaskSnapshot["taskTarget"]> = {
@@ -80,14 +83,14 @@ export function dateKeyAsDbDate(value: string) {
 }
 
 export async function expireOverdueTaskInstances(now = new Date()) {
-  const result = await db.taskRecord.updateMany({ where: { status: TaskRecordStatus.PENDING, dueDate: { lt: now } }, data: { status: TaskRecordStatus.OVERDUE } });
+  const result = await db.taskRecord.updateMany({ where: { status: TaskRecordStatus.PENDING, dueDate: { lt: now }, rectificationRound: { is: null } }, data: { status: TaskRecordStatus.OVERDUE } });
   return result.count;
 }
 
 export async function countPendingStoreTaskInstances(userId: string, now = new Date()) {
   await expireOverdueTaskInstances(now);
   return db.taskRecord.count({
-    where: { assignedUserId: userId, status: TaskRecordStatus.PENDING, dueDate: { gte: now } },
+    where: { assignedUserId: userId, ...availableMobileTaskWhere(now) },
   });
 }
 
@@ -101,7 +104,8 @@ function isLastDayOfMonth(dateKey: string) {
   return shanghaiDateKey(new Date(current.getTime() + 86_400_000)).slice(5, 7) !== dateKey.slice(5, 7);
 }
 
-function shouldGenerate(task: { type: TaskType; executionDays: unknown; weeklyExecutionDay: string | null; monthlyExecutionDay: string | null }, dateKey: string, mode: TaskGenerationMode) {
+function shouldGenerate(task: { type: TaskType; executionDays: unknown; weeklyExecutionDay: string | null; monthlyExecutionDay: string | null }, dateKey: string, mode: TaskGenerationMode, calendarHasTask = false) {
+  if (task.type === TaskType.CALENDAR) return calendarHasTask;
   if (mode === "manual") return true;
   if (task.type === TaskType.TEMPORARY) return false;
   const weekday = weekdayLabel(dateKey);
@@ -147,6 +151,7 @@ export async function generateStoreTaskInstances(dateKey = shanghaiDateKey(), ta
       brands: true,
       executorRole: { select: { id: true, name: true } },
       executorRoles: { include: { role: { select: { id: true, name: true } } } },
+      calendarTemplate: { select: { status: true, dates: { where: { calendarDate: dateKeyAsDbDate(dateKey) }, select: { hasTask: true, content: true, remark: true } } } },
     },
   });
   let created = 0;
@@ -154,7 +159,8 @@ export async function generateStoreTaskInstances(dateKey = shanghaiDateKey(), ta
   let notGenerated = 0;
   let ignoredTasks = 0;
   for (const task of tasks) {
-    if (!task.configFileName || !shouldGenerate(task, dateKey, mode)) continue;
+    const calendarDate = task.type === TaskType.CALENDAR ? task.calendarTemplate?.dates[0] : undefined;
+    if (!task.configFileName || (task.type === TaskType.CALENDAR && task.calendarTemplate?.status !== RecordStatus.ENABLED) || !shouldGenerate(task, dateKey, mode, calendarDate?.hasTask)) continue;
     const configuredExecutorRoles = task.executorRoles.length
       ? task.executorRoles.map(item => item.role)
       : task.executorRole ? [task.executorRole] : [];
@@ -169,7 +175,7 @@ export async function generateStoreTaskInstances(dateKey = shanghaiDateKey(), ta
     const config = await readTaskConfig(task.configFileName).catch(() => null);
     if (!isStoreTaskSnapshot(config)) { ignoredTasks += 1; continue; }
     const specifiedTargets = readTaskSpecifiedTargets(task.specifiedTargets);
-    const snapshot: StoreTaskSnapshot = { ...config, taskTarget: targetLabels[task.targetType], specifiedTargets };
+    const snapshot: StoreTaskSnapshot = { ...config, taskTarget: targetLabels[task.targetType], specifiedTargets, ...(task.type === TaskType.CALENDAR ? { calendarDescription: calendarDate?.content || null, calendarRemark: calendarDate?.remark || null } : {}) };
     const brandIds = task.brands.map(item => item.brandId);
     if (!brandIds.length) continue;
     const stores = await db.store.findMany({

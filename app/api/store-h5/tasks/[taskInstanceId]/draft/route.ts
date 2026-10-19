@@ -1,3 +1,4 @@
+import { availableMobileTaskWhere } from "@/lib/mobile-task-availability";
 import { Prisma, TaskRecordStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -28,7 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     const parsed = bodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) throw new DraftError("暂存内容格式不正确");
     const record = await db.taskRecord.findFirst({
-      where: { id: taskInstanceId, assignedUserId: session.userId, status: TaskRecordStatus.PENDING, dueDate: { gte: new Date() } },
+      where: { id: taskInstanceId, assignedUserId: session.userId, ...availableMobileTaskWhere() },
       select: { id: true, recordNo: true, configSnapshot: true },
     });
     if (!record) throw new DraftError("任务不存在、已完成、已逾期或不属于当前用户", 404);
@@ -51,7 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     }
 
     const now = new Date();
-    const updated = await db.taskRecord.updateMany({ where: { id: record.id, assignedUserId: session.userId, status: TaskRecordStatus.PENDING, dueDate: { gte: now } }, data: {
+    const updated = await db.taskRecord.updateMany({ where: { id: record.id, assignedUserId: session.userId, ...availableMobileTaskWhere(now) }, data: {
       draftValues: [...values].map(([index, value]) => ({ index, value })) as Prisma.InputJsonValue,
       draftCaptureFallbacks: fallbackItemIndexes as Prisma.InputJsonValue,
       draftSavedAt: now,

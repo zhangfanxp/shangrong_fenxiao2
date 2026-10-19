@@ -243,6 +243,16 @@ a { color: inherit; text-decoration: none; }
 .labor-cost-policy-heading span { color: rgba(0,0,0,.45); font-size: 13px; text-align: right; }
 @media (max-width: 900px) { .labor-cost-policy-grid { grid-template-columns: 1fr; } }
 .personnel-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 14px; align-items: center; }
+.employee-attendance-monthly-alert { margin-bottom: 16px; }
+.employee-attendance-monthly-filter-card { margin-bottom: 16px; }
+.employee-attendance-monthly-filter-card .ant-form-item { min-width: 0; margin-bottom: 0; }
+.employee-attendance-monthly-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(170px, 1fr)); gap: 0 16px; align-items: end; }
+.employee-attendance-monthly-filter-grid .ant-picker, .employee-attendance-monthly-filter-grid .ant-select, .employee-attendance-monthly-filter-grid .ant-input { width: 100%; }
+.employee-attendance-monthly-filter-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; padding: 16px 0; }
+.employee-attendance-monthly-toolbar { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; color: rgba(0,0,0,.65); }
+.employee-attendance-monthly-toolbar strong { color: #1677ff; }
+.employee-attendance-monthly-list-card .ant-table-cell { white-space: nowrap; }
+.employee-attendance-monthly-list-card .ant-empty-description small { color: rgba(0,0,0,.45); }
 .personnel-import-errors { max-height: 180px; overflow: auto; line-height: 1.8; }
 .personnel-roster-alert { margin-bottom: 16px; }
 .personnel-roster-filter-card { margin-bottom: 16px; }
@@ -759,6 +769,35 @@ a { color: inherit; text-decoration: none; }
 .daily-sales-table-error { margin: 0 16px 16px; }
 .daily-sales-money { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* 运营 / 线上团购数据 */
+.online-group-buy-alert { margin-bottom: 16px; }
+.online-group-buy-filter-card,
+.online-group-buy-list-card { border-color: #e8edf4; border-radius: 12px; box-shadow: 0 4px 14px rgba(31, 52, 86, .035); }
+.online-group-buy-list-card { margin-top: 16px; }
+.online-group-buy-list-card .ant-card-body { padding: 0; }
+.online-group-buy-filter-grid { display: grid; grid-template-columns: minmax(150px, .72fr) minmax(220px, 1.2fr) repeat(2, minmax(165px, .78fr)) auto; gap: 0 16px; align-items: end; }
+.online-group-buy-filter-grid .ant-form-item { margin-bottom: 0; }
+.online-group-buy-filter-grid .ant-picker,
+.online-group-buy-filter-grid .ant-select,
+.online-group-buy-filter-grid .ant-select-auto-complete { width: 100%; }
+.online-group-buy-filter-actions { display: flex; justify-content: flex-end; }
+.online-group-buy-toolbar { display: flex; min-height: 36px; padding: 16px 16px 12px; align-items: center; justify-content: space-between; gap: 16px; }
+.online-group-buy-toolbar strong { color: #1677ff; }
+.online-group-buy-export-hint { font-size: 12px; }
+.online-group-buy-table-error { margin: 0 16px 16px; }
+.online-group-buy-percent { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.online-group-buy-detail-loading { padding: 42px 0; color: #6f7b8f; text-align: center; }
+@media (max-width: 1080px) {
+  .online-group-buy-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+  .online-group-buy-filter-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  .online-group-buy-filter-grid { grid-template-columns: 1fr; }
+  .online-group-buy-filter-actions { grid-column: auto; }
+  .online-group-buy-toolbar { align-items: flex-start; flex-direction: column; }
+  .online-group-buy-export-hint { display: none; }
+}
+
 @media (max-width: 1080px) {
   .daily-sales-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
   .daily-sales-filter-actions { grid-column: 1 / -1; }
@@ -1185,6 +1224,7 @@ a { color: inherit; text-decoration: none; }
 .store-h5-task-summary dl > div { min-width: 0; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.1); }
 .store-h5-task-summary dt { margin-bottom: 3px; opacity: .7; font-size: 11px; }
 .store-h5-task-summary dd { overflow: hidden; margin: 0; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.store-h5-calendar-note { margin-top: 12px; color: #173b2b; text-align: left; }
 .store-h5-form-list { display: grid; width: 100%; min-width: 0; max-width: 100%; padding: 0 16px; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .store-h5-form-item { width: 100%; min-width: 0; max-width: 100%; scroll-margin: 90px; padding: 18px; border: 1px solid #e3eae6; border-radius: 17px; background: #fff; transition: border-color .2s, box-shadow .2s; }
 .store-h5-form-item.error { border-color: #ff7875; box-shadow: 0 0 0 2px rgba(255,77,79,.08); }
@@ -1211,6 +1251,9 @@ a { color: inherit; text-decoration: none; }
 .store-h5-upload-status .ant-btn { min-height: 32px; }
 .store-h5-upload-actions { display: flex; flex: 0 0 auto; align-items: center; }
 .store-h5-upload-actions .ant-btn { padding-inline: 7px; }
+.store-h5-photo-gallery { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.store-h5-photo-gallery .ant-image { overflow: hidden; border-radius: 8px; background: #f5f7f6; }
+.store-h5-photo-gallery .ant-image-img { display: block; }
 .store-h5-upload-progress { display: block; width: 100%; height: 4px; overflow: hidden; border-radius: 999px; background: rgba(22,119,255,.14); }
 .store-h5-upload-progress b { display: block; height: 100%; border-radius: inherit; background: #1677ff; transition: width .15s ease; }
 .store-h5-field-error { margin-top: 8px; color: #ff4d4f; font-size: 12px; }
@@ -1356,6 +1399,8 @@ a { color: inherit; text-decoration: none; }
 .store-h5-attendance-overtime .ant-checkbox-wrapper { flex: 0 0 74px; }
 .store-h5-attendance-overtime .ant-input-number-group-wrapper { width: 0; min-width: 0; max-width: 100%; flex: 1 1 0; }
 .store-h5-attendance-part-time label b { margin-left: 3px; color: #ff4d4f; }
+.store-h5-attendance-modification-reason { display: flex; margin-top: 16px; flex-direction: column; gap: 8px; color: #46554d; font-size: 13px; }
+.store-h5-attendance-modification-reason b { color: #ff4d4f; }
 .store-h5-attendance-page .store-h5-success > span { color: #536159; font-size: 13px; }
 .store-h5-attendance-page .store-h5-success > small { color: #89958e; font-size: 12px; line-height: 1.7; }
 @media (max-width: 374px) { .store-h5-entry-grid { grid-template-columns: 1fr; } .store-h5-task-summary dl { grid-template-columns: 1fr; } }
@@ -1449,6 +1494,7 @@ a { color: inherit; text-decoration: none; }
 .lead-h5-review-photos { margin-top: 13px; padding-top: 13px; border-top: 1px dashed #dce3ed; }
 .lead-h5-review-photos-head { display: flex; margin-bottom: 9px; align-items: center; justify-content: space-between; color: #4d5b70; font-size: 13px; }
 .lead-h5-review-photos-head span { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.lead-h5-photo-required { padding: 2px 5px; border-radius: 4px; color: #b42318; background: #fff0ee; font-size: 10px; font-style: normal; font-weight: 500; }
 .lead-h5-review-photos-head small { color: #8490a2; }
 .lead-h5-review-photo-grid { display: grid; margin-bottom: 9px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .lead-h5-review-photo { position: relative; overflow: hidden; aspect-ratio: 1; border: 1px solid #e0e6ee; border-radius: 10px; background: #f3f6fa; }
@@ -1460,6 +1506,9 @@ a { color: inherit; text-decoration: none; }
 .store-review-detail-photos .ant-image { overflow: hidden; border: 1px solid #e1e6ed; border-radius: 8px; }
 .store-review-detail-photos .ant-image-img { height: 88px; object-fit: cover; }
 .lead-h5-item-error { margin-top: 5px; color: #d4380d; font-size: 11px; text-align: right; }
+.lead-h5-problem-description { margin-top: 12px; }
+.lead-h5-problem-description .ant-input-textarea-show-count::after { color: #8490a2; font-size: 11px; }
+.store-review-detail-problem-description { margin-top: 8px; color: #6a4a12; white-space: pre-wrap; }
 .lead-h5-review-footer { position: fixed; right: 0; bottom: 0; left: 0; z-index: 15; display: flex; max-width: 680px; min-height: calc(76px + env(safe-area-inset-bottom)); margin: auto; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid #e5eaf0; background: rgba(255, 255, 255, .97); box-shadow: 0 -8px 24px rgba(26, 44, 75, .08); backdrop-filter: blur(12px); }
 .lead-h5-review-footer > div { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; }
 .lead-h5-review-footer span { color: #778397; font-size: 11px; }
@@ -1751,3 +1800,55 @@ a { color: inherit; text-decoration: none; }
   .labor-record-detail-modal { max-width: calc(100vw - 20px); }
   .labor-record-detail-heading { align-items: flex-start; flex-direction: column; }
 }
+
+/* 巡检整改：运营端与门店任务共用的详情区块。 */
+.rectification-page { min-height: 100dvh; padding: 0 16px max(28px, env(safe-area-inset-bottom)); color: #17233d; background: #f3f6fa; }
+.rectification-page > .store-h5-subheader { margin: 0 -16px; }
+.store-h5-execution-page > .rectification-section { margin: 16px; }
+.rectification-tabs { margin: 0 -16px; padding: 0 12px; background: #fff; }
+.rectification-tabs .ant-tabs-nav { margin-bottom: 0; }
+.rectification-tabs .ant-tabs-nav-list { width: 100%; }
+.rectification-tabs .ant-tabs-tab { flex: 1; justify-content: center; margin: 0 !important; padding: 11px 0; font-size: 12px; }
+.rectification-tabs .ant-tabs-tab-btn { width: 100%; text-align: center; }
+
+.rectification-tabs .ant-tabs-tab small { display: block; width: fit-content; min-width: 18px; margin: 4px auto 0; padding: 0 4px; border-radius: 9px; background: #f0f2f5; color: #737b89; text-align: center; font-size: 10px; }
+.rectification-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 16px 0 12px; color: #737b89; font-size: 12px; }
+.rectification-list { display: grid; gap: 14px; }
+.rectification-card, .rectification-section { border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.035); }
+.rectification-card-main { display: block; width: 100%; padding: 16px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.rectification-card-main:focus-visible { outline: 2px solid #1677ff; outline-offset: 2px; border-radius: 12px; }
+.rectification-card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 7px; }
+.rectification-card-heading strong { font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+.rectification-card-heading .ant-tag { flex-shrink: 0; margin-right: 0; }
+.rectification-muted { color: #8a919e; font-size: 12px; }
+.rectification-card dl, .rectification-section dl { margin: 14px 0 0; font-size: 13px; }
+.rectification-card dl > div, .rectification-section dl > div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; margin-bottom: 12px; }
+.rectification-card dt, .rectification-section dt { color: #858c98; }
+.rectification-card dd, .rectification-section dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+.rectification-card-tags { display: flex; align-items: center; gap: 6px; }
+.rectification-card-tags .ant-tag { margin-right: 0; }
+.rectification-card-tags > span:last-child { margin-left: auto; color: #8a919e; font-size: 12px; }
+.rectification-card-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 16px; border-top: 1px solid #f0f2f5; }
+.rectification-section { margin: 16px 0; padding: 18px 16px; }
+.rectification-section h2 { margin: 0 0 16px; font-size: 16px; }
+.rectification-section h2 small { margin-left: 8px; color: #8a919e; font-size: 12px; font-weight: 400; }
+.rectification-section h3 { margin: 0; font-size: 14px; }
+.rectification-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 18px 0 0; font-size: 14px; }
+.rectification-photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.rectification-photos .ant-image { overflow: hidden; border-radius: 8px; }
+.rectification-full-field { display: block !important; }
+.rectification-full-field dd { margin-top: 10px; }
+.rectification-photo-error { display: block; max-width: 160px; padding: 10px; background: #fff7e6; border-radius: 8px; font-size: 12px; }
+.rectification-photo-error small { display: block; margin-top: 5px; color: #a57931; }
+.rectification-readonly { padding: 10px; margin-bottom: 18px; border-radius: 8px; background: #f5f7fa; color: #687180; overflow-wrap: anywhere; }
+.rectification-form > .ant-alert { margin-bottom: 16px; }
+.rectification-form .ant-select { width: 100%; }
+.rectification-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.rectification-acceptance-actions { display: flex; gap: 12px; margin: 22px 0; }
+.rectification-acceptance-actions > button { flex: 1; }
+.rectification-accept-button.ant-btn-primary { background: #389e0d; border-color: #389e0d; }
+.rectification-accept-button.ant-btn-primary:not(:disabled):hover { background: #52c41a; border-color: #52c41a; }
+.rectification-acceptance { padding: 14px 0 4px; border-top: 1px solid #f0f2f5; }
+.rectification-acceptance:first-of-type { border-top: 0; padding-top: 0; }
+.rectification-pagination { display: flex; justify-content: center; margin-top: 20px; }
+@media (min-width: 768px) { .rectification-page { max-width: 680px; margin: 0 auto; } }

@@ -1,3 +1,4 @@
+import { availableMobileTaskWhere } from "@/lib/mobile-task-availability";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -23,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
   const { taskInstanceId } = await params;
   try {
     const record = await db.taskRecord.findFirst({
-      where: { id: taskInstanceId, assignedUserId: session.userId, dueDate: { gte: new Date() }, status: "PENDING" },
+      where: { id: taskInstanceId, assignedUserId: session.userId, ...availableMobileTaskWhere() },
       include: { task: { select: { r2StorageId: true } } },
     });
     if (!record) return NextResponse.json({ message: "任务不存在、已完成或不属于当前用户" }, { status: 404 });

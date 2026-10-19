@@ -14,6 +14,7 @@ const inputSchema = z.object({
   attendanceStartTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的考勤开始时间"),
   attendanceDeadlineDayOffset: z.union([z.literal(0), z.literal(1)], { message: "请选择考勤截止日期" }),
   attendanceDeadlineTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的考勤截止时间"),
+  allowPostSubmitEdit: z.boolean().default(false),
 }).superRefine((value, context) => {
   const minutes = (dayOffset: 0 | 1, time: string) => dayOffset * 24 * 60 + Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
   if (minutes(value.attendanceStartDayOffset, value.attendanceStartTime) >= minutes(value.attendanceDeadlineDayOffset, value.attendanceDeadlineTime)) {
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     const saved = await addAttendanceParameter(parsed.data);
     const start = `${saved.attendanceStartDayOffset === 1 ? "次日" : "当日"} ${saved.attendanceStartTime}`;
     const deadline = `${saved.attendanceDeadlineDayOffset === 1 ? "次日" : "当日"} ${saved.attendanceDeadlineTime}`;
-    await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "修改参数", result: "成功", detail: `新增考勤参数；${saved.brand}：${saved.workdayHours}小时/日，考勤时段${start}至${deadline}`, request }).catch(() => undefined);
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "修改参数", result: "成功", detail: `新增考勤参数；${saved.brand}：${saved.workdayHours}小时/日，考勤时段${start}至${deadline}，提交后${saved.allowPostSubmitEdit ? "允许" : "不允许"}修改`, request }).catch(() => undefined);
     return NextResponse.json(saved, { status: 201 });
   } catch (error) {
     const known = error instanceof BrandDayHourConfigError || error instanceof DictionaryConfigError;
@@ -66,7 +67,7 @@ export async function PUT(request: Request) {
     const saved = await updateAttendanceParameter(parsed.data);
     const start = `${saved.attendanceStartDayOffset === 1 ? "次日" : "当日"} ${saved.attendanceStartTime}`;
     const deadline = `${saved.attendanceDeadlineDayOffset === 1 ? "次日" : "当日"} ${saved.attendanceDeadlineTime}`;
-    await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "修改参数", result: "成功", detail: `编辑考勤参数；${saved.brand}：${saved.workdayHours}小时/日，考勤时段${start}至${deadline}`, request }).catch(() => undefined);
+    await writeOperationLog({ userId: session.userId, username: session.username, page: "系统参数", action: "修改参数", result: "成功", detail: `编辑考勤参数；${saved.brand}：${saved.workdayHours}小时/日，考勤时段${start}至${deadline}，提交后${saved.allowPostSubmitEdit ? "允许" : "不允许"}修改`, request }).catch(() => undefined);
     return NextResponse.json(saved);
   } catch (error) {
     const known = error instanceof BrandDayHourConfigError;

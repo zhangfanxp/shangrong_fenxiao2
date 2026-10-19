@@ -33,6 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       },
     });
     if (!record) return NextResponse.json({ message: "该任务记录已不存在或无权编辑" }, { status: 404 });
+    if (await db.inspectionRectificationRound.findUnique({ where: { taskRecordId: id }, select: { id: true } })) return NextResponse.json({ message: "巡检整改任务须保留原提交照片，不能直接编辑" }, { status: 409 });
     if (record.status !== TaskRecordStatus.COMPLETED || record.aiAnalysis) return NextResponse.json({ message: "仅已完成且尚未智能分析的任务记录支持编辑" }, { status: 409 });
     const item = record.formalSubmission?.items[0];
     if (!record.formalSubmission || !item) return NextResponse.json({ message: "任务提交明细不存在，请刷新后重试" }, { status: 404 });

@@ -8,12 +8,14 @@ type ConfigEntry = {
   attendanceStartTime?: unknown;
   attendanceDeadlineDayOffset?: unknown;
   attendanceDeadlineTime?: unknown;
+  allowPostSubmitEdit?: unknown;
   品牌?: unknown;
   工作日小时?: unknown;
   考勤开始日期?: unknown;
   考勤开始时间?: unknown;
   考勤截止日期?: unknown;
   考勤截止时间?: unknown;
+  提交后允许修改?: unknown;
 };
 
 export type AttendanceDayOffset = 0 | 1;
@@ -24,6 +26,7 @@ export type AttendanceParameterEntry = {
   attendanceStartTime: string;
   attendanceDeadlineDayOffset: AttendanceDayOffset;
   attendanceDeadlineTime: string;
+  allowPostSubmitEdit: boolean;
 };
 
 const configPath = () => path.join(process.cwd(), "config", "band_day_hour.config.json");
@@ -56,6 +59,7 @@ function parseConfig(parsed: unknown) {
       attendanceStartTime: start.time,
       attendanceDeadlineDayOffset: deadline.dayOffset,
       attendanceDeadlineTime: deadline.time,
+      allowPostSubmitEdit: entry.allowPostSubmitEdit === true || entry.提交后允许修改 === true,
     };
     return brand && Number.isFinite(workdayHours) && workdayHours > 0 && workdayHours <= 24 ? [[brand, value]] : [];
   })) as Record<string, AttendanceParameterEntry>;
@@ -95,6 +99,7 @@ function serializedRows(config: Record<string, AttendanceParameterEntry>) {
     考勤开始时间: entry.attendanceStartTime,
     考勤截止日期: entry.attendanceDeadlineDayOffset === 1 ? "次日" : "当日",
     考勤截止时间: entry.attendanceDeadlineTime,
+    提交后允许修改: entry.allowPostSubmitEdit,
   }));
 }
 

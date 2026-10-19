@@ -1,6 +1,7 @@
 import { TaskRecordStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { availableMobileTaskWhere } from "@/lib/mobile-task-availability";
 import { writeOperationLog } from "@/lib/operation-log";
 import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
 import { expireOverdueTaskInstances, shanghaiDateKey, taskTypeLabel } from "@/lib/store-h5-tasks";
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
         assignedUserId: session.userId,
         storeId: store.id,
         status,
-        ...(status === TaskRecordStatus.PENDING ? { dueDate: { gte: now } } : {}),
+        ...(status === TaskRecordStatus.PENDING ? availableMobileTaskWhere(now) : {}),
       },
       select: { id: true, recordNo: true, taskNameSnapshot: true, taskType: true, targetType: true, targetPersonnelNameSnapshot: true, targetPersonnelPositionSnapshot: true, triggeredAt: true, dueDate: true, completedAt: true, executionDate: true, storeNameSnapshot: true, draftSavedAt: true },
       orderBy: status === TaskRecordStatus.PENDING ? [{ dueDate: "asc" }, { id: "asc" }] : status === TaskRecordStatus.COMPLETED ? [{ completedAt: "desc" }, { id: "desc" }] : [{ dueDate: "desc" }, { id: "desc" }],

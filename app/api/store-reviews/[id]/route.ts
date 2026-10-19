@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ensureReviewHasNoStartedRectification, RectificationError } from "@/lib/inspection-rectifications";
 import { writeOperationLog, writeOperationLogWithTransaction } from "@/lib/operation-log";
 import { canStoreReview, formatReviewDate, storeReviewDataScope } from "@/lib/store-reviews";
 import { createTaskAttachmentReadUrl, deleteTaskDraftFiles } from "@/lib/task-r2-upload";
@@ -39,6 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         sectionName: item.sectionName,
         subsectionName: item.subsectionName,
         itemDescription: item.itemDescription,
+        problemDescription: item.problemDescription,
         maxScore: Number(item.maxScore),
         result: item.result,
         actualScore: Number(item.actualScore),
@@ -67,6 +69,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     await db.$transaction(async tx => {
       const current = await tx.leadH5Review.findFirst({ where: { AND: [{ id, reviewType: { in: ["FRONT_HALL_AUDIT", "BACK_KITCHEN_AUDIT"] } }, scope] } });
       if (!current) throw new Prisma.PrismaClientKnownRequestError("评分记录不存在", { code: "P2025", clientVersion: Prisma.prismaVersion.client });
+      await ensureReviewHasNoStartedRectification(tx, current.id);
       await tx.leadH5ReviewItem.deleteMany({ where: { reviewId: current.id } });
       await tx.leadH5Review.delete({ where: { id: current.id } });
       await writeOperationLogWithTransaction(tx, {
@@ -82,6 +85,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     await deleteTaskDraftFiles(found.items.flatMap(item => item.photos)).catch(() => undefined);
     return NextResponse.json({ message: "门店稽核评分删除成功" });
   } catch (error) {
+    if (error instanceof RectificationError) return NextResponse.json({ message: error.message }, { status: error.status });
     const missing = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
     await writeOperationLog({ userId: session.userId, username: session.username, page: "门店稽核评分", action: "删除", result: "失败", detail: missing ? `评分记录已不存在：${id}` : `评分删除失败：${id}`, request }).catch(() => undefined);
     return NextResponse.json({ message: missing ? "该评分记录已不存在或已被删除" : "评分删除失败，请稍后重试" }, { status: missing ? 404 : 500 });

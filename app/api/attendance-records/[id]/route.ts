@@ -21,7 +21,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const row = await db.dailyAttendanceRecord.findFirst({
       where: { AND: [{ id }, await attendanceRecordDataScope(session)] },
-      include: { items: { orderBy: [{ sortOrder: "asc" }, { personnelNameSnapshot: "asc" }] } },
+      include: {
+        items: { orderBy: [{ sortOrder: "asc" }, { personnelNameSnapshot: "asc" }] },
+        revisions: { orderBy: { revision: "desc" }, select: { revision: true, action: true, modificationReason: true, changedByNameSnapshot: true, changedAt: true } },
+      },
     });
     if (!row) return NextResponse.json({ message: "考勤记录不存在或无权查看" }, { status: 404 });
     await writeOperationLog({ userId: session.userId, username: session.username, client: "运营PC端", page: "考勤记录", action: "查看", result: "成功", detail: `记录编号：${row.recordNo}`, request }).catch(() => undefined);
@@ -38,6 +41,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         partTimeActualLaborCost: row.partTimeActualLaborCost === null ? null : row.partTimeActualLaborCost.toFixed(2),
         createdByName: row.createdByNameSnapshot,
         createdAt: formatShanghaiDateTime(row.createdAt),
+        revision: row.revision,
+        updatedByName: row.updatedByNameSnapshot,
+        updatedAt: row.revision > 1 ? formatShanghaiDateTime(row.updatedAt) : null,
       },
       details: row.items.map(item => {
         const actualLaborCost = calculateActualLaborCost({
@@ -60,6 +66,13 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
           actualLaborCost: actualLaborCost?.toFixed(2) ?? null,
         };
       }),
+      revisionHistory: row.revisions.map(revision => ({
+        revision: revision.revision,
+        action: revision.action,
+        modificationReason: revision.modificationReason,
+        changedByName: revision.changedByNameSnapshot,
+        changedAt: formatShanghaiDateTime(revision.changedAt),
+      })),
     }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch {
     await writeOperationLog({ userId: session.userId, username: session.username, client: "运营PC端", page: "考勤记录", action: "查看", result: "失败", detail: `记录ID：${id}；考勤详情加载失败`, request }).catch(() => undefined);

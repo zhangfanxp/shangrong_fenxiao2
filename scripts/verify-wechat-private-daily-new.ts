@@ -19,9 +19,9 @@ assert.deepEqual(wechatPrivateDailyNewFilterWhere({ brand: "奋小二", storeNam
   OR: [{ brandIdSnapshot: "奋小二" }, { brandNameSnapshot: "奋小二" }],
   storeNameSnapshot: { contains: "静安" },
 });
-assert.deepEqual(wechatPrivateDailyNewSourceWhere({ sourceRecordNo: "202609180001", templateId: "task-1", metricSortOrder: 0, metricItemName: "今日新增微信好友" }), {
+assert.deepEqual(wechatPrivateDailyNewSourceWhere({ sourceRecordNo: "202610190001", templateId: "task-1", metricSortOrder: 8, metricItemName: "【微信新增】今日新增好友" }), {
   taskIdSnapshot: "task-1",
-  items: { some: { sortOrder: 0, itemName: "今日新增微信好友", value: { not: null } } },
+  items: { some: { sortOrder: 8, itemName: "【微信新增】今日新增好友", value: { not: null } } },
 });
 
 process.stdout.write("wechat private daily-new verification passed\n");

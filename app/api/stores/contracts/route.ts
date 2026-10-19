@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { requireApiSession } from "@/lib/auth";
+import { canStoreListAction } from "@/lib/store-permissions";
 
 export async function GET() {
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:list:view")) return NextResponse.json({ message: "暂无门店列表权限" }, { status: 403 });
+  if (!["query", "create", "edit", "view"].some(action => canStoreListAction(session.permissions, action as "query" | "create" | "edit" | "view"))) return NextResponse.json({ message: "暂无门店合同查看权限" }, { status: 403 });
 
   const rows = await db.contract.findMany({
     where: { store: null },

@@ -24,6 +24,7 @@ type Stats = {
   overdueContracts: number;
   todayLogins: number;
   taskCount: number;
+  taskRecordCount: number;
   completedTaskCount: number;
   taskByType: Record<string, { total: number; completed: number }>;
 };
@@ -38,7 +39,7 @@ const metrics = [
   { key: "todayLogins", title: "今日登录用户", icon: <TeamOutlined />, href: "/lead_pc/settings/operation-logs", helper: "今日已登录人数" },
 ] as const;
 
-const taskLabel: Record<string, string> = { DAILY: "日任务", WEEKLY: "周任务", MONTHLY: "月度任务", TEMPORARY: "临时任务" };
+const taskLabel: Record<string, string> = { DAILY: "日任务", WEEKLY: "周任务", MONTHLY: "月度任务", TEMPORARY: "临时任务", CALENDAR: "日历任务" };
 
 const contractColumns: ColumnsType<ExpiringEmployeeContract> = [
   { title: "姓名", dataIndex: "name", width: 100 },
@@ -68,6 +69,8 @@ export function Dashboard() {
 
   if (error) return <Card><Empty description="数据加载失败，请稍后重试"><a onClick={load}>重新加载</a></Empty></Card>;
   if (!stats) return <Skeleton active paragraph={{ rows: 10 }} />;
+
+  const completionRate = stats.taskRecordCount ? Math.min(100, Math.round(stats.completedTaskCount / stats.taskRecordCount * 100)) : 0;
 
   const helper = (key: typeof metrics[number]["key"], fallback: string) => key === "expiringContracts"
     ? `不足${stats.contractExpiringWarningDays}天到期`
@@ -109,7 +112,7 @@ export function Dashboard() {
       <Col xs={24} xl={10}>
         <Card className="section-card" title="平台已完成任务" extra={<CheckCircleOutlined style={{ color: "#52c41a" }} />}>
           <Statistic title="已完成任务总数" value={stats.completedTaskCount} />
-          <div style={{ marginTop: 28 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span className="metric-label">整体完成率</span><span>{stats.taskCount ? Math.round(stats.completedTaskCount / stats.taskCount * 100) : 0}%</span></div><Progress percent={stats.taskCount ? Math.round(stats.completedTaskCount / stats.taskCount * 100) : 0} strokeColor="#52C41A" /></div>
+          <div style={{ marginTop: 28 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span className="metric-label">整体完成率</span><span>{completionRate}%</span></div><Progress percent={completionRate} strokeColor="#52C41A" /></div>
         </Card>
       </Col>
     </Row>

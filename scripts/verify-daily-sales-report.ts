@@ -42,6 +42,7 @@ assert.deepEqual(dailySalesReportSourceWhere(source), { taskIdSnapshot: "task-1"
 
 const serialized = serializeDailySalesReport({
   id: "submission-1",
+  recordNo: "20260924000001",
   brandNameSnapshot: "奋小二",
   storeNameSnapshot: "静安店",
   executionDate: new Date("2026-09-24T00:00:00.000Z"),

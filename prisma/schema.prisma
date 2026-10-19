@@ -44,6 +44,7 @@ enum TaskType {
   WEEKLY
   MONTHLY
   TEMPORARY
+  CALENDAR
 }
 
 enum TaskTarget {
@@ -219,72 +220,87 @@ model Role {
 }
 
 model User {
-  id                          String                            @id @default(cuid())
-  username                    String                            @unique
-  passwordHash                String
-  realName                    String
-  phone                       String?
-  tags                        String?                           @db.VarChar(200)
-  leadH5BrandIds              Json?
-  leadH5StoreIds              Json?
-  type                        UserType                          @default(CUSTOM)
-  status                      RecordStatus                      @default(ENABLED)
-  roleId                      String
-  role                        Role                              @relation(fields: [roleId], references: [id])
-  createdByUserId             String?
-  createdBy                   User?                             @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdUsers                User[]                            @relation("UserCreator")
-  lastLoginAt                 DateTime?
-  createdAt                   DateTime                          @default(now())
-  updatedAt                   DateTime                          @updatedAt
-  logs                        OperationLog[]
-  createdTasks                Task[]                            @relation("TaskCreator")
-  createdAssessments          Assessment[]                      @relation("AssessmentCreator")
-  createdResearchTemplates    ResearchTemplate[]                @relation("ResearchTemplateCreator")
-  createdR2StorageConfigs     R2StorageConfig[]                 @relation("R2StorageCreator")
-  r2StorageTests              R2StorageTest[]                   @relation("R2StorageTestCreator")
-  personnelProfile            Personnel?                        @relation("PersonnelPlatformUser")
-  createdPersonnel            Personnel[]                       @relation("PersonnelCreator")
-  salaryAdjustments           SalaryHistory[]                   @relation("SalaryOperator")
-  positionTransfers           PositionHistory[]                 @relation("PositionOperator")
-  leadH5Reviews               LeadH5Review[]                    @relation("LeadH5Reviewer")
-  leadH5ReviewPhotos          LeadH5ReviewPhoto[]               @relation("LeadH5ReviewPhotoUploader")
-  leadH5ResearchRecords       ResearchTemplateRecord[]          @relation("LeadH5ResearchSubmitter")
-  assignedTaskRecords         TaskRecord[]                      @relation("TaskRecordAssignee")
-  taskSubmissions             TaskSubmission[]                  @relation("TaskSubmissionUser")
-  taskAttachments             TaskAttachment[]                  @relation("TaskAttachmentUploader")
-  analyzedTaskAiRecords       TaskAiAnalysis[]                  @relation("TaskAiAnalysisOperator")
-  createdNotifications        Notification[]                    @relation("NotificationCreator")
-  notificationRecipients      NotificationRecipient[]           @relation("NotificationRecipientUser")
-  createdMeetings             Meeting[]                         @relation("MeetingCreator")
-  meetingParticipants         MeetingParticipant[]              @relation("MeetingParticipantUser")
-  createdDailyLearningPlans   DailyLearningPlan[]               @relation("DailyLearningPlanCreator")
-  dailyLearningAssignments    DailyLearningAssignee[]           @relation("DailyLearningAssigneeUser")
-  dailyLearningProgress       DailyLearningProgress[]           @relation("DailyLearningProgressUser")
-  courseAssignments           CourseAssignment[]                @relation("CourseAssignmentUser")
-  createdCourseAssignments    CourseAssignment[]                @relation("CourseAssignmentCreator")
-  createdActualRevenue        ActualRevenueMonthly[]            @relation("ActualRevenueCreator")
-  createdMonthlyTargets       StoreMonthlyTarget[]              @relation("MonthlyTargetCreator")
-  createdInventoryItems       InventoryItem[]                   @relation("InventoryItemCreator")
-  updatedInventoryItems       InventoryItem[]                   @relation("InventoryItemUpdater")
-  inventoryTransactions       InventoryTransaction[]            @relation("InventoryTransactionOperator")
-  createdItemRequisitions     ItemRequisition[]                 @relation("ItemRequisitionCreator")
-  updatedItemRequisitions     ItemRequisition[]                 @relation("ItemRequisitionUpdater")
-  itemRequisitionReturns      ItemRequisitionReturn[]           @relation("ItemRequisitionReturnOperator")
-  createdDailyAttendances     DailyAttendanceRecord[]           @relation("DailyAttendanceCreator")
-  createdRestDays             RestDay[]                         @relation("RestDayCreator")
-  updatedRestDays             RestDay[]                         @relation("RestDayUpdater")
-  createdStoreLaborStandards  StoreLaborStandard[]              @relation("StoreLaborStandardCreator")
-  updatedStoreLaborStandards  StoreLaborStandard[]              @relation("StoreLaborStandardUpdater")
-  createdPurchaseSalesRatios  MonthlyPurchaseSalesRatio[]       @relation("MonthlyPurchaseSalesCreator")
-  updatedPurchaseSalesRatios  MonthlyPurchaseSalesRatio[]       @relation("MonthlyPurchaseSalesUpdater")
-  purchaseSalesImportBatches  MonthlyPurchaseSalesImportBatch[] @relation("MonthlyPurchaseSalesImportOperator")
-  createdProductCategorySales ProductCategorySalesMonthly[]     @relation("ProductCategorySalesCreator")
-  updatedProductCategorySales ProductCategorySalesMonthly[]     @relation("ProductCategorySalesUpdater")
-  productCategorySalesBatches ProductCategorySalesImportBatch[] @relation("ProductCategorySalesImportOperator")
+  id                           String                            @id @default(cuid())
+  username                     String                            @unique
+  passwordHash                 String
+  realName                     String
+  phone                        String?
+  tags                         String?                           @db.VarChar(200)
+  leadH5BrandIds               Json?
+  leadH5StoreIds               Json?
+  isRegionManager              Boolean                           @default(false)
+  type                         UserType                          @default(CUSTOM)
+  status                       RecordStatus                      @default(ENABLED)
+  roleId                       String
+  role                         Role                              @relation(fields: [roleId], references: [id])
+  createdByUserId              String?
+  createdBy                    User?                             @relation("UserCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdUsers                 User[]                            @relation("UserCreator")
+  lastLoginAt                  DateTime?
+  createdAt                    DateTime                          @default(now())
+  updatedAt                    DateTime                          @updatedAt
+  logs                         OperationLog[]
+  createdTasks                 Task[]                            @relation("TaskCreator")
+  createdTaskCalendarTemplates TaskCalendarTemplate[]            @relation("TaskCalendarTemplateCreator")
+  createdAssessments           Assessment[]                      @relation("AssessmentCreator")
+  createdResearchTemplates     ResearchTemplate[]                @relation("ResearchTemplateCreator")
+  createdR2StorageConfigs      R2StorageConfig[]                 @relation("R2StorageCreator")
+  r2StorageTests               R2StorageTest[]                   @relation("R2StorageTestCreator")
+  personnelProfile             Personnel?                        @relation("PersonnelPlatformUser")
+  createdPersonnel             Personnel[]                       @relation("PersonnelCreator")
+  salaryAdjustments            SalaryHistory[]                   @relation("SalaryOperator")
+  positionTransfers            PositionHistory[]                 @relation("PositionOperator")
+  leadH5Reviews                LeadH5Review[]                    @relation("LeadH5Reviewer")
+  leadH5ReviewPhotos           LeadH5ReviewPhoto[]               @relation("LeadH5ReviewPhotoUploader")
+  leadH5ResearchRecords        ResearchTemplateRecord[]          @relation("LeadH5ResearchSubmitter")
+  assignedTaskRecords          TaskRecord[]                      @relation("TaskRecordAssignee")
+  taskSubmissions              TaskSubmission[]                  @relation("TaskSubmissionUser")
+  taskAttachments              TaskAttachment[]                  @relation("TaskAttachmentUploader")
+  analyzedTaskAiRecords        TaskAiAnalysis[]                  @relation("TaskAiAnalysisOperator")
+  createdNotifications         Notification[]                    @relation("NotificationCreator")
+  notificationRecipients       NotificationRecipient[]           @relation("NotificationRecipientUser")
+  createdMeetings              Meeting[]                         @relation("MeetingCreator")
+  meetingParticipants          MeetingParticipant[]              @relation("MeetingParticipantUser")
+  createdDailyLearningPlans    DailyLearningPlan[]               @relation("DailyLearningPlanCreator")
+  dailyLearningAssignments     DailyLearningAssignee[]           @relation("DailyLearningAssigneeUser")
+  dailyLearningProgress        DailyLearningProgress[]           @relation("DailyLearningProgressUser")
+  courseAssignments            CourseAssignment[]                @relation("CourseAssignmentUser")
+  createdCourseAssignments     CourseAssignment[]                @relation("CourseAssignmentCreator")
+  createdActualRevenue         ActualRevenueMonthly[]            @relation("ActualRevenueCreator")
+  createdMonthlyTargets        StoreMonthlyTarget[]              @relation("MonthlyTargetCreator")
+  createdInventoryItems        InventoryItem[]                   @relation("InventoryItemCreator")
+  updatedInventoryItems        InventoryItem[]                   @relation("InventoryItemUpdater")
+  inventoryTransactions        InventoryTransaction[]            @relation("InventoryTransactionOperator")
+  createdItemRequisitions      ItemRequisition[]                 @relation("ItemRequisitionCreator")
+  updatedItemRequisitions      ItemRequisition[]                 @relation("ItemRequisitionUpdater")
+  itemRequisitionReturns       ItemRequisitionReturn[]           @relation("ItemRequisitionReturnOperator")
+  createdDailyAttendances      DailyAttendanceRecord[]           @relation("DailyAttendanceCreator")
+  updatedDailyAttendances      DailyAttendanceRecord[]           @relation("DailyAttendanceUpdater")
+  dailyAttendanceRevisions     DailyAttendanceRevision[]         @relation("DailyAttendanceRevisionEditor")
+  createdRestDays              RestDay[]                         @relation("RestDayCreator")
+  updatedRestDays              RestDay[]                         @relation("RestDayUpdater")
+  managedRegions               UserManagedRegion[]
+  createdStoreLaborStandards   StoreLaborStandard[]              @relation("StoreLaborStandardCreator")
+  updatedStoreLaborStandards   StoreLaborStandard[]              @relation("StoreLaborStandardUpdater")
+  createdPurchaseSalesRatios   MonthlyPurchaseSalesRatio[]       @relation("MonthlyPurchaseSalesCreator")
+  updatedPurchaseSalesRatios   MonthlyPurchaseSalesRatio[]       @relation("MonthlyPurchaseSalesUpdater")
+  purchaseSalesImportBatches   MonthlyPurchaseSalesImportBatch[] @relation("MonthlyPurchaseSalesImportOperator")
+  createdProductCategorySales  ProductCategorySalesMonthly[]     @relation("ProductCategorySalesCreator")
+  updatedProductCategorySales  ProductCategorySalesMonthly[]     @relation("ProductCategorySalesUpdater")
+  productCategorySalesBatches  ProductCategorySalesImportBatch[] @relation("ProductCategorySalesImportOperator")
 
   @@index([createdByUserId])
   @@index([lastLoginAt])
+}
+
+model UserManagedRegion {
+  userId    String   @db.VarChar(191)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region    String   @db.VarChar(191)
+  createdAt DateTime @default(now())
+
+  @@id([userId, region])
+  @@unique([region])
 }
 
 model Assessment {
@@ -297,6 +313,9 @@ model Assessment {
   r2StorageId          String                 @db.VarChar(191)
   r2Storage            R2StorageConfig        @relation("AssessmentR2Storage", fields: [r2StorageId], references: [id])
   photoAttachmentLimit Int                    @default(3)
+  nonFullScoreRequiresPhoto Boolean           @default(false)
+  failRequiresProblemDescription Boolean      @default(false)
+  partialRequiresProblemDescription Boolean  @default(false)
   detailText           String                 @db.LongText
   sectionCount         Int
   subsectionCount      Int
@@ -941,11 +960,13 @@ model LeadH5ReviewItem {
   sectionName     String              @db.VarChar(100)
   subsectionName  String              @db.VarChar(100)
   itemDescription String              @db.Text
+  problemDescription String?           @db.Text
   maxScore        Decimal             @db.Decimal(10, 1)
   result          String              @db.VarChar(20)
   actualScore     Decimal             @db.Decimal(10, 1)
   sortOrder       Int
   photos          LeadH5ReviewPhoto[]
+  rectification   InspectionRectification?
 
   @@unique([reviewId, itemKey])
   @@index([reviewId, sortOrder])
@@ -1178,31 +1199,57 @@ model Personnel {
 }
 
 model DailyAttendanceRecord {
-  id                        String                @id @default(cuid())
-  recordNo                  String                @unique @db.VarChar(12)
-  attendanceDate            DateTime              @db.Date
+  id                        String                    @id @default(cuid())
+  recordNo                  String                    @unique @db.VarChar(12)
+  attendanceDate            DateTime                  @db.Date
   storeId                   String
-  store                     Store                 @relation(fields: [storeId], references: [id], onDelete: Restrict)
-  storeNameSnapshot         String                @db.VarChar(100)
-  brandIdSnapshot           String                @db.VarChar(191)
-  brandNameSnapshot         String                @db.VarChar(100)
-  cooperationTypeSnapshot   String                @db.VarChar(30)
-  deadlineAt                DateTime              @db.DateTime(0)
+  store                     Store                     @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  storeNameSnapshot         String                    @db.VarChar(100)
+  brandIdSnapshot           String                    @db.VarChar(191)
+  brandNameSnapshot         String                    @db.VarChar(100)
+  cooperationTypeSnapshot   String                    @db.VarChar(30)
+  deadlineAt                DateTime                  @db.DateTime(0)
   partTimeHeadcount         Int?
-  partTimeHours             Decimal?              @db.Decimal(6, 1)
-  partTimeLaborCostSnapshot Decimal?              @db.Decimal(12, 2)
-  partTimeActualLaborCost   Decimal?              @db.Decimal(18, 2)
+  partTimeHours             Decimal?                  @db.Decimal(6, 1)
+  partTimeLaborCostSnapshot Decimal?                  @db.Decimal(12, 2)
+  partTimeActualLaborCost   Decimal?                  @db.Decimal(18, 2)
   createdByUserId           String?
-  createdBy                 User?                 @relation("DailyAttendanceCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdByUsername         String                @db.VarChar(100)
-  createdByNameSnapshot     String                @db.VarChar(100)
-  createdAt                 DateTime              @default(now()) @db.DateTime(0)
+  createdBy                 User?                     @relation("DailyAttendanceCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUsername         String                    @db.VarChar(100)
+  createdByNameSnapshot     String                    @db.VarChar(100)
+  createdAt                 DateTime                  @default(now()) @db.DateTime(0)
+  updatedByUserId           String?
+  updatedBy                 User?                     @relation("DailyAttendanceUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  updatedByUsername         String?                   @db.VarChar(100)
+  updatedByNameSnapshot     String?                   @db.VarChar(100)
+  updatedAt                 DateTime                  @default(now()) @updatedAt @db.DateTime(0)
+  revision                  Int                       @default(1)
   items                     DailyAttendanceItem[]
+  revisions                 DailyAttendanceRevision[]
   laborRecord               StoreLaborRecord?
 
   @@unique([storeId, attendanceDate])
   @@index([attendanceDate, storeId])
   @@index([createdByUserId, createdAt])
+  @@index([updatedByUserId, updatedAt])
+}
+
+model DailyAttendanceRevision {
+  id                    String                @id @default(cuid())
+  attendanceId          String
+  attendance            DailyAttendanceRecord @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  revision              Int
+  action                String                @db.VarChar(20)
+  modificationReason    String?               @db.VarChar(300)
+  snapshot              Json
+  changedByUserId       String?
+  changedBy             User?                 @relation("DailyAttendanceRevisionEditor", fields: [changedByUserId], references: [id], onDelete: SetNull)
+  changedByUsername     String                @db.VarChar(100)
+  changedByNameSnapshot String                @db.VarChar(100)
+  changedAt             DateTime              @default(now()) @db.DateTime(0)
+
+  @@unique([attendanceId, revision])
+  @@index([changedByUserId, changedAt])
 }
 
 model DailyAttendanceItem {
@@ -1272,32 +1319,34 @@ model PositionHistory {
 }
 
 model Task {
-  id                    String             @id @default(cuid())
-  recordNo              String?            @unique
+  id                    String                @id @default(cuid())
+  recordNo              String?               @unique
   title                 String
   type                  TaskType
-  targetType            TaskTarget         @default(STORE)
+  targetType            TaskTarget            @default(STORE)
   specifiedTargets      Json?
-  status                RecordStatus       @default(ENABLED)
-  description           String?            @db.Text
+  status                RecordStatus          @default(ENABLED)
+  description           String?               @db.Text
   executorRoleId        String?
-  executorRole          Role?              @relation("TaskExecutorRole", fields: [executorRoleId], references: [id])
-  includeCompletionRate Boolean            @default(true)
+  executorRole          Role?                 @relation("TaskExecutorRole", fields: [executorRoleId], references: [id])
+  includeCompletionRate Boolean               @default(true)
   executionDays         Json?
-  weeklyExecutionDay    String?            @db.VarChar(3)
-  monthlyExecutionDay   String?            @db.VarChar(10)
-  deadlineDayOffset     Int                @default(0)
-  deadlineTime          String             @default("23:59") @db.VarChar(5)
-  configFileName        String?            @unique
+  weeklyExecutionDay    String?               @db.VarChar(3)
+  monthlyExecutionDay   String?               @db.VarChar(10)
+  deadlineDayOffset     Int                   @default(0)
+  deadlineTime          String                @default("23:59") @db.VarChar(5)
+  configFileName        String?               @unique
   submitItems           Json?
-  configVersion         Int                @default(1)
+  configVersion         Int                   @default(1)
   r2StorageId           String?
-  r2Storage             R2StorageConfig?   @relation("TaskR2Storage", fields: [r2StorageId], references: [id])
+  r2Storage             R2StorageConfig?      @relation("TaskR2Storage", fields: [r2StorageId], references: [id])
+  calendarTemplateId    String?               @unique
+  calendarTemplate      TaskCalendarTemplate? @relation("TaskCalendarTemplateTask", fields: [calendarTemplateId], references: [id])
   createdByUserId       String?
-  createdBy             User?              @relation("TaskCreator", fields: [createdByUserId], references: [id])
+  createdBy             User?                 @relation("TaskCreator", fields: [createdByUserId], references: [id])
   deletedAt             DateTime?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @default(now()) @updatedAt
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @default(now()) @updatedAt
   records               TaskRecord[]
   brands                TaskBrand[]
   executorRoles         TaskExecutorRole[]
@@ -1305,6 +1354,39 @@ model Task {
   @@index([createdAt])
   @@index([executorRoleId])
   @@index([r2StorageId])
+}
+
+model TaskCalendarTemplate {
+  id              String             @id @default(cuid())
+  recordNo        String             @unique @db.VarChar(12)
+  name            String             @db.VarChar(60)
+  remark          String?            @db.VarChar(300)
+  status          RecordStatus       @default(ENABLED)
+  createdByUserId String?
+  createdBy       User?              @relation("TaskCalendarTemplateCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  task            Task?              @relation("TaskCalendarTemplateTask")
+  dates           TaskCalendarDate[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([name])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model TaskCalendarDate {
+  id           String               @id @default(cuid())
+  templateId   String
+  template     TaskCalendarTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  calendarDate DateTime             @db.Date
+  hasTask      Boolean              @default(false)
+  content      String?              @db.Text
+  remark       String?              @db.Text
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@unique([templateId, calendarDate])
+  @@index([calendarDate])
 }
 
 model TaskExecutorRole {
@@ -1364,6 +1446,7 @@ model TaskRecord {
   draftCaptureFallbacks           Json?
   draftSavedAt                    DateTime?
   formalSubmission                TaskSubmission?
+  rectificationRound              InspectionRectificationRound?
   aiAnalysis                      TaskAiAnalysis?
   attachments                     TaskAttachment[]
   createdAt                       DateTime         @default(now())
@@ -2107,7 +2190,7 @@ model Notification {
   recordNo        String                  @unique @db.VarChar(12)
   clientRequestId String                  @unique @db.VarChar(64)
   title           String                  @db.VarChar(30)
-  content         String                  @db.VarChar(500)
+  content         String                  @db.LongText
   type            NotificationType        @default(GENERAL)
   publishMode     NotificationPublishMode @default(SCHEDULED)
   releaseDate     DateTime                @db.Date
@@ -2310,4 +2393,48 @@ model DeploymentMigration {
   error       String?   @db.Text
 
   @@index([status, startedAt])
+}
+
+// 仅在新巡检正式提交时创建；历史巡检不回填。
+model InspectionRectification {
+  id                 String                         @id @default(cuid())
+  recordNo           String                         @unique @db.VarChar(20)
+  reviewItemId       String                         @unique
+  reviewItem         LeadH5ReviewItem               @relation(fields: [reviewItemId], references: [id], onDelete: Cascade)
+  status             String                         @default("PENDING") @db.VarChar(24)
+  noActionReason     String?                        @db.Text
+  noActionAt         DateTime?
+  noActionByName     String?                        @db.VarChar(100)
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  rounds             InspectionRectificationRound[]
+
+  @@index([status, createdAt])
+}
+
+model InspectionRectificationRound {
+  id                    String                   @id @default(cuid())
+  rectificationId       String
+  rectification         InspectionRectification  @relation(fields: [rectificationId], references: [id], onDelete: Restrict)
+  roundNumber           Int
+  generatedAt           DateTime                 @default(now())
+  deadlineHours         Int
+  dueAt                 DateTime
+  responsibleUserId     String                   @db.VarChar(191)
+  responsibleName       String                   @db.VarChar(100)
+  requirement           String                   @db.VarChar(100)
+  ccRecipients          Json
+  taskRecordId          String                   @unique
+  taskRecord            TaskRecord               @relation(fields: [taskRecordId], references: [id], onDelete: Restrict)
+  submittedAt           DateTime?
+  submissionDescription String?                  @db.Text
+  acceptedAt            DateTime?
+  acceptanceResult      String?                  @db.VarChar(20)
+  acceptedByUserId      String?                  @db.VarChar(191)
+  acceptedByName        String?                  @db.VarChar(100)
+  rejectionReason       String?                  @db.Text
+
+  @@unique([rectificationId, roundNumber])
+  @@index([responsibleUserId])
+  @@index([submittedAt, dueAt])
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { PlusOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Divider, Drawer, Empty, Form, Input, InputNumber, message, Modal, Row, Select, Skeleton, Space, Table, Tag, type FormProps } from "antd";
+import { Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Divider, Drawer, Empty, Form, Input, InputNumber, message, Modal, Row, Select, Skeleton, Space, Table, type FormProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -11,6 +11,7 @@ import { PersonnelDetails, type PersonnelDetail } from "@/components/personnel-d
 import { StatusTag } from "@/components/status-tag";
 import { displayDate } from "@/lib/format";
 import { useBusinessDictionaries } from "@/hooks/use-business-dictionaries";
+import { canStoreListAction } from "@/lib/store-permissions";
 
 type Brand = { id: string; name: string };
 type Contract = {
@@ -28,14 +29,11 @@ type Store = {
 };
 type Filters = { keyword: string; status: string; brandId: string; cooperationType: string; city: string; dates: [Dayjs | null, Dayjs | null] | null };
 type StoreForm = {
-  contractId?: string; brandId: string; name: string; cooperationType: string; operationStatus: string; region?: string; supervisorUserId?: string; supervisorName?: string;
+  contractId?: string; brandId: string; name: string; cooperationType: string; operationStatus: string; region: string; supervisorUserId?: string; supervisorName?: string;
   location?: string[]; address?: string; startDate?: Dayjs; endDate?: Dayjs; businessDistrict?: string; locationType?: string;
   trialOpenDate?: Dayjs; formalOpenDate?: Dayjs; workdayHours?: number; partTimeLaborCost?: number; managerName?: string; chefName?: string; ownerName?: string;
   ownerPhone?: string; ownerIdNumber?: string;
 };
-type StaffRole = "supervisor";
-type StaffMember = { id: string; realName: string; phone?: string | null; tags?: string | null };
-type StaffPicker = { role: StaffRole; title: string; field: "supervisorName"; idField: "supervisorUserId" };
 type AliasForm = { douyinLaikeName: string; kuaishouName: string; meituanManagerName: string; meituanBusinessName: string };
 type AliasMode = "view" | "edit";
 type CostForm = { storeRent: number; employeeWages: number; dormitoryRent: number; propertyFee: number; utilitiesFee: number; otherCost: number; ratioCoefficient: number };
@@ -66,6 +64,11 @@ function cooperationLabel(value: string) { return value === "DIRECT" ? "直营�
 
 export function StoreList({ permissions, brandDayHours }: { permissions: string[]; brandDayHours: Record<string, number> }) {
   const [messageApi, messageContextHolder] = message.useMessage();
+  const can = (action: Parameters<typeof canStoreListAction>[1]) => canStoreListAction(permissions, action);
+  const canQuery = can("query");
+  const canView = can("view");
+  const canCreate = can("create");
+  const canEdit = can("edit");
   const canEditAliases = permissions.includes("*") || permissions.includes("stores:aliases:edit");
   const canEditEmployees = permissions.includes("*") || permissions.includes("stores:employees:edit");
   const canViewSensitivePersonnel = permissions.includes("*") || permissions.includes("personnel:sensitive");
@@ -91,10 +94,8 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
   const [contractsLoading, setContractsLoading] = useState(false);
   const [contractsError, setContractsError] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
-  const [staffPicker, setStaffPicker] = useState<StaffPicker | null>(null);
-  const [staffRows, setStaffRows] = useState<StaffMember[]>([]);
-  const [staffLoading, setStaffLoading] = useState(false);
-  const [staffError, setStaffError] = useState(false);
+  const [regionManagerLoading, setRegionManagerLoading] = useState(false);
+  const regionManagerRequestRef = useRef(0);
   const [aliasMode, setAliasMode] = useState<AliasMode | null>(null);
   const [aliasStore, setAliasStore] = useState<Store | null>(null);
   const [aliasSaving, setAliasSaving] = useState(false);
@@ -132,6 +133,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
   };
 
   const load = async (nextFilters = filters) => {
+    if (!canQuery) return;
     setLoading(true); setError(false);
     const params = new URLSearchParams();
     if (nextFilters.keyword.trim()) params.set("keyword", nextFilters.keyword.trim());
@@ -148,7 +150,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
     } catch { setError(true); } finally { setLoading(false); }
   };
 
-  useEffect(() => { void load(emptyFilters); }, []);
+  useEffect(() => { if (canQuery) void load(emptyFilters); else setLoading(false); }, []);
   useEffect(() => { fetch("/api/brands").then((response) => response.ok ? response.json() : []).then(setBrands).catch(() => setBrands([])); }, []);
 
   const loadAvailableContracts = async () => {
@@ -160,20 +162,22 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
     } catch { setContractsError(true); } finally { setContractsLoading(false); }
   };
   const openContractModal = () => { setContractModalOpen(true); void loadAvailableContracts(); };
-  const loadStaff = async (role: StaffRole) => {
-    setStaffLoading(true); setStaffError(false);
+  const applyRegionManager = async (region?: string) => {
+    const requestId = ++regionManagerRequestRef.current;
+    form.setFieldsValue({ supervisorUserId: undefined, supervisorName: undefined });
+    if (!region) { setRegionManagerLoading(false); return; }
+    setRegionManagerLoading(true);
     try {
-      const response = await fetch(`/api/stores/staff?role=${role}`);
-      if (!response.ok) throw new Error();
-      setStaffRows(await response.json());
-    } catch { setStaffError(true); } finally { setStaffLoading(false); }
-  };
-  const openStaffPicker = (picker: StaffPicker) => { setStaffPicker(picker); void loadStaff(picker.role); };
-  const chooseStaff = (staff: StaffMember) => {
-    if (!staffPicker) return;
-    form.setFieldValue(staffPicker.field, staff.realName);
-    form.setFieldValue(staffPicker.idField, staff.id);
-    setStaffPicker(null);
+      const response = await fetch(`/api/stores/region-manager?region=${encodeURIComponent(region)}`, { cache: "no-store" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || "区域负责人加载失败");
+      if (requestId !== regionManagerRequestRef.current || form.getFieldValue("region") !== region) return;
+      form.setFieldsValue({ supervisorUserId: data?.userId || undefined, supervisorName: data?.realName || undefined });
+    } catch (regionManagerError) {
+      if (requestId === regionManagerRequestRef.current) messageApi.error(regionManagerError instanceof Error ? regionManagerError.message : "区域负责人加载失败");
+    } finally {
+      if (requestId === regionManagerRequestRef.current) setRegionManagerLoading(false);
+    }
   };
   const chooseContract = (contract: Contract) => {
     const currentBrandId = form.getFieldValue("brandId");
@@ -195,8 +199,9 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
     });
     setContractModalOpen(false);
   };
-  const closeForm = () => { if (!saving) { setFormOpen(false); setEditing(null); setSelectedContract(null); setStaffPicker(null); setSaveError(null); form.resetFields(); } };
+  const closeForm = () => { if (!saving) { regionManagerRequestRef.current += 1; setRegionManagerLoading(false); setFormOpen(false); setEditing(null); setSelectedContract(null); setSaveError(null); form.resetFields(); } };
   const openCreate = () => {
+    regionManagerRequestRef.current += 1; setRegionManagerLoading(false);
     setEditing(null); setSelectedContract(null); setSaveError(null); form.resetFields();
     form.setFieldsValue({ cooperationType: "FRANCHISE", operationStatus: "PREPARING" });
     setFormOpen(true);
@@ -226,6 +231,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
       ownerIdNumber: (store.contract ? store.contract.ownerIdNumber : store.ownerIdNumber) ?? "",
     });
     setFormOpen(true);
+    void applyRegionManager(store.region);
   };
   const save = async () => {
     if (savingRef.current) return;
@@ -314,6 +320,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
     }
   };
   const openCost = (store: Store) => {
+    if (!can("cost-view")) return;
     setCostStore(store);
     setCostData(null);
     setCostMode("view");
@@ -509,13 +516,13 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
     { title: "店长", dataIndex: "managerName", width: 100, render: text },
     { title: "正式营业日期", dataIndex: "formalOpenDate", width: 130, render: displayDate },
     { title: "创建日期", dataIndex: "createdAt", width: 120, render: displayDate },
-    { title: "操作", fixed: "right", width: 265, render: (_, row) => <Space className="table-actions" size={0}><Button type="link" size="small" onClick={() => { setSelected(row); setDetailOpen(true); }}>查看</Button><Button type="link" size="small" onClick={() => openEdit(row)}>编辑</Button><Button type="link" size="small" onClick={() => openAliases(row)}>别名</Button><Button type="link" size="small" onClick={() => openEmployees(row)}>员工</Button><Button type="link" size="small" onClick={() => openCost(row)}>成本</Button></Space> },
+    { title: "操作", fixed: "right", width: 310, render: (_, row) => <Space className="table-actions" size={0}>{canView && <Button type="link" size="small" onClick={() => { setSelected(row); setDetailOpen(true); }}>查看</Button>}{canEdit && <Button type="link" size="small" onClick={() => openEdit(row)}>编辑</Button>}{canEditAliases && <Button type="link" size="small" onClick={() => openAliases(row)}>别名</Button>}{canEditEmployees && <Button type="link" size="small" onClick={() => openEmployees(row)}>员工</Button>}{can("cost-view") && <Button type="link" size="small" onClick={() => openCost(row)}>成本</Button>}</Space> },
   ];
 
   return <>
     {messageContextHolder}
     {dictionariesError && <Alert style={{ marginBottom: 16 }} type="error" showIcon message="门店数据字典加载失败" description={dictionariesError} action={<Button size="small" onClick={() => void reloadDictionaries()}>重新加载</Button>} />}
-    <Card style={{ marginBottom: 16 }}>
+    {canQuery && <Card style={{ marginBottom: 16 }}>
       <Space wrap>
         <Input placeholder="门店编号、名称、店长或业主" style={{ width: 245 }} value={filters.keyword} onChange={(event) => setFilters({ ...filters, keyword: event.target.value })} onPressEnter={() => void load()} />
         <Select style={{ width: 145 }} options={[{ value: "", label: "全部品牌" }, ...brands.map((brand) => ({ value: brand.id, label: brand.name }))]} value={filters.brandId} onChange={(brandId) => setFilters({ ...filters, brandId })} />
@@ -525,8 +532,9 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
         <DatePicker.RangePicker placeholder={["正式营业开始", "正式营业结束"]} value={filters.dates} onChange={(dates) => setFilters({ ...filters, dates: dates as Filters["dates"] })} />
         <Button onClick={() => { setFilters(emptyFilters); void load(emptyFilters); }}>重置</Button><Button type="primary" onClick={() => void load()}>筛选</Button>
       </Space>
-    </Card>
-    <Card extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增门店</Button>}>
+    </Card>}
+    {!canQuery && <Alert style={{ marginBottom: 16 }} type="info" showIcon message="当前角色未配置门店查询权限" description="请在角色管理中勾选查询或查看后加载门店列表。" />}
+    <Card extra={canCreate ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增门店</Button> : null}>
       <DataTable rowKey="id" columns={columns} dataSource={rows} loading={loading} pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (total) => `共 ${total} 条` }} error={error} onRetry={() => void load()} />
     </Card>
     <Drawer title={editing ? "编辑门店" : "新增门店"} width={920} open={formOpen} onClose={closeForm} destroyOnHidden maskClosable={!saving} footer={saveError ? <Alert type="error" showIcon message={saveError} /> : null} extra={<Space><Button onClick={closeForm} disabled={saving}>取消</Button><Button type="primary" loading={saving} onClick={() => void save()}>保存</Button></Space>}>
@@ -536,7 +544,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
         <FormHeading title="基础信息" />
         <Row gutter={16}><Col span={24}><Form.Item label="关联合同"><Space wrap><Button onClick={openContractModal}>选择合同</Button>{selectedContract ? <span>当前关联合同：{selectedContract.recordNo}</span> : <span className="store-form-hint">未关联合同，可直接维护门店档案。</span>}</Space></Form.Item></Col></Row>
         <Row gutter={16}><FormItem span={8} label="品牌" name="brandId" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} placeholder="请选择品牌" options={brands.map((brand) => ({ value: brand.id, label: brand.name }))} onChange={(brandId) => form.setFieldValue("workdayHours", configuredWorkdayHoursForBrand(brandId))} /></FormItem><FormItem span={8} label="门店名称" name="name" required><Input disabled={!!selectedContract} maxLength={60} placeholder="请输入门店名称" /></FormItem><FormItem span={8} label="合作类型" name="cooperationType" required><Select loading={dictionariesLoading} disabled={!!dictionariesError || !!selectedContract} options={cooperationOptions.filter((option) => option.value)} /></FormItem></Row>
-        <Row gutter={16}><FormItem span={8} label="运营状态" name="operationStatus" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} options={statusOptions.filter((option) => option.value)} /></FormItem><FormItem span={8} label="营运大区" name="region"><Select allowClear loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择营运大区" options={areaOptions} /></FormItem><FormItem span={8} label="负责督导" name="supervisorName"><Input readOnly placeholder="请选择督导" addonAfter={<Button type="link" size="small" onClick={() => openStaffPicker({ role: "supervisor", title: "督导", field: "supervisorName", idField: "supervisorUserId" })}>选择</Button>} /></FormItem></Row>
+        <Row gutter={16}><FormItem span={8} label="运营状态" name="operationStatus" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} options={statusOptions.filter((option) => option.value)} /></FormItem><FormItem span={8} label="营运大区" name="region" required rules={[{ required: true, message: "请选择营运大区" }]}><Select loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择营运大区" options={areaOptions} onChange={(region) => void applyRegionManager(region)} /></FormItem><FormItem span={8} label="区域负责人" name="supervisorName"><Input readOnly placeholder={regionManagerLoading ? "正在自动匹配..." : "根据营运大区自动匹配"} /></FormItem></Row>
         <Row gutter={16}><FormItem span={12} label="工作日小时" name="workdayHours" required rules={[{ required: true, message: "请输入工作日小时" }, { type: "number", min: 0.1, max: 24, message: "请输入0.1至24之间的工作日小时" }]}><InputNumber min={0.1} max={24} step={0.1} precision={1} suffix="小时/日" style={{ width: "100%" }} placeholder="读取品牌考勤参数，可修改" /></FormItem><FormItem span={12} label="兼职用工成本" name="partTimeLaborCost" rules={[{ type: "number", min: 0, max: 9999999999.99, message: "请输入不小于0的兼职用工成本" }]}><InputNumber min={0} max={9999999999.99} step={0.01} precision={2} suffix="元/小时" style={{ width: "100%" }} placeholder="选填，请输入兼职用工成本" /></FormItem></Row>
         <FormHeading title="门店地址与商圈" />
         <Row gutter={16}><FormItem span={12} label="省 / 市 / 区县" name="location"><Cascader disabled={!!selectedContract} options={districtOptions} fieldNames={{ label: "name", value: "name", children: "children" }} placeholder="请选择门店所在地区" showSearch /></FormItem><FormItem span={12} label="详细地址" name="address"><Input disabled={!!selectedContract} maxLength={200} placeholder="请输入街道、门牌号等" /></FormItem></Row>
@@ -550,7 +558,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
         <Row gutter={16}><FormItem span={8} label="业主联系电话" name="ownerPhone" rules={[{ pattern: /^$|^1\d{10}$/, message: "请输入正确的 11 位手机号码" }]}><Input disabled={!!selectedContract} maxLength={11} /></FormItem><FormItem span={8} label="业主身份证号" name="ownerIdNumber"><Input disabled={!!selectedContract} maxLength={30} /></FormItem></Row>
       </Form>
     </Drawer>
-    <Drawer title="门店详情" width={840} open={detailOpen} onClose={() => setDetailOpen(false)} extra={selected ? <Button type="primary" onClick={() => { setDetailOpen(false); openEdit(selected); }}>编辑门店</Button> : null}>
+    <Drawer title="门店详情" width={840} open={detailOpen} onClose={() => setDetailOpen(false)} extra={selected && canEdit ? <Button type="primary" onClick={() => { setDetailOpen(false); openEdit(selected); }}>编辑门店</Button> : null}>
       {selected && <StoreDetails store={selected} brandDayHours={brandDayHours} />}
     </Drawer>
     <Modal title={aliasMode === "edit" ? "编辑-门店别名" : "查看-门店别名"} open={!!aliasMode && !!aliasStore} onCancel={closeAliases} width={640} destroyOnHidden maskClosable={!aliasSaving} closable={!aliasSaving} footer={aliasMode === "edit" ? <Space><Button disabled={aliasSaving} onClick={closeAliases}>取消</Button><Button type="primary" loading={aliasSaving} onClick={() => void saveAliases()}>保存</Button></Space> : <Space>{canEditAliases && <Button type="primary" onClick={() => setAliasMode("edit")}>编辑</Button>}<Button onClick={closeAliases}>返回</Button></Space>}>
@@ -584,7 +592,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
       closable={!costSaving}
       footer={costMode === "edit"
         ? <Space><Button disabled={costSaving} onClick={() => setCostMode("view")}>取消</Button><Button type="primary" loading={costSaving} onClick={() => void saveCost()}>保存</Button></Space>
-        : <Space><Button type="primary" disabled={costLoading || !costData} onClick={startCostEdit}>编辑</Button><Button onClick={closeCost}>返回</Button></Space>}
+        : <Space>{can("cost-edit") && <Button type="primary" disabled={costLoading || !costData} onClick={startCostEdit}>编辑</Button>}<Button onClick={closeCost}>返回</Button></Space>}
     >
       {costLoading && !costData ? <Skeleton active paragraph={{ rows: 7 }} /> : costError ? <Alert type="error" showIcon message="门店成本加载失败" description={costError} action={costStore ? <Button size="small" onClick={() => void loadStoreCost(costStore.id)}>重新加载</Button> : undefined} /> : costData && costMode === "view" ? <Descriptions bordered size="middle" column={2} items={[
         { key: "name", label: "门店名称", children: costData.name, span: 2 },
@@ -706,14 +714,6 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
         { title: "操作", width: 80, render: (_, contract: Contract) => <Button type="link" size="small" onClick={() => chooseContract(contract)}>选择</Button> },
       ]} />}
     </Modal>
-    <Modal title={staffPicker ? `${staffPicker.title}列表` : "人员列表"} open={!!staffPicker} onCancel={() => setStaffPicker(null)} footer={<Button onClick={() => setStaffPicker(null)}>取消</Button>} width={680} destroyOnHidden>
-      {staffError ? <Alert type="error" showIcon message="人员记录加载失败，请稍后重试" action={<Button size="small" onClick={() => staffPicker && void loadStaff(staffPicker.role)}>重新加载</Button>} /> : <DataTable rowKey="id" scroll={{ x: 620 }} loading={staffLoading} dataSource={staffRows} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 条` }} columns={[
-        { title: "真实姓名", dataIndex: "realName", width: 140 },
-        { title: "手机号码", dataIndex: "phone", width: 160, render: (value: string | null) => value || "-" },
-        { title: "标签", dataIndex: "tags", width: 220, render: (value: string | null) => value ? <Space size={[4, 4]} wrap>{value.split("|").filter(Boolean).map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> : "-" },
-        { title: "操作", width: 80, render: (_, staff: StaffMember) => <Button type="link" size="small" onClick={() => chooseStaff(staff)}>选择</Button> },
-      ]} />}
-    </Modal>
   </>;
 }
 
@@ -733,7 +733,7 @@ function StoreDetails({ store, brandDayHours }: { store: Store; brandDayHours: R
       { key: "cooperation", label: "合作类型", children: cooperationLabel(store.cooperationType) }, { key: "contract", label: "关联合同", children: store.contract ? <>{store.contract.recordNo} <StatusTag value={store.contract.status} /></> : "未关联" },
       { key: "workdayHours", label: "工作日小时", children: workdayHours === undefined ? "-" : `${Number(workdayHours)}小时/日` },
       { key: "partTimeLaborCost", label: "兼职用工成本", children: store.partTimeLaborCost === null || store.partTimeLaborCost === undefined ? "-" : `${Number(store.partTimeLaborCost).toFixed(2)}元/小时` },
-      { key: "region", label: "营运大区", children: text(store.region) }, { key: "supervisor", label: "负责督导", children: text(store.supervisorName) },
+      { key: "region", label: "营运大区", children: text(store.region) }, { key: "supervisor", label: "区域负责人", children: text(store.supervisorName) },
       { key: "location", label: "省 / 市 / 区县", children: locationLabel(store) }, { key: "address", label: "详细地址", children: text(store.address) },
       { key: "businessDistrict", label: "商圈", children: text(store.businessDistrict) }, { key: "locationType", label: "选址类型", children: text(store.locationType) },
     ]} />

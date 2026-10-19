@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeftOutlined, CameraOutlined, CheckCircleFilled, CloseCircleFilled, DeleteOutlined, LoadingOutlined, RedoOutlined, SaveOutlined, UploadOutlined, VideoCameraOutlined } from "@ant-design/icons";
-import { Alert, Button, Input, InputNumber, Modal, Select, Skeleton, Tag, Upload } from "antd";
+import { Alert, Button, Image, Input, InputNumber, Modal, Select, Skeleton, Tag, Upload } from "antd";
 import type { UploadProps } from "antd";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,11 +10,13 @@ import { optimizeTaskPhoto, putFileWithProgress } from "@/lib/client/store-h5-di
 import { optimizeTaskVideo } from "@/lib/client/task-video-compression";
 import { taskAttachmentMaxBytes, taskAttachmentMaxMb, TASK_VIDEO_SUGGESTED_MAX_SECONDS, TASK_VIDEO_SUGGESTED_MIN_SECONDS } from "@/lib/task-attachment-rules";
 import { taskInputValueError } from "@/lib/task-input-values";
+import { RectificationInspectionSection, RectificationRequirementSection } from "@/components/rectification-sections";
+import type { RectificationInspection, RectificationRoundDetail } from "@/lib/inspection-rectification-shared";
 
 type Item = { name: string; component: "attachment" | "input" | "select"; dataType: "photo" | "video" | "document" | "amount" | "quantity" | "score" | "text" | null; maxValue?: number | null; captureOnly?: boolean; options: string[]; description: string; required: boolean; weight: number };
 type DraftValue = { index: number; value: string | number };
 type ServerDraft = { values?: unknown; fallbackItemIndexes?: unknown; savedAt: string };
-type TaskDetail = { id: string; recordNo?: string; taskName: string; taskTypeLabel: string; targetPersonnelName?: string | null; targetPersonnelPosition?: string | null; storeName?: string; brandName?: string; executionDate: string; dueDate: string; items: Item[]; draftAttachments?: Array<{ id: string; itemIndex: number; name: string }>; draft?: ServerDraft | null };
+type TaskDetail = { rectification?: { inspection: RectificationInspection; round: RectificationRoundDetail } | null; id: string; recordNo?: string; taskName: string; taskTypeLabel: string; targetPersonnelName?: string | null; targetPersonnelPosition?: string | null; calendarDescription?: string | null; calendarRemark?: string | null; storeName?: string; brandName?: string; executionDate: string; dueDate: string; items: Item[]; draftAttachments?: Array<{ id: string; itemIndex: number; name: string }>; draft?: ServerDraft | null };
 type Attachment = { clientId: string; id?: string; name: string; status: "uploading" | "success" | "error" | "local"; phase?: "preparing" | "uploading"; message?: string; progress?: number; localFile?: File };
 type DraftFeedback = { type: "success" | "warning" | "error" | "info"; message: string };
 
@@ -128,7 +130,7 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
       } else if (localDraft && !localDraft.serverSynced) setDraftFeedback({ type: "warning", message: "已恢复本机草稿，联网后将自动同步" });
       else if (serverDraft?.savedAt || localDraft?.savedAt) setDraftFeedback({ type: "info", message: "已恢复上次暂存的任务内容" });
     } catch (reason) {
-      if (localDraft?.task && new Date(localDraft.task.dueDate).getTime() >= Date.now()) {
+      if (localDraft?.task && (localDraft.task.rectification || new Date(localDraft.task.dueDate).getTime() >= Date.now())) {
         setTask(localDraft.task);
         setValues(Object.entries(localDraft.values).reduce<Record<number, string | number>>((result, [index, value]) => ({ ...result, [Number(index)]: value }), {}));
         setAttachments(localFilesAsAttachments(localDraft));
@@ -338,7 +340,12 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
   if (loadError || !task) return <main className="store-h5-page store-h5-task-page"><header className="store-h5-subheader"><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => router.push(`${webBase}/tasks`)} /><div><strong>任务执行</strong></div><span /></header><section className="store-h5-task-content"><Alert type="error" showIcon message={loadError || "任务内容加载失败，请稍后重试"} action={<Button size="small" onClick={() => void load()}>重新加载</Button>} /></section></main>;
   return <main className="store-h5-page store-h5-task-page store-h5-execution-page">
     <header className="store-h5-subheader"><Button type="text" aria-label="返回任务列表" icon={<ArrowLeftOutlined />} onClick={() => requestLeave()} /><div><strong>任务执行</strong><small>{task.recordNo}</small></div><span /></header>
-    <section className="store-h5-task-summary"><div><h1>{task.taskName}</h1><Tag color="blue">{task.taskTypeLabel}</Tag></div><dl>{task.targetPersonnelName && <div><dt>评选员工</dt><dd>{task.targetPersonnelName}{task.targetPersonnelPosition ? `（${task.targetPersonnelPosition}）` : ""}</dd></div>}<div><dt>执行日期</dt><dd>{String(task.executionDate).slice(0, 10)}</dd></div><div><dt>截止时间</dt><dd>{new Date(task.dueDate).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</dd></div><div><dt>门店</dt><dd>{task.storeName || "-"}</dd></div></dl></section>
+    <section className="store-h5-task-summary"><div><h1>{task.taskName}</h1><Tag color="blue">{task.taskTypeLabel}</Tag></div><dl>{task.targetPersonnelName && <div><dt>评选员工</dt><dd>{task.targetPersonnelName}{task.targetPersonnelPosition ? `（${task.targetPersonnelPosition}）` : ""}</dd></div>}<div><dt>执行日期</dt><dd>{String(task.executionDate).slice(0, 10)}</dd></div><div><dt>截止时间</dt><dd>{new Date(task.dueDate).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</dd></div><div><dt>门店</dt><dd>{task.storeName || "-"}</dd></div></dl>{task.calendarDescription && <Alert className="store-h5-calendar-note" type="info" showIcon message="当天任务说明" description={task.calendarDescription} />}{task.calendarRemark && <Alert className="store-h5-calendar-note" type="warning" showIcon message="备注" description={task.calendarRemark} />}</section>
+    {task.rectification && <>
+      {new Date(task.dueDate).getTime() < Date.now() && <Alert type="warning" showIcon message="本轮整改已超时，仍可上传并提交" />}
+      <RectificationInspectionSection inspection={task.rectification.inspection} />
+      <RectificationRequirementSection round={task.rectification.round} />
+    </>}
     {!canSubmitTask && <Alert type="info" showIcon message="当前角色仅可查看任务详情，不能填写、暂存或提交" />}
     {draftFeedback && <Alert className="store-h5-draft-alert" type={draftFeedback.type} showIcon message={draftFeedback.message} description={draftSavedAt ? `暂存时间：${new Date(draftSavedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}` : undefined} closable onClose={() => setDraftFeedback(undefined)} />}
     <section className="store-h5-form-list">
@@ -355,6 +362,13 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
           {item.component === "attachment" ? <div><Upload disabled={!canAttach} showUploadList={false} maxCount={item.weight} accept={item.dataType === "video" ? "video/*" : item.dataType === "document" ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" : "image/*"} capture={item.captureOnly && !fallbackUnlocked && (item.dataType === "photo" || item.dataType === "video") ? "environment" : undefined} beforeUpload={upload(index, item)}><Button block disabled={!canAttach || itemBusy || successCount >= item.weight} icon={item.dataType === "video" ? <VideoCameraOutlined /> : item.dataType === "photo" ? <CameraOutlined /> : <UploadOutlined />}>{!canAttach ? "无附件维护权限" : itemBusy ? "上传中..." : successCount >= item.weight ? `已达到 ${item.weight} 个上限` : uploadLabel}</Button></Upload>
             {fallbackUnlocked && <small className="store-h5-fallback-hint">该任务项曾上传失败，已开放从相册补传。</small>}
             {item.dataType === "video" && <small className="store-h5-video-hint">建议拍摄 {TASK_VIDEO_SUGGESTED_MIN_SECONDS}–{TASK_VIDEO_SUGGESTED_MAX_SECONDS} 秒，系统将自动压缩至最高约 720p，单个视频最大 {taskAttachmentMaxMb("video")}MB；本项最多上传 {item.weight} 个。</small>}
+            {item.dataType === "photo" && successCount > 0 && <Image.PreviewGroup><div className="store-h5-photo-gallery">
+              {itemAttachments.filter(attachment => attachment.status === "success" && attachment.id).map(attachment => <Image
+                key={attachment.clientId} width={88} height={88} alt={attachment.name}
+                src={`${apiBase}/tasks/${taskInstanceId}/attachments?attachmentId=${encodeURIComponent(attachment.id!)}`}
+                style={{ objectFit: "cover" }} preview={{ mask: "查看大图" }}
+              />)}
+            </div></Image.PreviewGroup>}
             {itemAttachments.map(attachment => <div key={attachment.clientId} className={`store-h5-upload-status ${attachment.status}`}><span>{attachment.status === "uploading" ? <LoadingOutlined /> : attachment.status === "success" ? <CheckCircleFilled /> : <CloseCircleFilled />}{attachment.status === "uploading" ? `${attachment.phase === "preparing" ? "处理中" : "上传中"} ${attachment.progress || 0}%` : attachment.status === "success" ? "上传成功" : attachment.status === "local" ? "本机待上传" : "上传失败"}：{attachment.name}</span><div className="store-h5-upload-actions">{canAttach && attachment.localFile && attachment.status !== "uploading" && <Button type="text" aria-label={`重试上传${attachment.name}`} icon={<RedoOutlined />} onClick={() => void performUpload(index, item, attachment.localFile!, attachment.clientId)}>重试</Button>}{canAttach && attachment.status !== "uploading" && <Button type="text" aria-label={`删除附件${attachment.name}`} icon={<DeleteOutlined />} onClick={() => void removeAttachment(index, attachment.clientId)} />}</div>{attachment.status === "uploading" && <i className="store-h5-upload-progress"><b style={{ width: `${attachment.progress || 0}%` }} /></i>}{attachment.message && <small>{attachment.message}</small>}</div>)}
           </div> : item.component === "select" ? <Select disabled={!canSubmitTask} value={values[index]} placeholder="请选择" options={item.options.map(option => ({ value: option, label: option }))} onChange={value => { setDirty(true); setValues(current => ({ ...current, [index]: value })); setErrors(current => ({ ...current, [index]: "" })); }} /> : item.dataType === "text" ? <Input.TextArea disabled={!canSubmitTask} value={String(values[index] ?? "")} autoSize={{ minRows: 3, maxRows: 8 }} placeholder={item.description || "请输入文字"} onChange={event => { setDirty(true); setValues(current => ({ ...current, [index]: event.target.value })); setErrors(current => ({ ...current, [index]: "" })); }} /> : <InputNumber disabled={!canSubmitTask} value={values[index]} min={0} max={item.dataType === "score" ? 5 : item.dataType === "quantity" && item.maxValue !== undefined && item.maxValue !== null ? item.maxValue : undefined} step={item.dataType === "score" ? 0.1 : item.dataType === "amount" ? 0.01 : 1} precision={item.dataType === "score" ? 1 : item.dataType === "amount" ? 2 : 0} stringMode={item.dataType === "amount"} inputMode={item.dataType === "quantity" ? "numeric" : "decimal"} placeholder={item.dataType === "score" ? "请输入0至5分，可保留一位小数" : item.dataType === "amount" ? "请输入金额" : item.maxValue !== undefined && item.maxValue !== null ? `请输入0至${item.maxValue}的整数` : "请输入非负整数"} addonBefore={item.dataType === "amount" ? "¥" : undefined} addonAfter={item.dataType === "score" ? "分" : undefined} onChange={value => { setDirty(true); setValues(current => ({ ...current, [index]: value === null ? "" : value })); setErrors(current => ({ ...current, [index]: "" })); }} />}
           {errors[index] && <div className="store-h5-field-error">{errors[index]}</div>}

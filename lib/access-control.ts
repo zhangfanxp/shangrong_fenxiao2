@@ -12,16 +12,18 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (permissions.includes("*")) return true;
   if (pathname === "/lead_pc/forbidden") return true;
   if (pathname === "/lead_pc/dashboard") return hasPermission(permissions, "dashboard:view");
-  if (pathname === "/lead_pc/stores/contracts") return hasPermission(permissions, "stores:contracts:view");
-  if (pathname === "/lead_pc/stores/list") return hasPermission(permissions, "stores:list:view");
+  if (pathname === "/lead_pc/stores/contracts") return hasPermission(permissions, "stores:contracts:view") || anyPrefix(permissions, "stores:contracts:");
+  if (pathname === "/lead_pc/stores/list") return hasPermission(permissions, "stores:list:view") || anyPrefix(permissions, "stores:list:") || anyPrefix(permissions, "stores:cost:") || hasPermission(permissions, ["stores:aliases:edit", "stores:employees:edit"]);
   if (pathname === "/lead_pc/operations/0") return hasPermission(permissions, ["operations:view", "actual-revenue:set-monthly-target"]) || anyPrefix(permissions, "revenue-targets:");
   if (pathname === "/lead_pc/operations/1") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "actual-revenue:");
   if (pathname === "/lead_pc/operations/2") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "labor-costs:");
   if (pathname === "/lead_pc/operations/3") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "labor-records:");
+  if (pathname === "/lead_pc/operations/4") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "thousand-usage:");
   if (pathname === "/lead_pc/operations/5") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "daily-break-even:");
   if (pathname === "/lead_pc/operations/6") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "daily-sales-report:");
   if (pathname === "/lead_pc/operations/7") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "product-category-sales:");
   if (pathname === "/lead_pc/operations/8") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "wechat-private-daily-new:");
+  if (pathname === "/lead_pc/operations/9") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "online-group-buy:");
   if (pathname === "/lead_pc/operations/11") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "monthly-purchase-sales:");
   if (pathname === "/lead_pc/operations/12") return hasPermission(permissions, "operations:view") || anyPrefix(permissions, "hundred-days:");
   if (pathname.startsWith("/lead_pc/operations/")) return hasPermission(permissions, "operations:view");
@@ -31,17 +33,20 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (pathname === "/lead_pc/inspection/assessments") return anyPrefix(permissions, "assessments:");
   if (pathname === "/lead_pc/inspection/research-templates") return anyPrefix(permissions, "research-templates:");
   if (pathname.startsWith("/lead_pc/inspection/")) return hasPermission(permissions, "inspection:view");
-  if (pathname === "/lead_pc/tasks/settings") return hasPermission(permissions, "tasks:settings:view");
+  if (pathname === "/lead_pc/tasks/settings") return hasPermission(permissions, "tasks:settings:view") || anyPrefix(permissions, "tasks:settings:");
+  if (pathname === "/lead_pc/tasks/calendar-templates") return hasPermission(permissions, ["tasks:settings:view", "tasks:calendar-templates:query", "tasks:calendar-templates:view"]);
   if (pathname === "/lead_pc/tasks/records") return hasPermission(permissions, ["tasks:records:query", "tasks:records:view"]);
   if (pathname === "/lead_pc/tasks/analysis") return hasPermission(permissions, ["intelligent-analysis:query", "intelligent-analysis:view"]);
   if (pathname === "/lead_pc/staff/0") return hasPermission(permissions, "staff:view") || anyPrefix(permissions, "personnel:");
   if (pathname === "/lead_pc/staff/2") return hasPermission(permissions, ["staff:view", "attendance-records:query"]);
   if (pathname === "/lead_pc/staff/3") return hasPermission(permissions, "staff:view") || anyPrefix(permissions, "item-requisitions:");
   if (pathname === "/lead_pc/staff/4") return hasPermission(permissions, "staff:view") || anyPrefix(permissions, "workwear-inventory:");
+  if (pathname === "/lead_pc/staff/5") return hasPermission(permissions, "staff:view") || anyPrefix(permissions, "excellent-employees:");
   if (pathname.startsWith("/lead_pc/staff/")) return hasPermission(permissions, "staff:view");
   if (pathname === "/lead_pc/training/0") return hasPermission(permissions, "training:view") || anyPrefix(permissions, "daily-learning:");
   if (pathname === "/lead_pc/training/1") return hasPermission(permissions, "training:view") || anyPrefix(permissions, "courses:") || anyPrefix(permissions, "course-lessons:");
   if (pathname === "/lead_pc/training/3") return hasPermission(permissions, ["training:view", "course-assignments:query"]);
+  if (pathname === "/lead_pc/training/2") return hasPermission(permissions, "training:view") || anyPrefix(permissions, "question-bank:");
   if (pathname.startsWith("/lead_pc/training/")) return hasPermission(permissions, "training:view");
   if (pathname === "/lead_pc/meetings/0") return hasPermission(permissions, "meetings:view") || anyPrefix(permissions, "monthly-online-meetings:");
   if (pathname === "/lead_pc/meetings/1") return hasPermission(permissions, "meetings:view") || anyPrefix(permissions, "mid-month-offline-meetings:");
@@ -51,6 +56,7 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (pathname === "/lead_pc/notifications/manage") return hasPermission(permissions, "notifications:manage") || anyPrefix(permissions, "notifications:manage:");
   if (pathname === "/lead_pc/statistics/roster") return hasPermission(permissions, ["statistics:roster:query", "statistics:roster:view", "staff:view", "personnel:query"]);
   if (pathname === "/lead_pc/statistics/labor-contract-expiry") return hasPermission(permissions, ["statistics:labor-contract-expiry:view", "staff:view", "personnel:query"]);
+  if (pathname === "/lead_pc/statistics/attendance-monthly") return hasPermission(permissions, ["statistics:attendance-monthly:query", "statistics:attendance-monthly:view", "staff:view"]);
   if (pathname === "/lead_pc/settings/roles") return hasPermission(permissions, "settings:roles");
   if (pathname === "/lead_pc/settings/users") return hasPermission(permissions, "settings:users");
   if (pathname === "/lead_pc/settings/business-data-sources") return anyPrefix(permissions, "business-data-sources:");
@@ -59,16 +65,17 @@ export function canAccessPath(pathname: string, permissions: string[]) {
   if (pathname === "/lead_pc/settings/store-labor-standards") return hasPermission(permissions, ["settings:store-labor-standards", "store-labor-standards:query"]);
   if (pathname === "/lead_pc/settings/storage") return anyPrefix(permissions, "r2-storage:");
   if (pathname === "/lead_pc/settings/backups") return anyPrefix(permissions, "database-backups:");
+  if (pathname === "/lead_pc/settings/deployment-data") return hasPermission(permissions, "*");
   if (pathname === "/lead_pc/settings/parameters") return hasPermission(permissions, "settings:parameters");
   if (pathname === "/lead_pc/settings/operation-logs") return hasPermission(permissions, ["operation-logs:view", "settings:logs"]);
   return false;
 }
 
 export const accessibleLandingPaths = [
-  "/lead_pc/dashboard", "/lead_pc/stores/contracts", "/lead_pc/stores/list", "/lead_pc/operations/0", "/lead_pc/operations/1", "/lead_pc/operations/2", "/lead_pc/operations/3", "/lead_pc/operations/5", "/lead_pc/operations/6", "/lead_pc/operations/7", "/lead_pc/operations/8", "/lead_pc/operations/11", "/lead_pc/operations/12", "/lead_pc/inspection/2", "/lead_pc/inspection/3", "/lead_pc/inspection/4", "/lead_pc/inspection/assessments", "/lead_pc/inspection/research-templates",
-  "/lead_pc/tasks/records", "/lead_pc/tasks/analysis", "/lead_pc/tasks/settings", "/lead_pc/staff/0", "/lead_pc/staff/2", "/lead_pc/staff/3", "/lead_pc/staff/4", "/lead_pc/training/0", "/lead_pc/training/1", "/lead_pc/training/3", "/lead_pc/meetings/0", "/lead_pc/meetings/1", "/lead_pc/meetings/2",
-  "/lead_pc/notifications/publish", "/lead_pc/notifications/manage", "/lead_pc/statistics/roster", "/lead_pc/statistics/labor-contract-expiry", "/lead_pc/settings/roles", "/lead_pc/settings/users",
-  "/lead_pc/settings/business-data-sources", "/lead_pc/settings/dictionaries", "/lead_pc/settings/rest-days", "/lead_pc/settings/store-labor-standards", "/lead_pc/settings/storage", "/lead_pc/settings/backups", "/lead_pc/settings/parameters", "/lead_pc/settings/operation-logs",
+  "/lead_pc/dashboard", "/lead_pc/stores/contracts", "/lead_pc/stores/list", "/lead_pc/operations/0", "/lead_pc/operations/1", "/lead_pc/operations/2", "/lead_pc/operations/3", "/lead_pc/operations/4", "/lead_pc/operations/5", "/lead_pc/operations/6", "/lead_pc/operations/7", "/lead_pc/operations/8", "/lead_pc/operations/9", "/lead_pc/operations/11", "/lead_pc/operations/12", "/lead_pc/inspection/2", "/lead_pc/inspection/3", "/lead_pc/inspection/4", "/lead_pc/inspection/assessments", "/lead_pc/inspection/research-templates",
+  "/lead_pc/tasks/records", "/lead_pc/tasks/analysis", "/lead_pc/tasks/settings", "/lead_pc/tasks/calendar-templates", "/lead_pc/staff/0", "/lead_pc/staff/2", "/lead_pc/staff/3", "/lead_pc/staff/4", "/lead_pc/staff/5", "/lead_pc/training/0", "/lead_pc/training/1", "/lead_pc/training/2", "/lead_pc/training/3", "/lead_pc/meetings/0", "/lead_pc/meetings/1", "/lead_pc/meetings/2",
+  "/lead_pc/notifications/publish", "/lead_pc/notifications/manage", "/lead_pc/statistics/roster", "/lead_pc/statistics/labor-contract-expiry", "/lead_pc/statistics/attendance-monthly", "/lead_pc/settings/roles", "/lead_pc/settings/users",
+  "/lead_pc/settings/business-data-sources", "/lead_pc/settings/dictionaries", "/lead_pc/settings/rest-days", "/lead_pc/settings/store-labor-standards", "/lead_pc/settings/storage", "/lead_pc/settings/backups", "/lead_pc/settings/deployment-data", "/lead_pc/settings/parameters", "/lead_pc/settings/operation-logs",
 ] as const;
 
 export function firstAccessiblePath(permissions: string[]) {

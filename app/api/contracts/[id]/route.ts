@@ -2,17 +2,18 @@ import { ContractStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { requireApiSession } from "@/lib/auth";
 import { contractInputSchema } from "@/lib/contract-validation";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
 import { writeOperationLog } from "@/lib/operation-log";
+import { canContractAction } from "@/lib/contract-permissions";
 
 const statusSchema = z.object({ status: z.enum([ContractStatus.PENDING, ContractStatus.ACTIVE, ContractStatus.EXPIRING, ContractStatus.EXPIRED]) });
 const terminationSchema = z.object({ status: z.literal(ContractStatus.TERMINATED), refundedDeposit: z.coerce.number().min(0, "退回保证金不能小于 0") });
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:contracts:view")) return NextResponse.json({ message: "暂无合同管理权限" }, { status: 403 });
+  if (!canContractAction(session.permissions, "view")) return NextResponse.json({ message: "暂无合同查看权限" }, { status: 403 });
   const { id } = await params;
   const contract = await db.contract.findUnique({ where: { id }, include: { brand: true, rebates: { orderBy: { createdAt: "asc" } } } });
   if (!contract) return NextResponse.json({ message: "合同不存在或已删除" }, { status: 404 });
@@ -22,8 +23,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:contracts:view")) return NextResponse.json({ message: "暂无合同管理权限" }, { status: 403 });
   const body = await request.json();
+  const statusOnly = body && typeof body === "object" && Object.keys(body).length === 1 && body.status === ContractStatus.ACTIVE;
+  const terminationOnly = body && typeof body === "object" && Object.keys(body).length === 2 && body.status === ContractStatus.TERMINATED && Object.prototype.hasOwnProperty.call(body, "refundedDeposit");
+  const action = terminationOnly ? "terminate" : statusOnly ? "activate" : "edit";
+  if (!canContractAction(session.permissions, action)) return NextResponse.json({ message: action === "activate" ? "暂无合同生效权限" : action === "terminate" ? "暂无合同解约权限" : "暂无合同编辑权限" }, { status: 403 });
   const { id } = await params;
   const termination = terminationSchema.safeParse(body);
   if (termination.success) {

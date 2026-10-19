@@ -14,8 +14,8 @@ const bodySchema = z.object({
   taskInstanceIds: z.array(z.string().min(1)).max(10000).optional(),
   filters: z.object({
     status: z.enum(["COMPLETED", "PENDING", "OVERDUE"]).optional(),
-    taskName: z.string().optional(),
-    taskType: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TEMPORARY"]).optional(),
+    taskId: z.string().optional(),
+    taskType: z.enum(["DAILY", "WEEKLY", "MONTHLY", "TEMPORARY", "CALENDAR"]).optional(),
     executorKeyword: z.string().optional(),
     submitStartDate: z.string().optional(),
     submitEndDate: z.string().optional(),

@@ -12,8 +12,11 @@
     "name": "R2-test"
   },
   "photoAttachmentLimit": 3,
+  "nonFullScoreRequiresPhoto": true,
+  "failRequiresProblemDescription": true,
+  "partialRequiresProblemDescription": true,
   "detailFormat": "AUDIT",
-  "configVersion": 8,
+  "configVersion": 11,
   "totalScore": 100,
   "statistics": {
     "sectionCount": 5,
@@ -533,13 +536,13 @@
           "items": [
             {
               "id": "item_75",
-              "description": "抖音评分不低于4.6、",
+              "description": "抖音评分不低于4.6",
               "maxScore": 2,
               "supportsPhoto": true
             },
             {
               "id": "item_76",
-              "description": "美团评分不低于4.6、",
+              "description": "美团评分不低于4.6",
               "maxScore": 2,
               "supportsPhoto": true
             }

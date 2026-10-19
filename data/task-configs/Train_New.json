@@ -1,11 +1,19 @@
 {
-  "recordNo": "202609090003",
-  "taskName": "后厨标准卡学习",
-  "taskType": "日任务",
+  "recordNo": "202610130001",
+  "taskName": "前厅日常训练New",
+  "taskType": "日历任务",
+  "taskTarget": "门店",
+  "executorRoles": [
+    {
+      "id": "cmt6jn0cl000ctn6y5ukshkil",
+      "name": "店长"
+    }
+  ],
   "executorRole": {
-    "id": "cmtqk83q6000atn8v86gs3awo",
-    "name": "厨师长"
+    "id": "cmt6jn0cl000ctn6y5ukshkil",
+    "name": "店长"
   },
+  "specifiedTargets": [],
   "brands": [
     {
       "id": "cmszu2msr0003tnrr81c4rkbp",
@@ -17,31 +25,20 @@
     "name": "R2-test",
     "bucketName": "videolist"
   },
-  "executionDays": [
-    "周一",
-    "周二",
-    "周三",
-    "周四"
-  ],
+  "executionDays": [],
   "deadlineDayOffset": 0,
   "deadlineTime": "23:59",
   "includeCompletionRate": true,
+  "calendarTemplate": {
+    "id": "cmv6e1w7y0007tnwaktechgg0",
+    "recordNo": "202610130001",
+    "name": "奋小二-前厅每日学习"
+  },
   "status": "启用",
-  "configVersion": 3,
+  "configVersion": 1,
   "submitItems": [
     {
-      "name": "学习主题",
-      "description": "请填写今日训练的主题",
-      "required": true,
-      "weight": 1,
-      "aiAnalysisType": null,
-      "aiAnalysisPrompt": null,
-      "component": "input",
-      "dataType": "text",
-      "options": []
-    },
-    {
-      "name": "学习视频",
+      "name": "训练视频",
       "description": "请上传今日训练的视频",
       "required": true,
       "weight": 1,
@@ -53,7 +50,7 @@
       "options": []
     },
     {
-      "name": "学习图片",
+      "name": "训练图片",
       "description": "请上传今日训练的照片",
       "required": false,
       "weight": 3,

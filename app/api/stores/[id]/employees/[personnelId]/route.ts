@@ -7,11 +7,12 @@ import { buildPersonnelLaborCostReport, shanghaiYearMonth } from "@/lib/personne
 import { personnelInclude, personnelLog } from "@/lib/personnel-service";
 import { isStoreLeader } from "@/lib/store-employees";
 import { synchronizeStoreLeadership } from "@/lib/store-leadership";
+import { canStoreListAction } from "@/lib/store-permissions";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string; personnelId: string }> }) {
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:list:view")) return NextResponse.json({ message: "暂无门店列表权限" }, { status: 403 });
+  if (!canStoreListAction(session.permissions, "view") && !sessionHasPermission(session, "stores:employees:edit")) return NextResponse.json({ message: "暂无门店员工查看权限" }, { status: 403 });
 
   const { id, personnelId } = await params;
   await synchronizeStoreLeadership([id]);

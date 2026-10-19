@@ -25,6 +25,7 @@
     "name": "R2-test",
     "bucketName": "videolist"
   },
+  "calendarTemplate": null,
   "executionDays": [
     "周一",
     "周二",
@@ -38,7 +39,7 @@
   "deadlineTime": "08:00",
   "includeCompletionRate": true,
   "status": "启用",
-  "configVersion": 2,
+  "configVersion": 4,
   "submitItems": [
     {
       "name": "【营业数据】实际销售额",
@@ -126,6 +127,30 @@
       "aiAnalysisPrompt": null,
       "component": "input",
       "dataType": "amount",
+      "options": []
+    },
+    {
+      "name": "【微信新增】今日新增好友",
+      "description": "请填写今日新增的微信好友数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "input",
+      "dataType": "quantity",
+      "maxValue": null,
+      "options": []
+    },
+    {
+      "name": "【微信新增】通讯录好友截图",
+      "description": "请上传今日新增的通讯录好友数量",
+      "required": true,
+      "weight": 1,
+      "aiAnalysisType": null,
+      "aiAnalysisPrompt": null,
+      "component": "attachment",
+      "dataType": "photo",
+      "captureOnly": false,
       "options": []
     }
   ]

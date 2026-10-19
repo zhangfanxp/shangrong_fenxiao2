@@ -22,7 +22,7 @@ export function getReviewDefinition(value: string) {
 }
 
 export type ReviewResult = "PASS" | "PARTIAL" | "FAIL";
-export type ReviewAnswer = { itemId: string; result: ReviewResult; score?: number | null };
+export type ReviewAnswer = { itemId: string; result: ReviewResult; score?: number | null; problemDescription?: string };
 export type ReviewConfig = {
   recordNo?: string;
   reviewName: string;
@@ -32,6 +32,9 @@ export type ReviewConfig = {
   configVersion: number;
   totalScore: number;
   photoAttachmentLimit?: number;
+  nonFullScoreRequiresPhoto?: boolean;
+  failRequiresProblemDescription?: boolean;
+  partialRequiresProblemDescription?: boolean;
   sections: AssessmentSection[];
 };
 
@@ -65,6 +68,9 @@ export async function loadReviewConfig(fileName: string) {
   return {
     ...config,
     photoAttachmentLimit,
+    nonFullScoreRequiresPhoto: config.nonFullScoreRequiresPhoto === true,
+    failRequiresProblemDescription: config.failRequiresProblemDescription === true,
+    partialRequiresProblemDescription: config.partialRequiresProblemDescription === true,
     sections: config.sections.map(section => ({
       ...section,
       children: section.children.map(subsection => ({
@@ -93,7 +99,7 @@ export function scoreReview(config: ReviewConfig, answers: ReviewAnswer[]) {
   const answerMap = new Map(answers.map(answer => [answer.itemId, answer]));
   if (answerMap.size !== answers.length) throw new LeadH5ReviewError("评分项目存在重复数据，请刷新后重试");
   const items: Array<{
-    itemKey: string; sectionName: string; subsectionName: string; itemDescription: string;
+    itemKey: string; sectionName: string; subsectionName: string; itemDescription: string; problemDescription: string;
     maxScore: number; result: ReviewResult; actualScore: number; sortOrder: number;
   }> = [];
   let totalTenths = 0;
@@ -119,7 +125,7 @@ export function scoreReview(config: ReviewConfig, answers: ReviewAnswer[]) {
         totalTenths += scoreTenths;
         items.push({
           itemKey: item.id, sectionName: section.name, subsectionName: subsection.name,
-          itemDescription: item.description, maxScore: item.maxScore, result: answer.result,
+          itemDescription: item.description, problemDescription: answer.problemDescription?.trim() || "", maxScore: item.maxScore, result: answer.result,
           actualScore: scoreTenths / 10, sortOrder,
         });
       }

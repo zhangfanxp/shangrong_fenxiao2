@@ -126,8 +126,8 @@ export function serializeCourse(course: Course & { brands?: { brandCode: string;
     applicablePosition: course.applicablePosition, status: course.status, createdByName: course.createdByName,
     createdAt: course.createdAt.toISOString(), createdAtText: formatShanghaiDateTime(course.createdAt), updatedAt: course.updatedAt.toISOString(), version: course.version,
     brandCodes: course.brands?.map(item => item.brandCode) || [], brands: course.brands || [],
-    coverKind: course.coverObjectKey ? "R2" : "DEFAULT", coverDataUrl: course.coverDataUrl,
-    coverUrl: course.coverObjectKey ? `/api/course-files?courseId=${encodeURIComponent(course.id)}&kind=cover` : course.coverDataUrl,
+    coverKind: course.coverObjectKey ? "R2" : "DEFAULT",
+    coverUrl: course.coverObjectKey ? `/api/course-files?courseId=${encodeURIComponent(course.id)}&kind=cover` : null,
     lessonCount: course._count?.lessons ?? undefined, hasLearningProgress: Boolean(course._count?.learningProgress),
   };
 }
@@ -139,8 +139,8 @@ export function serializeLesson(lesson: CourseLesson & { _count?: { learningProg
     originalFileName: lesson.originalFileName, fileSizeBytes: lesson.fileSizeBytes, fileSizeText: formatFileSize(lesson.fileSizeBytes), mimeType: lesson.mimeType,
     remark: lesson.remark, sortOrder: lesson.sortOrder, createdByName: lesson.createdByName,
     createdAt: lesson.createdAt.toISOString(), createdAtText: formatShanghaiDateTime(lesson.createdAt), updatedAt: lesson.updatedAt.toISOString(), version: lesson.version,
-    coverKind: lesson.coverObjectKey ? "R2" : "DEFAULT", coverDataUrl: lesson.coverDataUrl,
-    coverUrl: lesson.coverObjectKey ? `/api/course-files?lessonId=${encodeURIComponent(lesson.id)}&kind=cover` : lesson.coverDataUrl,
+    coverKind: lesson.coverObjectKey ? "R2" : "DEFAULT",
+    coverUrl: lesson.coverObjectKey ? `/api/course-files?lessonId=${encodeURIComponent(lesson.id)}&kind=cover` : null,
     fileUrl: `/api/course-files?lessonId=${encodeURIComponent(lesson.id)}&kind=file`, hasLearningProgress: Boolean(lesson._count?.learningProgress),
   };
 }

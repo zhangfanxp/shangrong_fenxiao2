@@ -29,7 +29,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const row = await db.taskRecord.findFirst({
       where: { AND: [{ id }, await taskRecordDataScope(session)] },
-      include: { aiAnalysis: { select: { id: true } }, attachments: { where: { consumedAt: { not: null } }, orderBy: { createdAt: "asc" } }, formalSubmission: { include: { items: { orderBy: { sortOrder: "asc" } } } } },
+      include: { rectificationRound: { select: { id: true } }, aiAnalysis: { select: { id: true } }, attachments: { where: { consumedAt: { not: null } }, orderBy: { createdAt: "asc" } }, formalSubmission: { include: { items: { orderBy: { sortOrder: "asc" } } } } },
     });
     if (!row) return NextResponse.json({ message: "该任务记录已不存在或无权查看" }, { status: 404 });
     if (row.status !== TaskRecordStatus.COMPLETED) return NextResponse.json({ message: "当前任务尚未提交，暂无任务详情" }, { status: 409 });
@@ -91,7 +91,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       createdAt: formatTaskRecordDateTime(row.triggeredAt),
       submittedAt: formatTaskRecordDateTime(row.formalSubmission.submittedAt),
       status: "COMPLETED",
-      editable: canTaskRecord(session, "edit") && !row.aiAnalysis,
+      editable: canTaskRecord(session, "edit") && !row.aiAnalysis && !row.rectificationRound,
       configVersion: row.configVersion || row.formalSubmission.configVersion,
       configSnapshot: row.configSnapshot || row.formalSubmission.configSnapshot,
       items,
@@ -117,6 +117,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const scope = await taskRecordDataScope(session);
   let replacedFiles: Array<{ r2StorageId: string; objectKey: string }> = [];
   try {
+    if (await db.inspectionRectificationRound.findUnique({ where: { taskRecordId: id }, select: { id: true } })) return NextResponse.json({ message: "巡检整改任务的提交内容须保留历史，不能直接编辑" }, { status: 409 });
     const result = await db.$transaction(async tx => {
       await tx.$queryRaw(Prisma.sql`SELECT \`id\` FROM \`TaskRecord\` WHERE \`id\` = ${id} FOR UPDATE`);
       const record = await tx.taskRecord.findFirst({
@@ -194,6 +195,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!canTaskRecord(session, "delete")) return NextResponse.json({ message: "暂无任务记录删除权限" }, { status: 403 });
   const { id } = await params;
   try {
+    if (await db.inspectionRectificationRound.findUnique({ where: { taskRecordId: id }, select: { id: true } })) return NextResponse.json({ message: "巡检整改任务须保留历史，不能删除" }, { status: 409 });
     const scope = await taskRecordDataScope(session);
     await db.$transaction(async tx => {
       const current = await tx.taskRecord.findFirst({ where: { AND: [{ id }, scope] }, include: { formalSubmission: { select: { id: true, recordNo: true, submittedAt: true } }, aiAnalysis: { select: { recordNo: true } } } });

@@ -66,6 +66,7 @@ export async function getStoreH5Session(requirement?: RolePermissionRequirement)
         OR: [
           ...(configuredStoreIds.length ? [{ id: { in: configuredStoreIds } }] : []),
           { managerUserId: user.id },
+          { chefUserId: user.id },
           { supervisorUserId: user.id },
         ],
       },

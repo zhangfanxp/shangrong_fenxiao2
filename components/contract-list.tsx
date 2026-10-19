@@ -1,7 +1,7 @@
 "use client";
 
-import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Cascader, Checkbox, Col, DatePicker, Descriptions, Divider, Drawer, Form, Input, InputNumber, message, Modal, Row, Select, Space } from "antd";
+import { DownloadOutlined, FileExcelOutlined, MinusCircleOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Cascader, Checkbox, Col, DatePicker, Descriptions, Divider, Drawer, Form, Input, InputNumber, message, Modal, Row, Select, Space, Upload } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useState, type ReactNode } from "react";
@@ -10,6 +10,10 @@ import { DataTable } from "@/components/data-table";
 import { StatusTag } from "@/components/status-tag";
 import { useBusinessDictionaries } from "@/hooks/use-business-dictionaries";
 import { displayDate, displayMoney } from "@/lib/format";
+import { canContractAction } from "@/lib/contract-permissions";
+
+type ImportIssue = { row: number; excelRow: number; messages: string[] };
+type ImportFeedback = { title: string; content: ReactNode };
 
 type Brand = { id: string; name: string };
 type Rebate = { id?: string; type: string; person: string; amount: number | string };
@@ -31,7 +35,9 @@ const moneyProps = { min: 0, precision: 2, style: { width: "100%" as const }, ad
 const emptyFilters: Filters = { keyword: "", status: "", brandId: "", cooperationType: "", dates: null, expiringOnly: false };
 const districtOptions = districtData as DistrictNode[];
 
-export function ContractList() {
+export function ContractList({ permissions }: { permissions: string[] }) {
+  const can = (action: Parameters<typeof canContractAction>[1]) => canContractAction(permissions, action);
+  const canQuery = can("query");
   const { options: dictionaries, loading: dictionariesLoading, error: dictionariesError, reload: reloadDictionaries } = useBusinessDictionaries(contractDictionaryCodes);
   const statusOptions = [{ value: "", label: "全部合同状态" }, ...(dictionaries.CONTRACT_STATUS || [])];
   const cooperationOptions = [{ value: "", label: "全部合作类型" }, ...(dictionaries.COOPERATION_TYPE || [])];
@@ -51,8 +57,14 @@ export function ContractList() {
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [form] = Form.useForm<ContractForm>();
   const [refundForm] = Form.useForm<{ refundedDeposit: number }>();
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File>();
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [importFeedback, setImportFeedback] = useState<ImportFeedback>();
 
   const load = async (nextFilters = filters) => {
+    if (!canQuery) return;
     setLoading(true); setError(false);
     const params = new URLSearchParams();
     if (nextFilters.keyword.trim()) params.set("keyword", nextFilters.keyword.trim());
@@ -77,7 +89,7 @@ export function ContractList() {
       expiringOnly: params.get("expiringOnly") === "true",
     };
     setFilters(initialFilters);
-    void load(initialFilters);
+    if (canQuery) void load(initialFilters); else setLoading(false);
   }, []);
   useEffect(() => { fetch("/api/brands").then((response) => response.ok ? response.json() : []).then(setBrands).catch(() => setBrands([])); }, []);
 
@@ -145,6 +157,51 @@ export function ContractList() {
       setTerminationOpen(false); setTerminating(null); refundForm.resetFields(); await load();
     } finally { setTerminatingSaving(false); }
   };
+  const downloadImportTemplate = async () => {
+    try {
+      const response = await fetch("/api/contracts/import-template");
+      if (!response.ok) { const data = await response.json(); throw new Error(data.message || "模板下载失败"); }
+      const url = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = "合同批量导入模板.xlsx"; anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) { message.error(error instanceof Error ? error.message : "模板下载失败，请稍后重试"); }
+  };
+  const showImportIssues = (issues: ImportIssue[]) => {
+    setImportOpen(false);
+    setImportFeedback({
+      title: "温馨提示",
+      content: <div><p>以下数据不符合系统要求，已取消本次导入，未写入任何合同记录。</p><div style={{ maxHeight: 360, overflowY: "auto" }}>{issues.map(issue => <div key={issue.excelRow} style={{ marginBottom: 12 }}><b>第 {issue.row} 条记录（Excel 第 {issue.excelRow} 行）</b><ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>{issue.messages.map((item, index) => <li key={`${issue.excelRow}-${index}`}>{item}</li>)}</ul></div>)}</div></div>,
+    });
+  };
+  const importContracts = async () => {
+    if (!importFile) {
+      const tip = "请先选择需要导入的 .xlsx 文件，再点击“立即导入”。";
+      setImportError(tip);
+      message.warning(tip);
+      return;
+    }
+    setImportError("");
+    setImporting(true);
+    try {
+      const formData = new FormData(); formData.append("file", importFile);
+      const response = await fetch("/api/contracts/import", { method: "POST", body: formData });
+      const responseText = await response.text();
+      let data: { message?: string; total?: number; success?: number; issues?: ImportIssue[] } = {};
+      try { data = JSON.parse(responseText); } catch { data = { message: response.ok ? "服务器返回了无法识别的导入结果" : `导入接口请求失败（${response.status}）` }; }
+      if (!response.ok) {
+        if (Array.isArray(data.issues)) { showImportIssues(data.issues); return; }
+        throw new Error(data.message || "导入失败");
+      }
+      message.success(`导入数据共 ${data.total} 条，成功 ${data.success} 条`);
+      setImportOpen(false); setImportFile(undefined); await load();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "导入失败，请稍后重试";
+      setImportError(detail);
+      setImportOpen(false);
+      setImportFeedback({ title: "导入失败", content: detail });
+    } finally { setImporting(false); }
+  };
 
   const columns: ColumnsType<Contract> = [
     { title: "合同编号", dataIndex: "recordNo", width: 150 },
@@ -153,7 +210,7 @@ export function ContractList() {
     { title: "合同状态", dataIndex: "status", width: 120, render: (value) => <StatusTag value={value} /> },
     { title: "合作类型", dataIndex: "cooperationType", width: 100, render: (value) => value === "DIRECT" ? "直营店" : "加盟店" },
     { title: "签约业主", dataIndex: "ownerName", width: 100 },
-    { title: "联系人", width: 150, render: (_, row) => row.contactName ? `${row.contactName}${row.contactPhone ? ` / ${row.contactPhone}` : ""}` : "-" },
+    { title: "经办人", width: 150, render: (_, row) => row.contactName ? `${row.contactName}${row.contactPhone ? ` / ${row.contactPhone}` : ""}` : "-" },
     { title: "合同期限", width: 210, render: (_, row) => `${displayDate(row.startDate)} 至 ${displayDate(row.endDate)}` },
     { title: "合作费", dataIndex: "cooperationFee", width: 120, render: displayMoney },
     { title: "保证金", dataIndex: "deposit", width: 120, render: displayMoney },
@@ -161,16 +218,16 @@ export function ContractList() {
     { title: "档案盒号", dataIndex: "archiveBox", width: 110, render: (value) => value || "-" },
     { title: "创建日期", dataIndex: "createdAt", width: 120, render: displayDate },
     { title: "操作", fixed: "right", width: 210, render: (_, row) => <Space className="table-actions" size={0}>
-      <Button type="link" size="small" onClick={() => { setSelected(row); setDetailOpen(true); }}>查看</Button>
-      {row.status !== "TERMINATED" && <Button type="link" size="small" onClick={() => openEdit(row)}>编辑</Button>}
-      {row.status === "PENDING" && <Button type="link" size="small" onClick={() => updateStatus(row, "ACTIVE", "生效")}>生效</Button>}
-      {!["TERMINATED", "EXPIRED"].includes(row.status) && <Button type="link" danger size="small" onClick={() => updateStatus(row, "TERMINATED", "解约")}>解约</Button>}
+      {can("view") && <Button type="link" size="small" onClick={() => { setSelected(row); setDetailOpen(true); }}>查看</Button>}
+      {can("edit") && row.status !== "TERMINATED" && <Button type="link" size="small" onClick={() => openEdit(row)}>编辑</Button>}
+      {can("activate") && row.status === "PENDING" && <Button type="link" size="small" onClick={() => updateStatus(row, "ACTIVE", "生效")}>生效</Button>}
+      {can("terminate") && !["TERMINATED", "EXPIRED"].includes(row.status) && <Button type="link" danger size="small" onClick={() => updateStatus(row, "TERMINATED", "解约")}>解约</Button>}
     </Space> },
   ];
 
   return <>
     {dictionariesError && <Alert style={{ marginBottom: 16 }} type="error" showIcon message="合同数据字典加载失败" description={dictionariesError} action={<Button size="small" onClick={() => void reloadDictionaries()}>重新加载</Button>} />}
-    <Card style={{ marginBottom: 16 }}>
+    {canQuery && <Card style={{ marginBottom: 16 }}>
       <Space wrap>
         <Input placeholder="合同编号、门店、业主或联系人" style={{ width: 240 }} value={filters.keyword} onChange={(event) => setFilters({ ...filters, keyword: event.target.value })} onPressEnter={() => void load()} />
         <Select style={{ width: 145 }} options={[{ value: "", label: "全部品牌" }, ...brands.map((brand) => ({ value: brand.id, label: brand.name }))]} value={filters.brandId} onChange={(brandId) => setFilters({ ...filters, brandId })} />
@@ -180,10 +237,39 @@ export function ContractList() {
         <Checkbox checked={filters.expiringOnly} onChange={(event) => setFilters({ ...filters, expiringOnly: event.target.checked })}>仅展示即将到期记录</Checkbox>
         <Button onClick={() => { setFilters(emptyFilters); void load(emptyFilters); }}>重置</Button><Button type="primary" onClick={() => void load()}>筛选</Button>
       </Space>
-    </Card>
-    <Card extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增合同</Button>}>
+    </Card>}
+    {!canQuery && <Alert style={{ marginBottom: 16 }} type="info" showIcon message="当前角色未配置合同查询权限" description="仍可使用已分配的新增、导入或其他合同操作权限。" />}
+    <Card extra={<Space>{can("import") && <Button htmlType="button" icon={<UploadOutlined />} onClick={() => { setImportFile(undefined); setImportError(""); setImportFeedback(undefined); setImportOpen(true); }}>批量导入</Button>}{can("create") && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增合同</Button>}</Space>}>
       <DataTable rowKey="id" columns={columns} dataSource={rows} loading={loading} pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }} error={error} onRetry={() => void load()} />
     </Card>
+    <Modal
+      title="批量导入"
+      width={680}
+      open={importOpen}
+      destroyOnHidden
+      closable={!importing}
+      maskClosable={!importing}
+      onCancel={() => !importing && setImportOpen(false)}
+      onOk={() => void importContracts()}
+      okText={importing ? "正在校验并导入..." : "立即导入"}
+      cancelText="取消"
+      confirmLoading={importing}
+      okButtonProps={{ htmlType: "button" }}
+      cancelButtonProps={{ disabled: importing }}
+    >
+      <Alert type="info" showIcon message="导入说明" description="请先下载模板并填写。系统会先完整校验所有记录；只要有一条不合法，本次不会导入任何数据。记录编号、创建人、创建时间、返利信息和已退保证金不在模板中。" style={{ marginBottom: 16 }} />
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        <div><span style={{ marginRight: 12 }}>导入模板：</span><Button type="link" icon={<DownloadOutlined />} onClick={() => void downloadImportTemplate()}>下载导入模板</Button></div>
+        <div><span style={{ marginRight: 12 }}>选择文件：</span><Upload accept=".xlsx" maxCount={1} fileList={importFile ? [{ uid: `${importFile.name}-${importFile.lastModified}`, name: importFile.name, size: importFile.size, status: "done" }] : []} beforeUpload={(file) => { if (!file.name.toLowerCase().endsWith(".xlsx")) { const tip = "仅支持 .xlsx 格式文件。"; setImportError(tip); message.warning(tip); return Upload.LIST_IGNORE; } if (file.size > 10 * 1024 * 1024) { const tip = "导入文件不能超过 10MB。"; setImportError(tip); message.warning(tip); return Upload.LIST_IGNORE; } setImportError(""); setImportFeedback(undefined); setImportFile(file); message.success(`已选择文件：${file.name}`); return false; }} onRemove={() => { setImportFile(undefined); setImportError(""); return true; }} disabled={importing}><Button icon={<FileExcelOutlined />}>选择 Excel 文件</Button></Upload></div>
+        <span style={{ color: "#8c8c8c" }}>仅支持 .xlsx 文件，单次最多导入 500 条、文件不超过 10MB。模板第一行红色 * 为必填字段。</span>
+        {importFile && !importing && <Alert type="success" showIcon message="文件已就绪" description={`${importFile.name}，请点击右下角“立即导入”。`} />}
+        {importing && <Alert type="info" showIcon message="正在校验并导入数据" description="请勿关闭弹窗或重复点击，全部数据校验通过后才会写入合同记录。" />}
+        {importError && <Alert type="error" showIcon message="导入失败" description={importError} />}
+      </Space>
+    </Modal>
+    <Modal title={importFeedback?.title || "温馨提示"} width={importFeedback?.title === "温馨提示" ? 760 : 560} open={!!importFeedback} onOk={() => setImportFeedback(undefined)} onCancel={() => setImportFeedback(undefined)} okText="我知道了" cancelButtonProps={{ style: { display: "none" } }} zIndex={1200} destroyOnHidden>
+      {importFeedback?.content}
+    </Modal>
     <Drawer title={editing ? "编辑合同" : "新增合同"} width={900} open={formOpen} onClose={() => setFormOpen(false)} destroyOnHidden extra={<Space><Button onClick={() => setFormOpen(false)}>取消</Button><Button type="primary" loading={saving} onClick={() => void save()}>保存</Button></Space>}>
       <Form form={form} layout="vertical">
         <FormHeading title="合同与门店信息" />
@@ -216,7 +302,7 @@ export function ContractList() {
         <FormHeading title="备注" /><Form.Item label="备注信息" name="remark"><Input.TextArea rows={3} maxLength={500} showCount /></Form.Item>
       </Form>
     </Drawer>
-    <Drawer title="查看合同" width={820} open={detailOpen} onClose={() => setDetailOpen(false)} extra={selected?.status !== "TERMINATED" ? <Button type="primary" onClick={() => { if (!selected) return; setDetailOpen(false); openEdit(selected); }}>编辑合同</Button> : null}>
+    <Drawer title="查看合同" width={820} open={detailOpen} onClose={() => setDetailOpen(false)} extra={selected && can("edit") && selected.status !== "TERMINATED" ? <Button type="primary" onClick={() => { if (!selected) return; setDetailOpen(false); openEdit(selected); }}>编辑合同</Button> : null}>
       {selected && <ContractDetails contract={selected} statusOptions={statusOptions.filter((item) => item.value)} />}
     </Drawer>
     <Modal title="确认解约" open={terminationOpen} onCancel={() => { if (!terminatingSaving) { setTerminationOpen(false); setTerminating(null); } }} onOk={() => void terminate()} okText="确认解约" cancelText="取消" okButtonProps={{ danger: true, loading: terminatingSaving }} cancelButtonProps={{ disabled: terminatingSaving }} destroyOnHidden>

@@ -8,7 +8,7 @@ import { writeOperationLog } from "@/lib/operation-log";
 import { buildPersonnelLaborCostReport } from "@/lib/personnel-labor-costs";
 import { getStoreH5Session } from "@/lib/store-h5-auth";
 import {
-  activeAttendanceDate, addDateDays, attendanceAvailability, attendanceDateLabel, attendanceWindowRuleForBrand,
+  addDateDays, attendanceAvailability, attendanceDateLabel, attendanceWindowRuleForBrand,
   dateKeyAsDbDate, formatShanghaiDateTime, isValidDateKey, nextDailyAttendanceRecordNo, shanghaiDateKey,
 } from "@/lib/store-h5-daily-attendance";
 import { storeEmployeeSelect } from "@/lib/store-employees";
@@ -27,10 +27,12 @@ const bodySchema = z.object({
   partTimeHeadcount: z.number().int().min(0).max(9999).nullable().optional(),
   partTimeHours: z.number().finite().positive().max(9999.9).refine(value => Math.abs(value * 10 - Math.round(value * 10)) < 1e-8, "今日兼职工时最多保留一位小数").nullable().optional(),
   partTimeLaborCost: z.number().finite().min(0, "兼职用工成本不能小于0").max(9999999999.99, "兼职用工成本数值过大").refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "兼职用工成本最多保留两位小数").nullable().optional(),
+  revision: z.number().int().positive().optional(),
+  modificationReason: z.string().trim().max(300, "修改说明不能超过300个字符").optional(),
 });
 
 class AttendanceError extends Error {
-  constructor(message: string, readonly status = 400) { super(message); }
+  constructor(message: string, readonly status = 400, readonly code?: string) { super(message); }
 }
 
 const storeSelect = {
@@ -61,6 +63,60 @@ function attendanceTimeLabel(dayOffset: 0 | 1, time: string) {
   return `${dayOffset === 1 ? "次日" : "当日"} ${time}`;
 }
 
+function storedDeadlineLabel(attendanceDate: string, deadlineAt: Date) {
+  const dayLabel = shanghaiDateKey(deadlineAt) === attendanceDate ? "当日" : "次日";
+  return `${dayLabel} ${formatShanghaiDateTime(deadlineAt).slice(11, 16)}`;
+}
+
+type SnapshotDecimal = Prisma.Decimal | number | null;
+type SnapshotItem = {
+  personnelId: string;
+  personnelRecordNo: string;
+  personnelNameSnapshot: string;
+  positionLevelSnapshot: string;
+  attendanceType: DailyAttendanceType;
+  leaveHours: SnapshotDecimal;
+  overtime: boolean;
+  overtimeHours: SnapshotDecimal;
+  laborCostSnapshot: SnapshotDecimal;
+  hourlyLaborCostSnapshot: SnapshotDecimal;
+  laborCostUnitSnapshot: string | null;
+  sortOrder: number;
+};
+
+function numberOrNull(value: SnapshotDecimal) {
+  return value === null ? null : Number(value);
+}
+
+function attendanceRevisionSnapshot(input: {
+  partTimeHeadcount: number | null;
+  partTimeHours: SnapshotDecimal;
+  partTimeLaborCost: SnapshotDecimal;
+  partTimeActualLaborCost: SnapshotDecimal;
+  items: SnapshotItem[];
+}): Prisma.InputJsonValue {
+  return {
+    partTimeHeadcount: input.partTimeHeadcount,
+    partTimeHours: numberOrNull(input.partTimeHours),
+    partTimeLaborCost: numberOrNull(input.partTimeLaborCost),
+    partTimeActualLaborCost: numberOrNull(input.partTimeActualLaborCost),
+    items: input.items.map(item => ({
+      personnelId: item.personnelId,
+      personnelRecordNo: item.personnelRecordNo,
+      personnelName: item.personnelNameSnapshot,
+      positionLevel: item.positionLevelSnapshot,
+      attendanceType: item.attendanceType,
+      leaveHours: numberOrNull(item.leaveHours),
+      overtime: item.overtime,
+      overtimeHours: numberOrNull(item.overtimeHours),
+      laborCost: numberOrNull(item.laborCostSnapshot),
+      hourlyLaborCost: numberOrNull(item.hourlyLaborCostSnapshot),
+      laborCostUnit: item.laborCostUnitSnapshot,
+      sortOrder: item.sortOrder,
+    })),
+  };
+}
+
 async function requireAttendanceContext(permission: "store-h5:daily-attendance:view" | "store-h5:daily-attendance:submit") {
   const session = await getStoreH5Session(permission);
   if (!session) throw new AttendanceError("当前账号已无门店H5使用权限，请重新登录或联系管理员", 401);
@@ -83,16 +139,22 @@ export async function GET() {
     const now = new Date();
     const previousDate = addDateDays(shanghaiDateKey(now), -1);
     const previousAvailability = attendanceAvailability(now, previousDate, rule);
-    const previousSubmitted = previousAvailability.status !== "OPEN" || Boolean(await db.dailyAttendanceRecord.findUnique({
+    const previousRecord = await db.dailyAttendanceRecord.findUnique({
       where: { storeId_attendanceDate: { storeId: store.id, attendanceDate: dateKeyAsDbDate(previousDate) } },
-      select: { id: true },
-    }));
-    const dateKey = activeAttendanceDate(now, rule, previousSubmitted);
-    const availability = attendanceAvailability(now, dateKey, rule);
-    const existing = await db.dailyAttendanceRecord.findUnique({
-      where: { storeId_attendanceDate: { storeId: store.id, attendanceDate: dateKeyAsDbDate(dateKey) } },
       include: { items: { orderBy: { sortOrder: "asc" } } },
     });
+    const previousPersonnelAtSubmission = previousRecord ? store.personnel.filter(personnel => personnel.createdAt <= previousRecord.createdAt) : [];
+    const previousItemIds = new Set(previousRecord?.items.map(item => item.personnelId) ?? []);
+    const previousCorrectionRequired = previousPersonnelAtSubmission.some(personnel => !previousItemIds.has(personnel.id));
+    const previousCanContinue = previousRecord
+      ? now <= previousRecord.deadlineAt && (rule.allowPostSubmitEdit || previousCorrectionRequired)
+      : previousAvailability.status === "OPEN";
+    const dateKey = previousCanContinue ? previousDate : shanghaiDateKey(now);
+    const availability = attendanceAvailability(now, dateKey, rule);
+    const existing = dateKey === previousDate ? previousRecord : await db.dailyAttendanceRecord.findUnique({
+        where: { storeId_attendanceDate: { storeId: store.id, attendanceDate: dateKeyAsDbDate(dateKey) } },
+        include: { items: { orderBy: { sortOrder: "asc" } } },
+      });
     const existingByPersonnel = new Map(existing?.items.map(item => [item.personnelId, item]) ?? []);
     const personnelAtSubmission = existing ? store.personnel.filter(personnel => personnel.createdAt <= existing.createdAt) : store.personnel;
     const missingPersonnel = existing ? personnelAtSubmission.filter(personnel => !existingByPersonnel.has(personnel.id)) : [];
@@ -120,6 +182,8 @@ export async function GET() {
         ? store.partTimeLaborCost
         : existing.partTimeLaborCostSnapshot
       : store.partTimeLaborCost;
+    const effectiveDeadlineAt = existing?.deadlineAt ?? availability.deadlineAt;
+    const canEdit = Boolean(existing && now <= effectiveDeadlineAt && (rule.allowPostSubmitEdit || correctionRequired));
     return NextResponse.json({
       attendanceDate: dateKey,
       attendanceDateLabel: attendanceDateLabel(dateKey),
@@ -129,17 +193,22 @@ export async function GET() {
       availability: {
         status: existing && !correctionRequired ? "SUBMITTED" : availability.status,
         opensAt: iso(availability.opensAt),
-        deadlineAt: iso(availability.deadlineAt),
+        deadlineAt: iso(effectiveDeadlineAt),
         opensLabel: attendanceTimeLabel(rule.startDayOffset, rule.startTime),
-        deadlineLabel: attendanceTimeLabel(rule.deadlineDayOffset, rule.deadlineTime),
+        deadlineLabel: existing ? storedDeadlineLabel(dateKey, effectiveDeadlineAt) : attendanceTimeLabel(rule.deadlineDayOffset, rule.deadlineTime),
         configured: rule.configured,
       },
+      allowPostSubmitEdit: rule.allowPostSubmitEdit,
+      canEdit,
       correctionRequired,
       missingEmployeeCount: missingPersonnel.length,
       submission: existing ? {
         recordNo: existing.recordNo,
         createdByName: existing.createdByNameSnapshot,
         createdAt: formatShanghaiDateTime(existing.createdAt),
+        updatedByName: existing.updatedByNameSnapshot,
+        updatedAt: existing.revision > 1 ? formatShanghaiDateTime(existing.updatedAt) : null,
+        revision: existing.revision,
         partTimeHeadcount: existing.partTimeHeadcount,
         partTimeHours: existing.partTimeHours === null ? null : Number(existing.partTimeHours),
         partTimeLaborCost: existing.partTimeLaborCostSnapshot === null ? null : Number(existing.partTimeLaborCostSnapshot),
@@ -161,17 +230,21 @@ export async function POST(request: Request) {
     const rule = await attendanceWindowRuleForBrand(store.brand.name);
     const now = new Date();
     const availability = attendanceAvailability(now, parsed.data.attendanceDate, rule);
-    if (availability.status === "NOT_OPEN") throw new AttendanceError(`尚未到考勤打卡时间，请在${attendanceTimeLabel(rule.startDayOffset, rule.startTime)}后填写`, 403);
-    if (availability.status === "CLOSED") throw new AttendanceError("当前考勤已超过系统设置的截止提交时间", 403);
-
     const existing = await db.dailyAttendanceRecord.findUnique({
       where: { storeId_attendanceDate: { storeId: store.id, attendanceDate: dateKeyAsDbDate(parsed.data.attendanceDate) } },
-      include: { items: true },
+      include: { items: true, revisions: { select: { id: true }, take: 1 } },
     });
+    if (!existing && availability.status === "NOT_OPEN") throw new AttendanceError(`尚未到考勤打卡时间，请在${attendanceTimeLabel(rule.startDayOffset, rule.startTime)}后填写`, 403);
+    if ((!existing && availability.status === "CLOSED") || (existing && now > existing.deadlineAt)) throw new AttendanceError("当前考勤已超过系统设置的截止提交时间", 403);
     const existingByPersonnel = new Map(existing?.items.map(item => [item.personnelId, item]) ?? []);
     const employees = existing ? store.personnel.filter(personnel => personnel.createdAt <= existing.createdAt) : store.personnel;
     const correctionRequired = Boolean(existing && employees.some(employee => !existingByPersonnel.has(employee.id)));
-    if (existing && !correctionRequired) throw new AttendanceError("当前门店该日期的考勤已经提交，请勿重复提交", 409);
+    if (existing && !correctionRequired && !rule.allowPostSubmitEdit) throw new AttendanceError("当前门店该日期的考勤已经提交，系统未开启提交后修改", 409);
+    const modificationReason = parsed.data.modificationReason?.trim() || "";
+    if (existing && !modificationReason) throw new AttendanceError("重新提交考勤前，请填写修改说明");
+    if (existing && parsed.data.revision !== existing.revision) {
+      throw new AttendanceError("考勤记录已被其他用户修改，系统已为您刷新最新内容，请重新确认后提交", 409, "VERSION_CONFLICT");
+    }
     const expectedIds = new Set([
       ...employees.map(employee => employee.id),
       ...(existing?.items.map(item => item.personnelId) ?? []),
@@ -231,22 +304,66 @@ export async function POST(request: Request) {
         sortOrder: index,
       };
     });
+    const nextSnapshot = attendanceRevisionSnapshot({
+      partTimeHeadcount,
+      partTimeHours,
+      partTimeLaborCost,
+      partTimeActualLaborCost,
+      items: attendanceItems,
+    });
+    const previousSnapshot = existing ? attendanceRevisionSnapshot({
+      partTimeHeadcount: existing.partTimeHeadcount,
+      partTimeHours: existing.partTimeHours,
+      partTimeLaborCost: existing.partTimeLaborCostSnapshot,
+      partTimeActualLaborCost: existing.partTimeActualLaborCost,
+      items: [...existing.items].sort((a, b) => a.sortOrder - b.sortOrder),
+    }) : null;
     const saved = await db.$transaction(async tx => {
       if (existing) {
-        await tx.dailyAttendanceItem.deleteMany({ where: { attendanceId: existing.id } });
-        return tx.dailyAttendanceRecord.update({
-          where: { id: existing.id },
+        const updated = await tx.dailyAttendanceRecord.updateMany({
+          where: { id: existing.id, revision: existing.revision },
           data: {
             partTimeHeadcount,
             partTimeHours: partTimeHours === null ? null : new Prisma.Decimal(partTimeHours),
             partTimeLaborCostSnapshot: partTimeLaborCost === null ? null : new Prisma.Decimal(partTimeLaborCost),
             partTimeActualLaborCost,
-            items: { create: attendanceItems },
+            updatedByUserId: session.userId,
+            updatedByUsername: session.username,
+            updatedByNameSnapshot: session.realName,
+            updatedAt: now,
+            revision: { increment: 1 },
           },
         });
+        if (updated.count !== 1) throw new AttendanceError("考勤记录已被其他用户修改，系统已为您刷新最新内容，请重新确认后提交", 409, "VERSION_CONFLICT");
+        if (!existing.revisions.length && previousSnapshot) {
+          await tx.dailyAttendanceRevision.create({ data: {
+            attendanceId: existing.id,
+            revision: existing.revision,
+            action: "SUBMIT",
+            snapshot: previousSnapshot,
+            changedByUserId: existing.createdByUserId,
+            changedByUsername: existing.createdByUsername,
+            changedByNameSnapshot: existing.createdByNameSnapshot,
+            changedAt: existing.createdAt,
+          } });
+        }
+        await tx.dailyAttendanceItem.deleteMany({ where: { attendanceId: existing.id } });
+        await tx.dailyAttendanceItem.createMany({ data: attendanceItems.map(item => ({ ...item, attendanceId: existing.id })) });
+        await tx.dailyAttendanceRevision.create({ data: {
+          attendanceId: existing.id,
+          revision: existing.revision + 1,
+          action: correctionRequired ? "CORRECTION" : "EDIT",
+          modificationReason,
+          snapshot: nextSnapshot,
+          changedByUserId: session.userId,
+          changedByUsername: session.username,
+          changedByNameSnapshot: session.realName,
+          changedAt: now,
+        } });
+        return tx.dailyAttendanceRecord.findUniqueOrThrow({ where: { id: existing.id } });
       }
       const recordNo = await nextDailyAttendanceRecordNo(tx, shanghaiDateKey(now));
-      return tx.dailyAttendanceRecord.create({ data: {
+      const created = await tx.dailyAttendanceRecord.create({ data: {
         recordNo,
         attendanceDate: dateKeyAsDbDate(parsed.data.attendanceDate),
         storeId: store.id,
@@ -265,6 +382,17 @@ export async function POST(request: Request) {
         createdAt: now,
         items: { create: attendanceItems },
       } });
+      await tx.dailyAttendanceRevision.create({ data: {
+        attendanceId: created.id,
+        revision: 1,
+        action: "SUBMIT",
+        snapshot: nextSnapshot,
+        changedByUserId: session.userId,
+        changedByUsername: session.username,
+        changedByNameSnapshot: session.realName,
+        changedAt: now,
+      } });
+      return created;
     });
     await synchronizeLaborRecord(store.id, parsed.data.attendanceDate).catch(async error => {
       await writeOperationLog({
@@ -278,19 +406,25 @@ export async function POST(request: Request) {
         request,
       }).catch(() => undefined);
     });
+    const action = !existing ? "提交" : correctionRequired ? "补正" : "修改";
     await writeOperationLog({
-      userId: session.userId, username: session.username, client: "门店员工移动端", page: "每日考勤", action: existing ? "补正" : "提交", result: "成功",
-      detail: `考勤日期：${parsed.data.attendanceDate}；门店：${store.name}；记录编号：${saved.recordNo}；员工：${attendanceItems.length}人`, request,
+      userId: session.userId, username: session.username, client: "门店员工移动端", page: "每日考勤", action, result: "成功",
+      detail: `考勤日期：${parsed.data.attendanceDate}；门店：${store.name}；记录编号：${saved.recordNo}；版本：${saved.revision}；员工：${attendanceItems.length}人${existing ? `；修改说明：${modificationReason}` : ""}`, request,
     }).catch(() => undefined);
     return NextResponse.json({
-      message: existing ? "今日考勤补正成功" : "今日考勤提交成功",
+      message: !existing ? "今日考勤提交成功" : correctionRequired ? "今日考勤补正成功" : "今日考勤修改成功",
       recordNo: saved.recordNo,
       createdByName: saved.createdByNameSnapshot,
       createdAt: formatShanghaiDateTime(saved.createdAt),
+      updatedByName: saved.updatedByNameSnapshot,
+      updatedAt: saved.revision > 1 ? formatShanghaiDateTime(saved.updatedAt) : null,
+      revision: saved.revision,
       partTimeHeadcount: saved.partTimeHeadcount,
       partTimeHours: saved.partTimeHours === null ? null : Number(saved.partTimeHours),
       partTimeLaborCost: saved.partTimeLaborCostSnapshot === null ? null : Number(saved.partTimeLaborCostSnapshot),
       partTimeActualLaborCost: saved.partTimeActualLaborCost === null ? null : Number(saved.partTimeActualLaborCost),
+      canEdit: rule.allowPostSubmitEdit && now <= saved.deadlineAt,
+      allowPostSubmitEdit: rule.allowPostSubmitEdit,
     });
   } catch (error) {
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -299,6 +433,6 @@ export async function POST(request: Request) {
     if (context) await writeOperationLog({
       userId: context.session.userId, username: context.session.username, client: "门店员工移动端", page: "每日考勤", action: "提交", result: "失败", detail: message, request,
     }).catch(() => undefined);
-    return NextResponse.json({ message }, { status });
+    return NextResponse.json({ message, ...(error instanceof AttendanceError && error.code ? { code: error.code } : {}) }, { status });
   }
 }

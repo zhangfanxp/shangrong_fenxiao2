@@ -38,6 +38,9 @@ type AttendanceDetail = {
     partTimeActualLaborCost: string | null;
     createdByName: string;
     createdAt: string;
+    revision: number;
+    updatedByName: string | null;
+    updatedAt: string | null;
   };
   details: Array<{
     personnelId: string;
@@ -50,6 +53,13 @@ type AttendanceDetail = {
     dailyLaborCost: string | null;
     hourlyLaborCost: string | null;
     actualLaborCost: string | null;
+  }>;
+  revisionHistory: Array<{
+    revision: number;
+    action: string;
+    modificationReason: string | null;
+    changedByName: string;
+    changedAt: string;
   }>;
 };
 
@@ -253,6 +263,9 @@ export function AttendanceRecordList({ permissions, initialRows = [], initialTot
           <Descriptions.Item label="兼职用工成本">{detail.overview.partTimeLaborCost === null ? "-" : `${moneyText(detail.overview.partTimeLaborCost)} / 小时`}</Descriptions.Item>
           <Descriptions.Item label="今日兼职用工成本"><strong className="attendance-record-actual-cost">{moneyText(detail.overview.partTimeActualLaborCost)}</strong></Descriptions.Item>
           <Descriptions.Item label="创建时间">{detail.overview.createdAt}</Descriptions.Item>
+          <Descriptions.Item label="当前版本">第 {detail.overview.revision} 版</Descriptions.Item>
+          <Descriptions.Item label="最后修改人">{detail.overview.updatedByName || "-"}</Descriptions.Item>
+          <Descriptions.Item label="最后修改时间">{detail.overview.updatedAt || "-"}</Descriptions.Item>
         </Descriptions>
         <div className="attendance-record-detail-heading"><strong>员工考勤明细</strong><span>共 {detail.details.length} 人</span></div>
         <Table rowKey="personnelId" size="small" pagination={false} dataSource={detail.details} scroll={{ x: 1050, y: 420 }} columns={[
@@ -264,6 +277,16 @@ export function AttendanceRecordList({ permissions, initialRows = [], initialTot
           { title: "用工小时成本", dataIndex: "hourlyLaborCost", width: 150, align: "right" as const, render: moneyText },
           { title: "实际用工成本", dataIndex: "actualLaborCost", width: 150, fixed: "right" as const, align: "right" as const, render: value => <strong className="attendance-record-actual-cost">{moneyText(value)}</strong> },
         ]} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无员工考勤明细" /> }} />
+        {detail.revisionHistory.length > 0 && <>
+          <div className="attendance-record-detail-heading"><strong>提交与修改记录</strong><span>共 {detail.revisionHistory.length} 个版本</span></div>
+          <Table rowKey="revision" size="small" pagination={false} dataSource={detail.revisionHistory} columns={[
+            { title: "版本", dataIndex: "revision", width: 90, render: value => `第 ${value} 版` },
+            { title: "操作", dataIndex: "action", width: 100, render: value => value === "SUBMIT" ? "首次提交" : value === "CORRECTION" ? "考勤补正" : "修改考勤" },
+            { title: "操作人", dataIndex: "changedByName", width: 120 },
+            { title: "操作时间", dataIndex: "changedAt", width: 180 },
+            { title: "修改说明", dataIndex: "modificationReason", render: value => value || "-" },
+          ]} />
+        </>}
       </div>}
     </Modal>
   </>;

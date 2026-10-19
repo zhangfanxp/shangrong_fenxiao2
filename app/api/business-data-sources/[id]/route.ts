@@ -160,7 +160,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const source = await findSource((await params).id);
   if (!source) return NextResponse.json({ message: "业务数据源不存在或已删除" }, { status: 404 });
   try {
-    await db.businessDataSource.delete({ where: { id: source.id } });
+    await db.$transaction(async tx => {
+      await tx.businessDataSourceField.deleteMany({ where: { businessDataSourceId: source.id } });
+      await tx.businessDataSource.delete({ where: { id: source.id } });
+    });
     await writeOperationLog({ userId: session.userId, username: session.username, page: "业务数据源", action: "删除", result: "成功", detail: `删除业务数据源：${source.recordNo}；同步删除字段：${source.fields.length}项`, request }).catch(() => undefined);
     return NextResponse.json({ message: "业务数据源删除成功" });
   } catch {

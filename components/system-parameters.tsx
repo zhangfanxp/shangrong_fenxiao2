@@ -1,7 +1,7 @@
 "use client";
 
 import { LoadingOutlined, PlusOutlined, UploadOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Empty, Form, Input, InputNumber, message, Modal, Result, Select, Space, Table, Upload } from "antd";
+import { Alert, Button, Card, Checkbox, Empty, Form, Input, InputNumber, message, Modal, Result, Select, Space, Table, Upload } from "antd";
 import type { UploadProps } from "antd";
 import { useEffect, useState } from "react";
 import { AI_MODEL_OPTIONS, aiEndpointExample, aiModelLabel, aiModelSupportsService, normalizeAiServiceApiConfig, type AiModelId, type AiServiceApiConfig } from "@/lib/ai-model-adapters";
@@ -10,7 +10,7 @@ import type { PlatformAssetUrls, PlatformSettings } from "@/lib/platform-config"
 
 type BrandOption = { label: string; value: string };
 type R2StorageOption = { label: string; value: string };
-type AttendanceParameter = { brand: string; workdayHours: number; attendanceStartDayOffset: 0 | 1; attendanceStartTime: string; attendanceDeadlineDayOffset: 0 | 1; attendanceDeadlineTime: string };
+type AttendanceParameter = { brand: string; workdayHours: number; attendanceStartDayOffset: 0 | 1; attendanceStartTime: string; attendanceDeadlineDayOffset: 0 | 1; attendanceDeadlineTime: string; allowPostSubmitEdit: boolean };
 type PlatformValues = { platformName: string; automaticTaskExecutionTime: string; defaultTaskDeadlineDayOffset: 0 | 1; defaultTaskDeadlineTime: string };
 type TrainingValues = { dailyLearningR2StorageId: string | null; trainingVideoR2StorageId: string | null; trainingAudioR2StorageId: string | null; trainingDocumentR2StorageId: string | null };
 type AiApiValues = { services: Record<string, AiServiceApiConfig> };
@@ -324,7 +324,7 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
   const openCreate = () => {
     setEditingBrand(null);
     brandHourForm.resetFields();
-    brandHourForm.setFieldsValue({ attendanceStartDayOffset: 0, attendanceStartTime: "20:00", attendanceDeadlineDayOffset: 0, attendanceDeadlineTime: "23:59" });
+    brandHourForm.setFieldsValue({ attendanceStartDayOffset: 0, attendanceStartTime: "20:00", attendanceDeadlineDayOffset: 0, attendanceDeadlineTime: "23:59", allowPostSubmitEdit: false });
     setModalOpen(true);
   };
 
@@ -474,6 +474,7 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
           { title: "工作日小时（小时/日）", dataIndex: "workdayHours", render: value => Number(value).toFixed(Number.isInteger(value) ? 0 : 1) },
           { title: "考勤开始时间", key: "attendanceStart", render: (_, row) => `${row.attendanceStartDayOffset === 1 ? "次日" : "当日"} ${row.attendanceStartTime}` },
           { title: "考勤截止时间", key: "attendanceDeadline", render: (_, row) => `${row.attendanceDeadlineDayOffset === 1 ? "次日" : "当日"} ${row.attendanceDeadlineTime}` },
+          { title: "提交后允许修改", dataIndex: "allowPostSubmitEdit", width: 140, render: value => value ? "是" : "否" },
           { title: "操作", key: "action", width: 90, render: (_, row) => <Button type="link" size="small" onClick={() => openEditAttendanceParameter(row)}>编辑</Button> },
         ]}
         dataSource={rows}
@@ -617,6 +618,9 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
               <Input type="time" step={60} style={{ width: "calc(100% - 110px)" }} />
             </Form.Item>
           </Space.Compact>
+        </Form.Item>
+        <Form.Item name="allowPostSubmitEdit" valuePropName="checked" extra="勾选后，已提交的考勤可在原截止时间前修改并重新提交；系统将保留修改版本和操作记录。">
+          <Checkbox>提交后允许修改</Checkbox>
         </Form.Item>
       </Form>
     </Modal>

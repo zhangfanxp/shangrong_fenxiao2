@@ -59,6 +59,10 @@ type JudgmentConditionDraft = {
   rightExpression: string;
   result: string;
 };
+type PendingDeletion =
+  | { kind: "field"; row: FieldRow }
+  | { kind: "source"; row: SourceRow }
+  | { kind: "blocked"; message: string };
 
 const sourceTypeOptions = [
   { label: "任务模版", value: "TASK_TEMPLATE" },
@@ -106,6 +110,9 @@ export function BusinessDataSourceList({ permissions, currentUserName }: { permi
   const [saveError, setSaveError] = useState("");
   const [dirty, setDirty] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [mainForm] = Form.useForm<MainFormValues>();
   const [fieldForm] = Form.useForm<FieldFormValues>();
   const [fieldMode, setFieldMode] = useState<"create" | "view" | "edit" | null>(null);
@@ -445,11 +452,16 @@ export function BusinessDataSourceList({ permissions, currentUserName }: { permi
   };
   const removeField = (row: FieldRow) => {
     const dependentField = fields.find(field => (field.sourceFieldType === "formula" && field.formulaReferenceKeys?.includes(row.sourceFieldKey)) || (field.sourceFieldType === "judgment" && field.judgmentReferenceKeys?.includes(row.sourceFieldKey)));
-    if (dependentField) return void message.error(`字段“${row.fieldNameSnapshot}”正在被${dependentField.sourceFieldType === "judgment" ? "判断字段" : "公式字段"}“${dependentField.fieldNameSnapshot}”引用，请先删除后者`);
-    Modal.confirm({
-    title: "确认删除数据字典字段？", content: "删除后当前业务数据源将不再包含该业务字段，是否继续？", okText: "确认删除", cancelText: "取消", okButtonProps: { danger: true },
-    onOk: () => { setFields(previous => previous.filter(field => field !== row).map((field, index) => ({ ...field, sortOrder: index }))); setDirty(true); },
+    setDeleteError("");
+    if (fields.length <= 1) return void setPendingDeletion({
+      kind: "blocked",
+      message: "业务数据源至少需要保留一个数据字典字段。如需删除全部字段，请删除整个业务数据源记录。",
     });
+    if (dependentField) return void setPendingDeletion({
+      kind: "blocked",
+      message: `字段“${row.fieldNameSnapshot}”正在被${dependentField.sourceFieldType === "judgment" ? "判断字段" : "公式字段"}“${dependentField.fieldNameSnapshot}”引用，请先删除后者。`,
+    });
+    setPendingDeletion({ kind: "field", row });
   };
 
   const moveField = (index: number, direction: -1 | 1) => {
@@ -515,17 +527,44 @@ export function BusinessDataSourceList({ permissions, currentUserName }: { permi
     } finally { setSaving(false); }
   };
 
-  const remove = (row: SourceRow) => Modal.confirm({
-    title: "温馨提示",
-    content: "删除操作不可逆，删除成功后当前业务数据源及其数据字典字段配置将无法恢复，请谨慎操作。",
-    okText: "我知道了，继续删除", cancelText: "我再想想", okButtonProps: { danger: true },
-    onOk: async () => {
-      const response = await fetch(`/api/business-data-sources/${row.id}`, { method: "DELETE" }); const data = await response.json();
-      if (!response.ok) { message.error(data.message || "业务数据源删除失败，请稍后重试"); throw new Error(); }
-      message.success(data.message); setSelectedRowKeys(keys => keys.filter(key => key !== row.id));
-      const nextPage = rows.length === 1 && page > 1 ? page - 1 : page; setPage(nextPage); await load(nextPage);
-    },
-  });
+  const remove = (row: SourceRow) => {
+    setDeleteError("");
+    setPendingDeletion({ kind: "source", row });
+  };
+
+  const confirmDeletion = async () => {
+    if (!pendingDeletion || deleting) return;
+    if (pendingDeletion.kind === "blocked") {
+      setPendingDeletion(null);
+      return;
+    }
+    if (pendingDeletion.kind === "field") {
+      const fieldKey = pendingDeletion.row.sourceFieldKey;
+      setFields(previous => previous.filter(field => field.sourceFieldKey !== fieldKey).map((field, index) => ({ ...field, sortOrder: index })));
+      setDirty(true);
+      setPendingDeletion(null);
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const response = await fetch(`/api/business-data-sources/${pendingDeletion.row.id}`, { method: "DELETE" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || `业务数据源删除失败（HTTP ${response.status}）`);
+      const rowId = pendingDeletion.row.id;
+      message.success(data?.message || "业务数据源删除成功");
+      setSelectedRowKeys(keys => keys.filter(key => key !== rowId));
+      setPendingDeletion(null);
+      const nextPage = rows.length === 1 && page > 1 ? page - 1 : page;
+      setPage(nextPage);
+      await load(nextPage);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "业务数据源删除失败，请稍后重试");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const exportRows = async () => {
     try {
@@ -747,6 +786,28 @@ export function BusinessDataSourceList({ permissions, currentUserName }: { permi
         </>}
       </Form>
       {fieldMode === "edit" && <Alert type="info" showIcon message={formulaSelected || judgmentSelected ? "仅支持修改自定义字段名称和备注；计算公式、判断条件、字段类型和单位不可修改。" : "字段定义创建后不可修改，本次仅支持修订备注。"} />}
+    </Modal>
+
+    <Modal
+      title={pendingDeletion?.kind === "blocked" ? "当前字段不能删除" : pendingDeletion?.kind === "field" ? "确认删除数据字典字段？" : "温馨提示"}
+      open={Boolean(pendingDeletion)}
+      zIndex={3000}
+      maskClosable={false}
+      closable={!deleting}
+      keyboard={!deleting}
+      onCancel={() => { if (!deleting) { setPendingDeletion(null); setDeleteError(""); } }}
+      footer={pendingDeletion?.kind === "blocked"
+        ? <Button type="primary" onClick={() => void confirmDeletion()}>知道了</Button>
+        : <Space><Button disabled={deleting} onClick={() => { setPendingDeletion(null); setDeleteError(""); }}>{pendingDeletion?.kind === "field" ? "取消" : "我再想想"}</Button><Button danger type="primary" loading={deleting} onClick={() => void confirmDeletion()}>{pendingDeletion?.kind === "field" ? "确认删除" : "我知道了，继续删除"}</Button></Space>}
+    >
+      {pendingDeletion?.kind === "blocked"
+        ? <Typography.Paragraph>{pendingDeletion.message}</Typography.Paragraph>
+        : pendingDeletion?.kind === "field"
+          ? <Typography.Paragraph>删除后当前业务数据源将不再包含字段“{pendingDeletion.row.fieldNameSnapshot}”。点击确认后字段会先从列表移除，仍需点击业务数据弹窗底部的“保存”才会正式生效。</Typography.Paragraph>
+          : pendingDeletion?.kind === "source"
+            ? <Typography.Paragraph>删除操作不可逆，删除成功后业务数据源“{pendingDeletion.row.businessName}”（{pendingDeletion.row.recordNo}）及其数据字典字段配置将无法恢复，请谨慎操作。</Typography.Paragraph>
+            : null}
+      {deleteError && <Alert style={{ marginTop: 12 }} type="error" showIcon message="删除失败" description={deleteError} />}
     </Modal>
 
     <UnsavedChangesModal open={discardOpen} title="当前业务数据尚未保存" content="关闭后填写内容和数据字典字段将丢失，是否继续？" onKeep={() => setDiscardOpen(false)} onDiscard={() => { setDiscardOpen(false); setMode(null); setCurrent(null); setFields([]); setDirty(false); }} />

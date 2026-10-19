@@ -18,6 +18,7 @@ type Store = { id: string; name: string; recordNo: string; brand: { id: string; 
 type HomeEntry = { key?: string; name: string; icon: React.ReactNode; permission: string | readonly string[]; scoreType?: string; route: string; research?: boolean; direct?: boolean };
 
 const entries: HomeEntry[] = [
+  { name: "巡检整改", icon: <CheckSquareOutlined />, permission: "lead-h5:rectifications:view", route: "rectifications", direct: true },
   { key: "pending", name: "待完成任务", icon: <ClockCircleOutlined />, permission: ["lead-h5:tasks:query", "store-h5:tasks:query"], route: "tasks?status=pending", direct: true },
   { name: "已完成任务", icon: <CheckCircleOutlined />, permission: ["lead-h5:tasks:query", "store-h5:tasks:query"], route: "tasks?status=completed", direct: true },
   { name: "前厅稽核评分", icon: <AuditOutlined />, permission: "lead-h5:front-hall:view", scoreType: FRONT_HALL_REVIEW_TYPE, route: "front-hall" },

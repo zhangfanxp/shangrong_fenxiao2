@@ -198,6 +198,7 @@ export function dailySalesReportSourceWhere(source: DailySalesReportSource): Pri
 export function dailySalesReportSelect(source: DailySalesReportSource) {
   return {
     id: true,
+    recordNo: true,
     brandNameSnapshot: true,
     storeNameSnapshot: true,
     executionDate: true,
@@ -211,6 +212,7 @@ export function dailySalesReportSelect(source: DailySalesReportSource) {
 
 type DailySalesReportSourceRow = {
   id: string;
+  recordNo: string;
   brandNameSnapshot: string;
   storeNameSnapshot: string;
   executionDate: Date;
@@ -229,6 +231,7 @@ export function serializeDailySalesReport(row: DailySalesReportSourceRow, source
   const amounts = Object.fromEntries(DAILY_SALES_REPORT_METRICS.map(spec => [spec.key, readMoneyValue(row, source.metrics[spec.key])])) as Record<DailySalesReportMetricKey, number | null>;
   return {
     id: row.id,
+    recordNo: row.recordNo,
     brandName: row.brandNameSnapshot,
     storeName: row.storeNameSnapshot,
     businessDate: row.executionDate.toISOString().slice(0, 10),

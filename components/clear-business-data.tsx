@@ -1,6 +1,6 @@
 "use client";
 import { DeleteOutlined, WarningOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Input, Modal, Space, Table, Tag } from "antd";
+import { Alert, Button, Card, Input, Modal, Space, Table, Tag, Typography } from "antd";
 import { useState } from "react";
 import { businessDataTargets, businessDataTargetValues, type BusinessDataTarget } from "@/lib/business-data-targets";
 
@@ -51,13 +51,13 @@ export function ClearBusinessData() {
   };
 
   return <>
-    <Alert type="error" showIcon message="高风险操作" description="清空后的业务数据无法通过系统直接恢复。请在确认数据无误并完成必要备份后再进行操作。" style={{ marginBottom: 16 }} />
+    <Alert type="error" showIcon message="高风险操作" description="清空后的数据库记录无法通过系统直接恢复。请先完成数据库备份。涉及附件、课件、录音等 R2 对象文件不会被本页面删除；清理的是数据库记录及其对象关联信息。" style={{ marginBottom: 16 }} />
     <Card title="选择需要清空的业务数据">
       <Alert
         type="info"
         showIcon
-        message="设置/模版与实际业务记录已分开"
-        description="日常清理建议使用“仅选业务记录”，不会删除已配置好的任务、考核、调研、学习计划和课程设置。"
+        message="按当前系统功能及数据库模型分组"
+        description="表名采用 Prisma 数据模型名称；“主要字段”列展示关键业务字段（非字段全集）。每日销售、微信新增、线上团购、百日筑基等任务型上报数据保存在任务提交记录中。系统账号、角色、品牌、字典、业务数据源、休息日、用工标准、R2 配置及备份设置不属于本页清理范围。"
         style={{ marginBottom: 16 }}
       />
       <div style={{ marginBottom: 12 }}>
@@ -72,7 +72,7 @@ export function ClearBusinessData() {
         rowKey="value"
         size="small"
         pagination={false}
-        scroll={{ x: 1180 }}
+        scroll={{ x: 1760 }}
         dataSource={[...businessDataTargets]}
         rowSelection={{
           selectedRowKeys: selected,
@@ -82,8 +82,9 @@ export function ClearBusinessData() {
           { title: "功能", dataIndex: "module", key: "module", width: 80 },
           { title: "清空项目", dataIndex: "label", key: "label", width: 210 },
           { title: "数据类型", dataIndex: "kind", key: "kind", width: 110, render: (kind: string) => <Tag color={kind === "设置/模板" ? "orange" : kind === "业务记录" ? "blue" : "default"}>{kind}</Tag> },
-          { title: "包含的数据表", dataIndex: "tables", key: "tables", width: 390, render: (tables: readonly string[]) => <Space size={[0, 4]} wrap>{tables.map(table => <Tag key={table}>{table}</Tag>)}</Space> },
-          { title: "清空说明", dataIndex: "description", key: "description", width: 390 },
+          { title: "涉及的数据表/模型", dataIndex: "tables", key: "tables", width: 440, render: (tables: readonly string[]) => <Space size={[0, 4]} wrap>{tables.map(table => <Tag key={table}>{table}</Tag>)}</Space> },
+          { title: "主要字段（示例）", dataIndex: "fields", key: "fields", width: 500, render: (fields: readonly string[]) => <Typography.Text type="secondary" style={{ whiteSpace: "normal", overflowWrap: "anywhere" }}>{fields.join("、")}</Typography.Text> },
+          { title: "清空说明及关联影响", dataIndex: "description", key: "description", width: 410 },
         ]}
       />
       <div style={{ borderTop: "1px solid #f0f0f0", marginTop: 24, paddingTop: 20, maxWidth: 480 }}>
@@ -94,6 +95,7 @@ export function ClearBusinessData() {
     </Card>
     <Modal
       open={confirmOpen}
+      width={820}
       title={<Space><WarningOutlined style={{ color: "#ff4d4f" }} />二次确认：清空业务数据</Space>}
       okText="确认清空"
       cancelText="取消"
@@ -107,9 +109,13 @@ export function ClearBusinessData() {
       <Alert type="warning" showIcon message="此操作不可撤销，请再次核对清空范围" style={{ marginBottom: 16 }} />
       <div>将清空以下 <b>{selectedTargets.length}</b> 项数据：</div>
       <ul style={{ margin: "12px 0 16px", paddingLeft: 24 }}>
-        {selectedTargets.map(target => <li key={target.value}><b>{target.label}</b>（{target.tables.join("、")}）</li>)}
+        {selectedTargets.map(target => <li key={target.value} style={{ marginBottom: 10 }}>
+          <b>{target.label}</b>
+          <div><Typography.Text type="secondary">数据表：{target.tables.join("、")}</Typography.Text></div>
+          <div><Typography.Text type="secondary">主要字段：{target.fields.join("、")}</Typography.Text></div>
+        </li>)}
       </ul>
-      <div style={{ color: "rgba(0,0,0,.65)" }}>未勾选的设置/模版，以及系统账号、角色、品牌、数据字典、R2 和数据库备份配置会保留。</div>
+      <div style={{ color: "rgba(0,0,0,.65)" }}>仅清理所选范围。未勾选数据，以及系统账号、角色、品牌、数据字典、业务数据源、休息日、用工标准、R2 配置和数据库备份配置均保留；R2 对象文件不会删除。</div>
       {clearError && <Alert type="error" showIcon message="清空失败" description={clearError} style={{ marginTop: 16 }} />}
     </Modal>
     <Modal

@@ -6,7 +6,7 @@ export type TaskRecordAction = "query" | "view" | "edit" | "export" | "analyze" 
 
 export type TaskRecordFilters = {
   status?: "COMPLETED" | "PENDING" | "OVERDUE";
-  taskName?: string;
+  taskId?: string;
   taskType?: TaskType;
   executorKeyword?: string;
   submitStartDate?: string;
@@ -61,7 +61,7 @@ export function readTaskRecordFilters(search: URLSearchParams): TaskRecordFilter
   const taskType = read("taskType");
   return {
     status: status === "COMPLETED" || status === "PENDING" || status === "OVERDUE" ? status : undefined,
-    taskName: read("taskName"),
+    taskId: read("taskId"),
     taskType: Object.values(TaskType).includes(taskType as TaskType) ? taskType as TaskType : undefined,
     executorKeyword: read("executorKeyword"),
     submitStartDate: read("submitStartDate"),
@@ -74,7 +74,7 @@ export function taskRecordFilterWhere(filters: TaskRecordFilters): Prisma.TaskRe
   if (filters.status === "COMPLETED") AND.push({ status: TaskRecordStatus.COMPLETED });
   if (filters.status === "PENDING") AND.push({ status: TaskRecordStatus.PENDING });
   if (filters.status === "OVERDUE") AND.push({ status: TaskRecordStatus.OVERDUE });
-  if (filters.taskName) AND.push({ taskNameSnapshot: { contains: filters.taskName.trim() } });
+  if (filters.taskId) AND.push({ taskId: filters.taskId });
   if (filters.taskType) AND.push({ taskType: filters.taskType });
   if (filters.executorKeyword) AND.push({ assignedUserNameSnapshot: { contains: filters.executorKeyword.trim() } });
   if (filters.submitStartDate || filters.submitEndDate) {
@@ -100,6 +100,7 @@ export const taskRecordListSelect = {
   completedAt: true,
   formalSubmission: { select: { recordNo: true, submittedAt: true } },
   aiAnalysis: { select: { id: true } },
+  rectificationRound: { select: { id: true } },
 } satisfies Prisma.TaskRecordSelect;
 
 type SelectedTaskRecord = Prisma.TaskRecordGetPayload<{ select: typeof taskRecordListSelect }>;
@@ -109,6 +110,7 @@ const taskTypeLabels: Record<TaskType, string> = {
   WEEKLY: "周任务",
   MONTHLY: "月任务",
   TEMPORARY: "临时任务",
+  CALENDAR: "日历任务",
 };
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-CA", {
@@ -144,6 +146,7 @@ export function serializeTaskRecord(row: SelectedTaskRecord) {
     submittedAt: completed ? formatTaskRecordDateTime(row.formalSubmission?.submittedAt || row.completedAt) : "-",
     status: row.status,
     hasAiAnalysis: Boolean(row.aiAnalysis),
+    isRectification: Boolean(row.rectificationRound),
   };
 }
 

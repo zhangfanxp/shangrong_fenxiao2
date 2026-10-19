@@ -19,7 +19,11 @@ async function referencedRemovedValues(code: string, fileName: string, removed: 
     const rows = await db.brand.findMany({ where: { name: { in: removed } }, select: { name: true } }); return rows.map(row => row.name);
   }
   if (key.includes("area")) {
-    const rows = await db.store.findMany({ where: { region: { in: removed } }, distinct: ["region"], select: { region: true } }); return rows.flatMap(row => row.region ? [row.region] : []);
+    const [storeRows, userRows] = await Promise.all([
+      db.store.findMany({ where: { region: { in: removed } }, distinct: ["region"], select: { region: true } }),
+      db.userManagedRegion.findMany({ where: { region: { in: removed } }, distinct: ["region"], select: { region: true } }),
+    ]);
+    return [...new Set([...storeRows, ...userRows].flatMap(row => row.region ? [row.region] : []))];
   }
   if (key.includes("location_type")) {
     const rows = await db.store.findMany({ where: { locationType: { in: removed } }, distinct: ["locationType"], select: { locationType: true } }); return rows.flatMap(row => row.locationType ? [row.locationType] : []);

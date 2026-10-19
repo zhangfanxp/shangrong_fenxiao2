@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { requireApiSession } from "@/lib/auth";
+import { canStoreListAction } from "@/lib/store-permissions";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 
@@ -72,7 +73,7 @@ function responseData(store: { id: string; recordNo: string; name: string }, cos
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:list:view")) return NextResponse.json({ message: "暂无门店列表权限" }, { status: 403 });
+  if (!canStoreListAction(session.permissions, "cost-view")) return NextResponse.json({ message: "暂无门店成本查看权限" }, { status: 403 });
 
   const store = await db.store.findUnique({
     where: { id: (await params).id },
@@ -86,7 +87,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:list:view")) return NextResponse.json({ message: "暂无门店成本编辑权限" }, { status: 403 });
+  if (!canStoreListAction(session.permissions, "cost-edit")) return NextResponse.json({ message: "暂无门店成本编辑权限" }, { status: 403 });
 
   const parsed = storeCostSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0].message }, { status: 400 });

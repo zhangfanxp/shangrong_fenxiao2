@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { requireApiSession } from "@/lib/auth";
 import { generateStoreTaskInstances, shanghaiDateKey } from "@/lib/store-h5-tasks";
 import { writeOperationLog } from "@/lib/operation-log";
+import { canTaskSettingsAction } from "@/lib/task-settings-permissions";
 
 const bodySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   const session = secretAuthorized ? null : await requireApiSession();
   if (!secretAuthorized) {
     if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-    if (!sessionHasPermission(session, "tasks:settings:view")) return NextResponse.json({ message: "暂无任务生成权限" }, { status: 403 });
+    if (!canTaskSettingsAction(session.permissions, "update")) return NextResponse.json({ message: "暂无任务更新权限" }, { status: 403 });
   }
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ message: "更新任务参数不正确，请重新选择任务后再试" }, { status: 400 });

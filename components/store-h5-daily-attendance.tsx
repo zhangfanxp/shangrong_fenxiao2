@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeftOutlined, CalendarOutlined, CheckCircleFilled, ClockCircleOutlined, TeamOutlined } from "@ant-design/icons";
-import { Alert, Button, Checkbox, Empty, InputNumber, Modal, Radio, Skeleton, Tag } from "antd";
+import { Alert, Button, Checkbox, Empty, Input, InputNumber, Modal, Radio, Skeleton, Tag } from "antd";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -16,7 +16,18 @@ type Employee = {
   overtime: boolean;
   overtimeHours: number | null;
 };
-type Submission = { recordNo: string; createdByName: string; createdAt: string; partTimeHeadcount?: number | null; partTimeHours?: number | null; partTimeLaborCost?: number | null; partTimeActualLaborCost?: number | null };
+type Submission = {
+  recordNo: string;
+  createdByName: string;
+  createdAt: string;
+  updatedByName?: string | null;
+  updatedAt?: string | null;
+  revision: number;
+  partTimeHeadcount?: number | null;
+  partTimeHours?: number | null;
+  partTimeLaborCost?: number | null;
+  partTimeActualLaborCost?: number | null;
+};
 type AttendanceData = {
   attendanceDate: string;
   attendanceDateLabel: string;
@@ -31,6 +42,8 @@ type AttendanceData = {
     deadlineLabel: string;
     configured: boolean;
   };
+  allowPostSubmitEdit: boolean;
+  canEdit: boolean;
   correctionRequired: boolean;
   missingEmployeeCount: number;
   submission: Submission | null;
@@ -67,6 +80,8 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [modificationReason, setModificationReason] = useState("");
+  const [lastSubmissionWasUpdate, setLastSubmissionWasUpdate] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
@@ -83,6 +98,7 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
       setPartTimeHeadcount(next.submission?.partTimeHeadcount ?? null);
       setPartTimeHours(next.submission?.partTimeHours ?? null);
       setPartTimeLaborCost(next.partTimeLaborCost);
+      setModificationReason("");
       setNow(Date.now());
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "每日考勤加载失败，请稍后重试");
@@ -96,7 +112,10 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
   }, []);
 
   const submitted = Boolean(data?.submission) && !data?.correctionRequired;
-  const withinWindow = data !== null && !submitted && now >= new Date(data.availability.opensAt).getTime() && now <= new Date(data.availability.deadlineAt).getTime();
+  const beforeDeadline = data !== null && now <= new Date(data.availability.deadlineAt).getTime();
+  const firstSubmissionWindow = data !== null && !data.submission && now >= new Date(data.availability.opensAt).getTime() && beforeDeadline;
+  const editableExisting = data !== null && Boolean(data.submission) && data.canEdit && beforeDeadline;
+  const withinWindow = firstSubmissionWindow || editableExisting;
   const allEmployeesComplete = useMemo(() => !data ? false : data.employees.every(employee => {
     const answer = answers[employee.id];
     if (!answer?.attendanceType) return false;
@@ -119,6 +138,11 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
 
   const submit = async () => {
     if (!data || !canSubmit) return;
+    if (data.submission && !modificationReason.trim()) {
+      setSubmitError("重新提交考勤前，请填写修改说明");
+      return;
+    }
+    const isUpdate = Boolean(data.submission);
     setSubmitting(true); setSubmitError("");
     try {
       const response = await fetch("/api/store-h5/daily-attendance", {
@@ -139,12 +163,17 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
           partTimeHeadcount,
           partTimeHours,
           partTimeLaborCost,
+          revision: data.submission?.revision,
+          modificationReason: data.submission ? modificationReason.trim() : undefined,
         }),
       });
       const payload = await response.json().catch(() => null);
       if (response.status === 401) { router.replace("/store_h5/login"); return; }
+      if (!response.ok && payload?.code === "VERSION_CONFLICT") await load();
       if (!response.ok) throw new Error(payload?.message || "每日考勤提交失败，请稍后重试");
-      setData(current => current ? { ...current, availability: { ...current.availability, status: "SUBMITTED" }, correctionRequired: false, missingEmployeeCount: 0, submission: payload as Submission } : current);
+      setData(current => current ? { ...current, allowPostSubmitEdit: payload.allowPostSubmitEdit, canEdit: payload.canEdit, availability: { ...current.availability, status: "SUBMITTED" }, correctionRequired: false, missingEmployeeCount: 0, submission: payload as Submission } : current);
+      setModificationReason("");
+      setLastSubmissionWasUpdate(isUpdate);
       setConfirmOpen(false); setSuccessOpen(true);
     } catch (error) {
       setConfirmOpen(false);
@@ -157,8 +186,10 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
 
   const availabilityMessage = data.correctionRequired
     ? `原考勤记录遗漏${data.missingEmployeeCount}名员工，请补全后提交补正`
+    : submitted && editableExisting
+      ? `本次考勤已提交，仍可在${deadlineText(data.availability.deadlineAt)}前修改并重新提交`
     : submitted
-    ? `本次考勤已由${data.submission!.createdByName}于${data.submission!.createdAt}提交`
+    ? `本次考勤已由${data.submission!.createdByName}于${data.submission!.createdAt}提交${data.submission!.updatedAt ? `，最后由${data.submission!.updatedByName}于${data.submission!.updatedAt}修改` : ""}`
     : !withinWindow && now < new Date(data.availability.opensAt).getTime()
       ? `尚未到考勤打卡时间，请在${deadlineText(data.availability.opensAt)}后填写`
       : !withinWindow
@@ -169,7 +200,7 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
     <header className="store-h5-subheader"><Button type="text" aria-label="返回首页" icon={<ArrowLeftOutlined />} onClick={() => router.push("/store_h5")} /><div><strong>每日考勤</strong><small>{data.storeName}</small></div><span /></header>
     <section className="store-h5-attendance-summary">
       <div><span><CalendarOutlined /></span><div><small>考勤日期</small><h1>{data.attendanceDateLabel}</h1></div></div>
-      <Tag color={submitted ? "success" : withinWindow ? "processing" : "default"}>{submitted ? "已提交" : withinWindow ? "填写中" : now < new Date(data.availability.opensAt).getTime() ? "未开放" : "已截止"}</Tag>
+      <Tag color={submitted ? editableExisting ? "processing" : "success" : withinWindow ? "processing" : "default"}>{submitted ? editableExisting ? "已提交·可修改" : "已提交" : withinWindow ? "填写中" : now < new Date(data.availability.opensAt).getTime() ? "未开放" : "已截止"}</Tag>
       <p><ClockCircleOutlined /> {availabilityMessage}</p>
       <small>考勤时段：{data.availability.opensLabel} 至 {data.availability.deadlineLabel}{!data.availability.configured && "（默认）"}</small>
     </section>
@@ -178,7 +209,7 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
       <div className="store-h5-attendance-heading"><div><TeamOutlined /><strong>员工考勤</strong></div><span>{data.employees.length} 人</span></div>
       {!data.employees.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前门店暂无在职员工" /> : data.employees.map((employee, index) => {
         const answer = answers[employee.id];
-        const disabled = !hasSubmitPermission || !withinWindow || submitted;
+        const disabled = !hasSubmitPermission || !withinWindow;
         return <article className="store-h5-attendance-employee" key={employee.id}>
           <header><span>{index + 1}</span><div><strong>{employee.name}</strong><small>{employee.positionLevel} · {employee.recordNo}</small></div></header>
           <Radio.Group className="store-h5-attendance-status" value={answer?.attendanceType} disabled={disabled} onChange={event => changeAnswer(employee.id, { attendanceType: event.target.value, leaveHours: event.target.value === "LEAVE_HOURS" ? answer?.leaveHours ?? null : null })}>
@@ -191,13 +222,16 @@ export function StoreH5DailyAttendance({ canSubmit: hasSubmitPermission }: { can
     </section>
     <section className="store-h5-attendance-section store-h5-attendance-part-time">
       <div className="store-h5-attendance-heading"><div><TeamOutlined /><strong>兼职用工</strong></div><span>选填</span></div>
-      <label><span>今日兼职人数</span><InputNumber value={partTimeHeadcount} disabled={!hasSubmitPermission || !withinWindow || submitted} min={0} max={9999} precision={0} inputMode="numeric" placeholder="请输入正整数" addonAfter="人" onChange={value => { setSubmitError(""); setPartTimeHeadcount(value); if (!value) setPartTimeHours(null); }} /></label>
-      <label><span>今日兼职工时{Boolean(partTimeHeadcount) && <b>*</b>}</span><InputNumber value={partTimeHours} disabled={!hasSubmitPermission || !withinWindow || submitted || !partTimeHeadcount} min={0.1} max={9999.9} precision={1} step={0.1} inputMode="decimal" placeholder={partTimeHeadcount ? "必填，最多一位小数" : "填写兼职人数后录入"} addonAfter="小时" onChange={value => { setSubmitError(""); setPartTimeHours(value); }} /></label>
-      <label><span>兼职用工成本{Boolean(partTimeHeadcount) && <b>*</b>}</span><InputNumber value={partTimeLaborCost} disabled={!hasSubmitPermission || !withinWindow || submitted} min={0} max={9999999999.99} precision={2} step={0.01} inputMode="decimal" placeholder="读取门店档案，可修改" addonAfter="元/小时" onChange={value => { setSubmitError(""); setPartTimeLaborCost(value); }} /></label>
+      <label><span>今日兼职人数</span><InputNumber value={partTimeHeadcount} disabled={!hasSubmitPermission || !withinWindow} min={0} max={9999} precision={0} inputMode="numeric" placeholder="请输入正整数" addonAfter="人" onChange={value => { setSubmitError(""); setPartTimeHeadcount(value); if (!value) setPartTimeHours(null); }} /></label>
+      <label><span>今日兼职工时{Boolean(partTimeHeadcount) && <b>*</b>}</span><InputNumber value={partTimeHours} disabled={!hasSubmitPermission || !withinWindow || !partTimeHeadcount} min={0.1} max={9999.9} precision={1} step={0.1} inputMode="decimal" placeholder={partTimeHeadcount ? "必填，最多一位小数" : "填写兼职人数后录入"} addonAfter="小时" onChange={value => { setSubmitError(""); setPartTimeHours(value); }} /></label>
+      <label><span>兼职用工成本{Boolean(partTimeHeadcount) && <b>*</b>}</span><InputNumber value={partTimeLaborCost} disabled={!hasSubmitPermission || !withinWindow} min={0} max={9999999999.99} precision={2} step={0.01} inputMode="decimal" placeholder="读取门店档案，可修改" addonAfter="元/小时" onChange={value => { setSubmitError(""); setPartTimeLaborCost(value); }} /></label>
       <label><span>今日兼职用工成本</span><InputNumber value={partTimeActualLaborCost} readOnly controls={false} precision={2} placeholder="根据工时和单价自动计算" addonAfter="元" /></label>
     </section>
-    <div className="store-h5-submit-space" /><footer className="store-h5-submit-bar"><Button block type="primary" size="large" disabled={!canSubmit} loading={submitting} onClick={() => setConfirmOpen(true)}>{!hasSubmitPermission ? "仅可查看" : submitted ? "今日考勤已提交" : submitting ? "提交中..." : data.correctionRequired ? "提交补正" : "提交"}</Button></footer>
-    <Modal title={data.correctionRequired ? "确认提交考勤补正？" : "确认提交今日考勤？"} open={confirmOpen} centered maskClosable={false} closable={!submitting} okText={data.correctionRequired ? "确认补正" : "确认提交"} cancelText="取消" confirmLoading={submitting} onCancel={() => !submitting && setConfirmOpen(false)} onOk={() => void submit()}><p>{data.correctionRequired ? "将保留原有记录编号并补全遗漏员工，请确认考勤信息无误。" : "提交后不能重复填报，请确认所有员工考勤、兼职工时及兼职用工成本填写无误。"}</p></Modal>
-    <Modal title="提交成功" open={successOpen} centered closable={false} maskClosable={false} footer={<Button block type="primary" onClick={() => { setSuccessOpen(false); router.push("/store_h5"); router.refresh(); }}>我知道了</Button>}><div className="store-h5-success"><CheckCircleFilled /><strong>今日考勤已成功上报</strong><span>记录编号：{data.submission?.recordNo}</span><small>创建人：{data.submission?.createdByName}<br />创建时间：{data.submission?.createdAt}</small></div></Modal>
+    <div className="store-h5-submit-space" /><footer className="store-h5-submit-bar"><Button block type="primary" size="large" disabled={!canSubmit} loading={submitting} onClick={() => setConfirmOpen(true)}>{!hasSubmitPermission ? "仅可查看" : submitting ? "提交中..." : submitted && editableExisting ? "修改后重新提交" : submitted ? "今日考勤已提交" : data.correctionRequired ? "提交补正" : "提交"}</Button></footer>
+    <Modal title={data.correctionRequired ? "确认提交考勤补正？" : data.submission ? "确认重新提交考勤？" : "确认提交今日考勤？"} open={confirmOpen} centered maskClosable={false} closable={!submitting} okText={data.correctionRequired ? "确认补正" : data.submission ? "确认重新提交" : "确认提交"} cancelText="取消" confirmLoading={submitting} okButtonProps={{ disabled: Boolean(data.submission) && !modificationReason.trim() }} onCancel={() => !submitting && setConfirmOpen(false)} onOk={() => void submit()}>
+      <p>{data.correctionRequired ? "将保留原有记录编号并补全遗漏员工，请确认考勤信息无误。" : data.submission ? "系统将更新原考勤记录并保留本次修改版本，请确认信息无误。" : data.allowPostSubmitEdit ? `提交后仍可在${deadlineText(data.availability.deadlineAt)}前修改并重新提交。` : "提交后不能重复填报，请确认所有员工考勤、兼职工时及兼职用工成本填写无误。"}</p>
+      {data.submission && <label className="store-h5-attendance-modification-reason"><span>修改说明 <b>*</b></span><Input.TextArea value={modificationReason} maxLength={300} showCount autoSize={{ minRows: 2, maxRows: 4 }} placeholder="请简要说明本次修改原因，例如：员工晚间临时请假" onChange={event => { setSubmitError(""); setModificationReason(event.target.value); }} /></label>}
+    </Modal>
+    <Modal title={lastSubmissionWasUpdate ? "修改成功" : "提交成功"} open={successOpen} centered closable={false} maskClosable={false} footer={<Button block type="primary" onClick={() => { setSuccessOpen(false); router.push("/store_h5"); router.refresh(); }}>我知道了</Button>}><div className="store-h5-success"><CheckCircleFilled /><strong>{lastSubmissionWasUpdate ? "今日考勤已修改并重新提交" : "今日考勤已成功上报"}</strong><span>记录编号：{data.submission?.recordNo}</span>{lastSubmissionWasUpdate ? <small>修改人：{data.submission?.updatedByName}<br />修改时间：{data.submission?.updatedAt}</small> : <small>创建人：{data.submission?.createdByName}<br />创建时间：{data.submission?.createdAt}</small>}</div></Modal>
   </main>;
 }

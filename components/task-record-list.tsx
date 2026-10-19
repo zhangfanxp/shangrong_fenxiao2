@@ -13,7 +13,7 @@ import { optimizeTaskVideo } from "@/lib/client/task-video-compression";
 import { taskAttachmentMaxBytes, taskAttachmentMaxMb } from "@/lib/task-attachment-rules";
 
 type TaskStatus = "COMPLETED" | "PENDING" | "OVERDUE";
-type TaskType = "DAILY" | "WEEKLY" | "MONTHLY" | "TEMPORARY";
+type TaskType = "DAILY" | "WEEKLY" | "MONTHLY" | "TEMPORARY" | "CALENDAR";
 type TaskRecordRow = {
   id: string;
   recordNo: string;
@@ -27,9 +27,11 @@ type TaskRecordRow = {
   submittedAt: string;
   status: TaskStatus;
   hasAiAnalysis: boolean;
+  isRectification?: boolean;
 };
-type Filters = { status: "" | TaskStatus; taskName: string; taskType: "" | TaskType; executorKeyword: string; submitStartDate: string; submitEndDate: string };
-type FormValues = { status?: TaskStatus; taskName?: string; taskType?: TaskType; executorKeyword?: string; submitStartDate?: Dayjs | null; submitEndDate?: Dayjs | null };
+type TaskOption = { id: string; title: string; status: "ENABLED" | "DISABLED" };
+type Filters = { status: "" | TaskStatus; taskId: string; taskType: "" | TaskType; executorKeyword: string; submitStartDate: string; submitEndDate: string };
+type FormValues = { status?: TaskStatus; taskId?: string; taskType?: TaskType; executorKeyword?: string; submitStartDate?: Dayjs | null; submitEndDate?: Dayjs | null };
 type TaskDetailAttachment = { id: string; name: string; mimeType: string | null; objectKey: string; url: string | null };
 type TaskDetailItem = {
   id: string;
@@ -91,12 +93,13 @@ type AiAnalysisDialog =
   | { phase: "SUCCESS"; summary: AiAnalysisSummary }
   | { phase: "WARNING" | "ERROR"; message: string };
 
-const emptyFilters: Filters = { status: "", taskName: "", taskType: "", executorKeyword: "", submitStartDate: "", submitEndDate: "" };
+const emptyFilters: Filters = { status: "", taskId: "", taskType: "", executorKeyword: "", submitStartDate: "", submitEndDate: "" };
 const taskTypeOptions = [
   { value: "DAILY", label: "日任务" },
   { value: "WEEKLY", label: "周任务" },
   { value: "MONTHLY", label: "月任务" },
   { value: "TEMPORARY", label: "临时任务" },
+  { value: "CALENDAR", label: "日历任务" },
 ] satisfies { value: TaskType; label: string }[];
 const taskStatusMeta: Record<TaskStatus, { label: string; color: "success" | "processing" | "error" }> = {
   COMPLETED: { label: "已完成", color: "success" },
@@ -151,6 +154,9 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
   const canOpenAnalysisList = hasAll || permissions.includes("intelligent-analysis:query") || permissions.includes("intelligent-analysis:view");
   const canDelete = hasAll || permissions.includes("tasks:records:delete");
   const [form] = Form.useForm<FormValues>();
+  const [taskOptions, setTaskOptions] = useState<TaskOption[]>([]);
+  const [taskOptionsLoading, setTaskOptionsLoading] = useState(true);
+  const [taskOptionsError, setTaskOptionsError] = useState(false);
   const [rows, setRows] = useState<TaskRecordRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -175,7 +181,22 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
   const [editSaving, setEditSaving] = useState(false);
   const [deleteRow, setDeleteRow] = useState<TaskRecordRow>();
   const [deleting, setDeleting] = useState(false);
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
+  const [batchDeleting, setBatchDeleting] = useState(false);
   const listRequestSequence = useRef(0);
+
+  const loadTaskOptions = useCallback(async () => {
+    setTaskOptionsLoading(true); setTaskOptionsError(false);
+    try {
+      const response = await fetch("/api/task-records/task-options", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "任务名称加载失败，请稍后重试");
+      setTaskOptions(data.tasks || []);
+    } catch (reason) {
+      setTaskOptions([]); setTaskOptionsError(true);
+      message.error(reason instanceof Error ? reason.message : "任务名称加载失败，请稍后重试");
+    } finally { setTaskOptionsLoading(false); }
+  }, []);
 
   const load = useCallback(async (nextPage = page, nextPageSize = pageSize, nextFilters = filters, background = false) => {
     const requestSequence = ++listRequestSequence.current;
@@ -199,7 +220,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     }
   }, [filters, page, pageSize]);
 
-  useEffect(() => { void load(1, 20, emptyFilters); }, []);
+  useEffect(() => { void load(1, 20, emptyFilters); void loadTaskOptions(); }, []);
   useEffect(() => {
     const refreshWhenVisible = () => { if (document.visibilityState === "visible") void load(page, pageSize, filters, true); };
     const timer = window.setInterval(refreshWhenVisible, 30_000);
@@ -212,7 +233,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     const values = form.getFieldsValue();
     const next: Filters = {
       status: values.status || "",
-      taskName: values.taskName?.trim() || "",
+      taskId: values.taskId || "",
       taskType: values.taskType || "",
       executorKeyword: values.executorKeyword?.trim() || "",
       submitStartDate: values.submitStartDate?.format("YYYY-MM-DD") || "",
@@ -409,6 +430,32 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     } finally { setDeleting(false); }
   };
 
+  const performBatchDelete = async () => {
+    const taskInstanceIds = selectedRowKeys.map(String);
+    if (!taskInstanceIds.length) return;
+    setBatchDeleting(true);
+    try {
+      const response = await fetch("/api/task-records/batch-delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskInstanceIds }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "任务记录批量删除失败，请稍后重试");
+      message.success(data.message || `已成功删除${taskInstanceIds.length}条任务记录`);
+      setBatchDeleteOpen(false);
+      setSelectedRowKeys([]);
+      setSelectedStatuses({});
+      const remainingTotal = Math.max(0, total - Number(data.deletedCount || taskInstanceIds.length));
+      const maxPage = Math.max(1, Math.ceil(remainingTotal / pageSize));
+      const nextPage = Math.min(page, maxPage);
+      setPage(nextPage);
+      void load(nextPage, pageSize, filters);
+    } catch (reason) {
+      message.error(reason instanceof Error ? reason.message : "任务记录批量删除失败，请稍后重试");
+    } finally { setBatchDeleting(false); }
+  };
+
   const columns: ColumnsType<TaskRecordRow> = [
     { title: "记录编号", dataIndex: "recordNo", width: 150, fixed: "left" },
     { title: "任务名称", dataIndex: "taskName", width: 220, ellipsis: true },
@@ -419,7 +466,7 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     { title: "任务创建日期", dataIndex: "createdAt", width: 170 },
     { title: "任务提交日期", dataIndex: "submittedAt", width: 170 },
     { title: "任务状态", dataIndex: "status", width: 100, render: (value: TaskStatus) => <Tag color={taskStatusMeta[value].color}>{taskStatusMeta[value].label}</Tag> },
-    { title: "操作", key: "actions", width: 210, fixed: "right", render: (_, row) => <Space size={4} className="table-actions">{canView && row.status === "COMPLETED" && <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => void openDetail(row.id)}>查看</Button>}{canEdit && row.status === "COMPLETED" && !row.hasAiAnalysis && <Button type="link" size="small" icon={<EditOutlined />} onClick={() => void openEditor(row.id)}>编辑</Button>}{canDelete && <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => setDeleteRow(row)}>删除</Button>}</Space> },
+    { title: "操作", key: "actions", width: 210, fixed: "right", render: (_, row) => <Space size={4} className="table-actions">{canView && row.status === "COMPLETED" && <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => void openDetail(row.id)}>查看</Button>}{canEdit && !row.isRectification && row.status === "COMPLETED" && !row.hasAiAnalysis && <Button type="link" size="small" icon={<EditOutlined />} onClick={() => void openEditor(row.id)}>编辑</Button>}{canDelete && !row.isRectification && <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => setDeleteRow(row)}>删除</Button>}</Space> },
   ];
   const rowSelection: TableRowSelection<TaskRecordRow> = {
     selectedRowKeys,
@@ -443,22 +490,24 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
       <Form form={form} layout="vertical">
         <div className="task-record-filter-grid">
           <Form.Item label="任务状态" name="status"><Select allowClear placeholder="全部" options={[{ value: "PENDING", label: "待完成" }, { value: "COMPLETED", label: "已完成" }, { value: "OVERDUE", label: "已逾期" }]} /></Form.Item>
-          <Form.Item label="任务名称" name="taskName"><Input allowClear placeholder="请输入任务名称" onPressEnter={applyFilters} /></Form.Item>
+          <Form.Item label="任务名称" name="taskId"><Select allowClear showSearch optionFilterProp="label" loading={taskOptionsLoading} placeholder="全部" options={taskOptions.map(task => ({ value: task.id, label: task.status === "DISABLED" ? `${task.title}（已禁用）` : task.title }))} /></Form.Item>
           <Form.Item label="任务类型" name="taskType"><Select allowClear placeholder="全部" options={taskTypeOptions} /></Form.Item>
           <Form.Item label="任务执行人" name="executorKeyword"><Input allowClear placeholder="请输入执行人姓名" onPressEnter={applyFilters} /></Form.Item>
           <Form.Item label="提交开始日期" name="submitStartDate"><DatePicker format="YYYY-MM-DD" placeholder="开始日期" /></Form.Item>
           <Form.Item label="提交截止日期" name="submitEndDate"><DatePicker format="YYYY-MM-DD" placeholder="截止日期" /></Form.Item>
           <div className="task-record-filter-actions"><Space><Button onClick={resetFilters}>重置</Button><Button type="primary" icon={<SearchOutlined />} onClick={applyFilters}>筛选</Button></Space></div>
         </div>
+        {taskOptionsError && <Alert style={{ marginBottom: 16 }} type="error" showIcon message="任务名称加载失败，请稍后重试" action={<Button size="small" onClick={() => void loadTaskOptions()}>重新加载</Button>} />}
       </Form>
     </Card>
     <Card className="task-record-list-card">
       <div className="task-record-toolbar">
         <span>已选择 <strong>{selectedRowKeys.length}</strong> 条</span>
         <Space>
-          <Button icon={<ReloadOutlined />} disabled={exporting || analyzing} onClick={() => void load()}>刷新</Button>
-          {canAnalyze && <Button type="primary" icon={<RobotOutlined />} loading={analyzing} disabled={exporting} onClick={() => void runAiAnalysis()}>{analyzing ? "分析中..." : "智能分析"}</Button>}
-          {canExport && <Button icon={<DownloadOutlined />} loading={exporting} disabled={analyzing} onClick={() => void exportRows()}>批量导出</Button>}
+          <Button icon={<ReloadOutlined />} disabled={exporting || analyzing || batchDeleting} onClick={() => void load()}>刷新</Button>
+          {canAnalyze && <Button type="primary" icon={<RobotOutlined />} loading={analyzing} disabled={exporting || batchDeleting} onClick={() => void runAiAnalysis()}>{analyzing ? "分析中..." : "智能分析"}</Button>}
+          {canExport && <Button icon={<DownloadOutlined />} loading={exporting} disabled={analyzing || batchDeleting} onClick={() => void exportRows()}>批量导出</Button>}
+          {canDelete && <Button danger icon={<DeleteOutlined />} disabled={!selectedRowKeys.length || exporting || analyzing || batchDeleting} onClick={() => setBatchDeleteOpen(true)}>批量删除</Button>}
         </Space>
       </div>
       {loadError ? <Alert type="error" showIcon message="任务记录加载失败，请稍后重试" action={<Button size="small" onClick={() => void load()}>重新加载</Button>} /> : <Table<TaskRecordRow>
@@ -567,6 +616,11 @@ export function TaskRecordList({ permissions }: { permissions: string[] }) {
     <Modal open={!!deleteRow} title={<Space><WarningOutlined style={{ color: "#ff4d4f" }} />温馨提示</Space>} onCancel={() => !deleting && setDeleteRow(undefined)} closable={!deleting} maskClosable={!deleting} footer={<Space><Button disabled={deleting} onClick={() => setDeleteRow(undefined)}>我再想想</Button><Button danger type="primary" loading={deleting} onClick={() => void performDelete()}>{deleting ? "删除中..." : "我知道了，继续删除"}</Button></Space>}>
       <Alert type="error" showIcon message="删除操作不可逆" description={deleteRow ? `${deleteRow.taskName} · ${deleteRow.executor} · ${taskStatusMeta[deleteRow.status].label}` : undefined} />
       <div className="task-record-delete-copy"><p>一旦删除成功，当前任务记录及已经提交的任务数据将无法恢复。</p>{deleteRow?.hasAiAnalysis && <p>当前任务记录已生成智能分析结果，删除任务记录后相关智能分析结果也将同步删除。</p>}<p>删除后，当前用户的此项任务将恢复为“未生成”状态，需要重新生成任务后才能再次执行。</p><p>请谨慎操作。</p></div>
+    </Modal>
+
+    <Modal open={batchDeleteOpen} title={<Space><WarningOutlined style={{ color: "#ff4d4f" }} />温馨提示</Space>} onCancel={() => !batchDeleting && setBatchDeleteOpen(false)} closable={!batchDeleting} maskClosable={!batchDeleting} keyboard={!batchDeleting} footer={<Space><Button disabled={batchDeleting} onClick={() => setBatchDeleteOpen(false)}>我再想想</Button><Button danger type="primary" loading={batchDeleting} onClick={() => void performBatchDelete()}>{batchDeleting ? "删除中..." : "我知道了，继续删除"}</Button></Space>}>
+      <Alert type="error" showIcon message="批量删除操作不可逆" description={`已选择 ${selectedRowKeys.length} 条任务记录`} />
+      <div className="task-record-delete-copy"><p>删除成功后，所选任务记录、提交明细、附件数据库记录及相关智能分析结果都将从数据库中永久删除，无法恢复。</p><p>若所选记录中包含须保留历史的巡检整改任务，本次将不会删除任何记录，请取消勾选后重试。</p><p>请确认所选范围无误后再继续。</p></div>
     </Modal>
   </>;
 }

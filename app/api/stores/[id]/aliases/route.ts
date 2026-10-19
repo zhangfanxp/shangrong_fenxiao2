@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
+import { canStoreListAction } from "@/lib/store-permissions";
 
 const aliasValue = (label: string) => z.string().trim().refine(
   value => Array.from(value).length <= 50,
@@ -30,7 +31,7 @@ const storeAliasSelect = {
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:list:view")) return NextResponse.json({ message: "暂无门店列表权限" }, { status: 403 });
+  if (!canStoreListAction(session.permissions, "view") && !sessionHasPermission(session, "stores:aliases:edit")) return NextResponse.json({ message: "暂无门店别名查看权限" }, { status: 403 });
 
   const store = await db.store.findUnique({ where: { id: (await params).id }, select: storeAliasSelect });
   if (!store) return NextResponse.json({ message: "门店不存在或已删除" }, { status: 404 });

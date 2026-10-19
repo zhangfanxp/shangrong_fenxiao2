@@ -1,3 +1,4 @@
+import { availableMobileTaskWhere } from "@/lib/mobile-task-availability";
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -20,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     const grant = await verifyStoreH5UploadToken(parsed.data.uploadToken).catch(() => null);
     if (!grant || grant.userId !== session.userId || grant.taskRecordId !== taskInstanceId) return NextResponse.json({ message: "上传凭证无效或已过期，请重新上传" }, { status: 400 });
     const record = await db.taskRecord.findFirst({
-      where: { id: taskInstanceId, assignedUserId: session.userId, dueDate: { gte: new Date() }, status: "PENDING" },
+      where: { id: taskInstanceId, assignedUserId: session.userId, ...availableMobileTaskWhere() },
       include: { task: { select: { r2StorageId: true } } },
     });
     if (!record) return NextResponse.json({ message: "任务不存在、已完成或不属于当前用户" }, { status: 404 });
@@ -38,6 +39,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       await tx.$queryRaw(Prisma.sql`SELECT \`id\` FROM \`TaskRecord\` WHERE \`id\` = ${record.id} FOR UPDATE`);
       const existing = await tx.taskAttachment.findUnique({ where: { objectKey: grant.objectKey } });
       if (existing) return existing;
+      const writable = await tx.taskRecord.findFirst({ where: { id: record.id, assignedUserId: session.userId, ...availableMobileTaskWhere() }, select: { id: true } });
+      if (!writable) return null;
       const uploadedCount = await tx.taskAttachment.count({ where: { taskRecordId: record.id, itemIndex: grant.itemIndex, uploaderUserId: session.userId, consumedAt: null } });
       if (uploadedCount >= item.weight) return null;
       return tx.taskAttachment.create({ data: {
@@ -48,7 +51,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     });
     if (!attachment) {
       await deleteTaskDraftFiles([{ r2StorageId: grant.r2StorageId, objectKey: grant.objectKey }]).catch(() => undefined);
-      return NextResponse.json({ message: `“${item.name}”最多上传${item.weight}个附件` }, { status: 409 });
+      return NextResponse.json({ message: `任务已提交、状态发生变化或“${item.name}”已达到${item.weight}个附件上限，请刷新后重试` }, { status: 409 });
     }
     if (!attachment || attachment.taskRecordId !== record.id || attachment.uploaderUserId !== session.userId || attachment.itemIndex !== grant.itemIndex) return NextResponse.json({ message: "附件登记冲突，请重新上传" }, { status: 409 });
     return NextResponse.json({ id: attachment.id, name: attachment.originalName, size: attachment.size, mimeType: attachment.mimeType, status: "success" });

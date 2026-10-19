@@ -12,8 +12,11 @@
     "name": "R2-test"
   },
   "photoAttachmentLimit": 3,
+  "nonFullScoreRequiresPhoto": true,
+  "failRequiresProblemDescription": true,
+  "partialRequiresProblemDescription": false,
   "detailFormat": "AUDIT",
-  "configVersion": 5,
+  "configVersion": 6,
   "totalScore": 100,
   "statistics": {
     "sectionCount": 6,

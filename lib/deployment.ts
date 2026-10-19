@@ -43,10 +43,10 @@ export const setupInputSchema = z.object({
     adminPassword: z.string().max(256).optional(),
   }),
   administrator: z.object({
-    username: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_.-]{2,29}$/, "管理员账号须为3-30位并以字母开头"),
+    username: z.string().trim().refine(value => value === "admin", "新部署的超级管理员账号固定为admin"),
     realName: z.string().trim().min(1, "请输入管理员姓名").max(30),
     phone: z.string().trim().max(30).optional(),
-    password: z.string().min(10, "管理员密码至少需要10位").max(128).refine(value => /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value), "管理员密码须同时包含大小写字母、数字和特殊字符"),
+    password: z.string().min(8, "管理员密码至少需要8位").max(128),
   }),
 });
 

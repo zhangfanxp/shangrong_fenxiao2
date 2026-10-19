@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getLeadH5Session, leadH5ReviewPermission } from "@/lib/lead-h5-auth";
 import { db } from "@/lib/db";
+import { createInspectionRectifications, RectificationError } from "@/lib/inspection-rectifications";
 import { writeOperationLog } from "@/lib/operation-log";
 import {
   BACK_KITCHEN_REVIEW_TYPE, brandMatches, FRONT_HALL_REVIEW_TYPE, getReviewDefinition,
@@ -19,6 +20,7 @@ const bodySchema = z.object({
     itemId: z.string().min(1),
     result: z.enum(["PASS", "PARTIAL", "FAIL"]),
     score: z.number().nullable().optional(),
+    problemDescription: z.string().trim().refine(value => Array.from(value).length <= 100, "问题描述不能超过100个字符").optional().default(""),
     photoIds: z.array(z.string().min(1)).max(20).default([]),
   })),
 });
@@ -64,14 +66,29 @@ export async function POST(request: Request) {
     if (candidates.filter(candidate => brandMatches(candidate.applicableBrands, store.brand)).length !== 1) throw new LeadH5ReviewError("当前评分配置存在异常，请联系系统管理员。", 409);
     const config = await loadReviewConfig(assessment.configFileName);
     if (config.configVersion !== assessment.configVersion) throw new LeadH5ReviewError("评分表配置版本异常，请联系系统管理员。", 409);
-    const scored = scoreReview(config, input.items);
+    const configItemMap = new Map(config.sections.flatMap(section => section.children.flatMap(subsection => subsection.items)).map(item => [item.id, item]));
+    const scoringAnswers = input.items.map(answer => {
+      const configItem = configItemMap.get(answer.itemId);
+      const requiresProblemDescription = (answer.result === "FAIL" && config.failRequiresProblemDescription)
+        || (answer.result === "PARTIAL" && config.partialRequiresProblemDescription);
+      const problemDescription = answer.problemDescription.trim();
+      if (requiresProblemDescription && !problemDescription) {
+        throw new LeadH5ReviewError(`“${configItem?.description || answer.itemId}”的问题描述为必填项`);
+      }
+      return { ...answer, problemDescription: requiresProblemDescription ? problemDescription : "" };
+    });
+    const scored = scoreReview(config, scoringAnswers);
     const allPhotoIds = input.items.flatMap(item => item.photoIds);
     if (new Set(allPhotoIds).size !== allPhotoIds.length) throw new LeadH5ReviewError("照片数据存在重复，请刷新后重试");
-    const configItemMap = new Map(config.sections.flatMap(section => section.children.flatMap(subsection => subsection.items)).map(item => [item.id, item]));
+    const scoredItemMap = new Map(scored.items.map(item => [item.itemKey, item]));
     for (const answer of input.items) {
       const configItem = configItemMap.get(answer.itemId);
       if (answer.photoIds.length && !configItem?.supportsPhoto) throw new LeadH5ReviewError(`“${configItem?.description || answer.itemId}”不支持拍照`);
       if (answer.photoIds.length > config.photoAttachmentLimit) throw new LeadH5ReviewError(`“${configItem?.description || answer.itemId}”最多上传${config.photoAttachmentLimit}张照片`);
+      const scoredItem = scoredItemMap.get(answer.itemId);
+      if (config.nonFullScoreRequiresPhoto && configItem?.supportsPhoto && scoredItem && scoredItem.actualScore < scoredItem.maxScore && answer.photoIds.length < 1) {
+        throw new LeadH5ReviewError(`“${configItem.description}”未得满分，必须至少上传一张照片`);
+      }
     }
     const photoRows = allPhotoIds.length ? await db.leadH5ReviewPhoto.findMany({ where: { id: { in: allPhotoIds }, consumedAt: null } }) : [];
     if (photoRows.length !== allPhotoIds.length) throw new LeadH5ReviewError("部分照片不存在或已被使用，请刷新后重试");
@@ -125,6 +142,7 @@ export async function POST(request: Request) {
         });
         if (result.count !== answer.photoIds.length) throw new LeadH5ReviewError("照片状态已变化，请刷新后重试", 409);
       }
+      await createInspectionRectifications(tx, created.recordNo, reviewItemRows);
       return created;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     await writeOperationLog({ userId: session.userId, username: session.username, client: "运营移动端", page: definition.title, action: "提交", result: "成功", detail: `记录编号：${review.recordNo}；评分月份：${input.scoreMonth}；门店：${store.name}；得分：${Number(review.actualScore)}`, request }).catch(() => undefined);
@@ -137,8 +155,8 @@ export async function POST(request: Request) {
     }, { status: 201 });
   } catch (error) {
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
-    const message = duplicate ? `该店铺当前月份已完成${definition.title}，请勿重复提交。` : error instanceof LeadH5ReviewError ? error.message : "评分提交失败，请检查网络后重试。";
-    const status = duplicate ? 409 : error instanceof LeadH5ReviewError ? error.status : 500;
+    const message = duplicate ? `该店铺当前月份已完成${definition.title}，请勿重复提交。` : (error instanceof LeadH5ReviewError || error instanceof RectificationError) ? error.message : "评分提交失败，请检查网络后重试。";
+    const status = duplicate ? 409 : (error instanceof LeadH5ReviewError || error instanceof RectificationError) ? error.status : 500;
     await writeOperationLog({ userId: session.userId, username: session.username, client: "运营移动端", page: definition.title, action: "提交", result: "失败", detail: message, request }).catch(() => undefined);
     return NextResponse.json({ message }, { status });
   }

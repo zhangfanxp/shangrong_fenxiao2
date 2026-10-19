@@ -13,6 +13,7 @@ export type AssessmentPreviewConfig = {
   configVersion: number;
   totalScore: number;
   photoAttachmentLimit?: number;
+  nonFullScoreRequiresPhoto?: boolean;
   photoStorage?: { id: string; name: string };
   sections: Section[];
 };
@@ -29,7 +30,7 @@ export function AssessmentPreviewModal({ open, loading, config, onClose }: { ope
   return <Modal title="考核表预览" open={open} width={1200} onCancel={onClose} okText="关闭" onOk={onClose} cancelButtonProps={{ style: { display: "none" } }} destroyOnHidden maskClosable={false} styles={{ body: { maxHeight: "72vh", overflowY: "auto" } }}>
     {loading ? <Skeleton active paragraph={{ rows: 10 }} /> : !config ? <Alert type="error" showIcon message="考核明细配置加载失败" /> : <>
       <div className="assessment-preview-summary">
-        <div><Typography.Title level={4} style={{ margin: 0 }}>{config.reviewName}</Typography.Title><Space style={{ marginTop: 8 }} wrap><Tag color="blue">{config.scoreModeLabel}</Tag><Tag>配置版本 v{config.configVersion}</Tag><Tag color="cyan">拍照项每项最多 {config.photoAttachmentLimit || 3} 张</Tag>{config.photoStorage?.name && <Tag color="purple">存储空间：{config.photoStorage.name}</Tag>}<span>总分：<b>{config.totalScore}</b></span></Space></div>
+        <div><Typography.Title level={4} style={{ margin: 0 }}>{config.reviewName}</Typography.Title><Space style={{ marginTop: 8 }} wrap><Tag color="blue">{config.scoreModeLabel}</Tag><Tag>配置版本 v{config.configVersion}</Tag><Tag color="cyan">拍照项每项最多 {config.photoAttachmentLimit || 3} 张</Tag>{config.nonFullScoreRequiresPhoto && <Tag color="volcano">非满分项必须拍照</Tag>}{config.photoStorage?.name && <Tag color="purple">存储空间：{config.photoStorage.name}</Tag>}<span>总分：<b>{config.totalScore}</b></span></Space></div>
         <div className="assessment-preview-score"><span>当前得分</span><strong>{currentScore}</strong><span>/ {config.totalScore}</span></div>
       </div>
       {config.sections.map(section => <Card key={section.name} size="small" title={section.name} className="assessment-preview-section">

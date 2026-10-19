@@ -1,0 +1,1 @@
+ALTER TABLE `Assessment` ADD COLUMN `nonFullScoreRequiresPhoto` BOOLEAN NOT NULL DEFAULT FALSE;

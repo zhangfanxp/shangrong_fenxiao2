@@ -1,13 +1,13 @@
 "use client";
 
 import { ArrowLeftOutlined, CameraOutlined, CheckCircleFilled, CheckOutlined, CloseOutlined, DeleteOutlined, MinusOutlined, ReloadOutlined, ShopOutlined, UserOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, InputNumber, message, Modal, Radio, Skeleton, Tag } from "antd";
+import { Alert, Button, Card, Input, InputNumber, message, Modal, Radio, Skeleton, Tag } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type Result = "PASS" | "PARTIAL" | "FAIL";
 type Item = { id: string; description: string; breachAmount?: string; maxScore: number; supportsPhoto?: boolean };
-type Config = { reviewName: string; detailFormat?: "AUDIT" | "CREDIT"; scoreMode: "BINARY" | "CUSTOM_SCORE"; configVersion: number; totalScore: number; photoAttachmentLimit: number; sections: { name: string; children: { name: string; items: Item[] }[] }[] };
+type Config = { reviewName: string; detailFormat?: "AUDIT" | "CREDIT"; scoreMode: "BINARY" | "CUSTOM_SCORE"; configVersion: number; totalScore: number; photoAttachmentLimit: number; nonFullScoreRequiresPhoto: boolean; failRequiresProblemDescription: boolean; partialRequiresProblemDescription: boolean; sections: { name: string; children: { name: string; items: Item[] }[] }[] };
 type ReviewPhoto = { id: string; itemId: string; name: string; size: number; mimeType: string; url?: string | null };
 type TemplateData = { store: { id: string; name: string; brandName: string }; reviewer: { realName: string }; assessment: { id: string; name: string; configVersion: number }; config: Config; draftPhotos?: ReviewPhoto[] };
 type ScoreState = Record<string, { result?: Result; score: number | null }>;
@@ -16,6 +16,7 @@ export function LeadH5ReviewForm({ reviewType, reviewTitle, canSubmit }: { revie
   const router = useRouter(); const search = useSearchParams();
   const scoreMonth = search.get("scoreMonth") || ""; const storeId = search.get("storeId") || "";
   const [data, setData] = useState<TemplateData>(); const [scores, setScores] = useState<ScoreState>({});
+  const [problemDescriptions, setProblemDescriptions] = useState<Record<string, string>>({});
   const [photos, setPhotos] = useState<Record<string, ReviewPhoto[]>>({}); const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true); const [error, setError] = useState<string>(); const [submitting, setSubmitting] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false); const [successOpen, setSuccessOpen] = useState(false);
@@ -101,6 +102,25 @@ export function LeadH5ReviewForm({ reviewType, reviewTitle, canSubmit }: { revie
         setValidationIssue(invalidPartial ? `“${item.description}”的部分合格得分须大于0且小于${item.maxScore}，最多1位小数。` : "还有未完成的评分项目，请完成后再提交。");
         return false;
       }
+      const requiresProblemDescription = (value.result === "FAIL" && data.config.failRequiresProblemDescription)
+        || (value.result === "PARTIAL" && data.config.partialRequiresProblemDescription);
+      const problemDescription = problemDescriptions[item.id]?.trim() || "";
+      if (requiresProblemDescription && !problemDescription) {
+        document.getElementById(`review-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setValidationIssue(`“${item.description}”的问题描述为必填项，请填写后再提交。`);
+        return false;
+      }
+      if (Array.from(problemDescription).length > 100) {
+        document.getElementById(`review-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setValidationIssue(`“${item.description}”的问题描述不能超过100个字符。`);
+        return false;
+      }
+      const isNonFull = typeof value?.score === "number" && value.score < item.maxScore;
+      if (data.config.nonFullScoreRequiresPhoto && item.supportsPhoto && isNonFull && !(photos[item.id] || []).length) {
+        document.getElementById(`review-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setValidationIssue(`“${item.description}”未得满分，必须至少上传一张照片。`);
+        return false;
+      }
     }
     return true;
   };
@@ -112,11 +132,11 @@ export function LeadH5ReviewForm({ reviewType, reviewTitle, canSubmit }: { revie
     if (!data || submitting) return;
     setSubmitting(true); setSubmitError(undefined);
     try {
-      const response = await fetch("/api/lead-h5/reviews", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scoreMonth, scoreType: reviewType, storeId, reviewTemplateId: data.assessment.id, reviewTemplateVersion: data.assessment.configVersion, items: Object.entries(scores).map(([itemId, value]) => ({ itemId, result: value.result, score: value.score, photoIds: (photos[itemId] || []).map(photo => photo.id) })) }) });
+      const response = await fetch("/api/lead-h5/reviews", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scoreMonth, scoreType: reviewType, storeId, reviewTemplateId: data.assessment.id, reviewTemplateVersion: data.assessment.configVersion, items: Object.entries(scores).map(([itemId, value]) => ({ itemId, result: value.result, score: value.score, problemDescription: problemDescriptions[itemId] || "", photoIds: (photos[itemId] || []).map(photo => photo.id) })) }) });
       const result = await response.json();
       if (response.status === 401) { submitted.current = true; router.replace("/lead_h5/login"); return; }
       if (!response.ok) throw new Error(result.message || "评分提交失败，请检查网络后重试。");
-      submitted.current = true; setScores({}); setPhotos({}); setSubmitConfirmOpen(false); setSuccessOpen(true);
+      submitted.current = true; setScores({}); setProblemDescriptions({}); setPhotos({}); setSubmitConfirmOpen(false); setSuccessOpen(true);
     } catch (reason) {
       setSubmitConfirmOpen(false); setSubmitError(reason instanceof Error ? reason.message : "评分提交失败，请检查网络后重试。");
     } finally { setSubmitting(false); }
@@ -138,8 +158,9 @@ export function LeadH5ReviewForm({ reviewType, reviewTitle, canSubmit }: { revie
             </Radio.Group>
             <div className="lead-h5-item-score"><span>实际得分</span><InputNumber value={value?.score} disabled={!canSubmit || !partial} min={0.1} max={Math.max(0.1, item.maxScore - 0.1)} precision={1} step={0.1} status={invalid ? "error" : undefined} onChange={next => partialScore(item, next)} /><span>分</span></div>
             {invalid && <div className="lead-h5-item-error">得分须大于0且小于{item.maxScore}，最多1位小数</div>}
+            {((value?.result === "FAIL" && data.config.failRequiresProblemDescription) || (value?.result === "PARTIAL" && data.config.partialRequiresProblemDescription)) && <div className="lead-h5-problem-description"><Input.TextArea value={problemDescriptions[item.id] || ""} maxLength={100} showCount rows={3} placeholder="请填写问题描述" onChange={event => setProblemDescriptions(previous => ({ ...previous, [item.id]: event.target.value }))} /></div>}
             {canSubmit && item.supportsPhoto && <div className="lead-h5-review-photos">
-              <div className="lead-h5-review-photos-head"><span><CameraOutlined /> 拍照附件</span><small>{(photos[item.id] || []).length}/{data.config.photoAttachmentLimit}张</small></div>
+              <div className="lead-h5-review-photos-head"><span><CameraOutlined /> 拍照附件{data.config.nonFullScoreRequiresPhoto && value?.score != null && value.score < item.maxScore ? <em className="lead-h5-photo-required">未满分必传</em> : null}</span><small>{(photos[item.id] || []).length}/{data.config.photoAttachmentLimit}张</small></div>
               {!!(photos[item.id] || []).length && <div className="lead-h5-review-photo-grid">{(photos[item.id] || []).map(photo => <div className="lead-h5-review-photo" key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.name} /> : <span><CameraOutlined /></span>}<Button type="text" danger icon={<DeleteOutlined />} aria-label={`删除${photo.name}`} onClick={() => void removePhoto(item.id, photo)} /></div>)}</div>}
               <input id={`review-photo-${item.id}`} hidden type="file" accept="image/*" capture="environment" multiple onChange={event => { void uploadPhotos(item, event.target.files); event.target.value = ""; }} />
               <Button block icon={<CameraOutlined />} loading={uploading[item.id]} disabled={(photos[item.id] || []).length >= data.config.photoAttachmentLimit} onClick={() => document.getElementById(`review-photo-${item.id}`)?.click()}>{uploading[item.id] ? "上传中..." : (photos[item.id] || []).length ? "继续拍照/上传" : "拍照/上传"}</Button>

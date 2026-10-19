@@ -19,7 +19,7 @@ export const storeInputSchema = z.object({
   name: z.string().trim().min(1, "请输入门店名称").max(60, "门店名称不能超过 60 个字符"),
   cooperationType: z.nativeEnum(CooperationType),
   operationStatus: z.nativeEnum(StoreOperationStatus),
-  region: optionalText(60),
+  region: z.string().trim().min(1, "请选择营运大区").max(60, "营运大区不能超过 60 个字符"),
   supervisorUserId: optionalText(191),
   supervisorName: optionalText(30),
   province: optionalText(30),

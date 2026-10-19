@@ -17,12 +17,21 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0].message }, { status: 400 });
   const targets = [...new Set(parsed.data.targets)];
+  if (targets.includes("taskCalendarTemplates") && !targets.includes("taskSettings")) {
+    const linkedTemplate = await db.taskCalendarTemplate.findFirst({ where: { task: { isNot: null } }, select: { recordNo: true } });
+    if (linkedTemplate) return NextResponse.json({ message: `日历任务模板 ${linkedTemplate.recordNo} 仍被任务设置引用，请同时选择“任务设置”或先解除关联` }, { status: 409 });
+  }
+  if (targets.some(target => ["contracts", "stores", "taskSettings", "taskRecords", "assessmentSettings", "storeReviews"].includes(target))
+    && await db.inspectionRectificationRound.count()) {
+    return NextResponse.json({ message: "存在已发起的巡检整改记录，不能清空相关巡检或任务历史" }, { status: 409 });
+  }
   const tables = await db.$transaction(async tx => {
     const deletedTables: { key: string; label: string; count: number }[] = [];
     const recordDeleted = (key: string, label: string, count: number) => deletedTables.push({ key, label, count });
     const clearStores = targets.includes("contracts") || targets.includes("stores");
     const clearAllTaskRecords = targets.includes("taskSettings") || targets.includes("taskRecords");
     const clearTaskRecords = clearStores || clearAllTaskRecords;
+    const clearProductCategorySales = clearStores || targets.includes("productCategorySales");
     const clearPersonnel = clearStores || targets.includes("personnel");
     const clearDailyAttendance = clearPersonnel || targets.includes("dailyAttendanceRecords");
     const clearItemRequisitions = clearPersonnel || targets.includes("workwearInventory") || targets.includes("itemRequisitions");
@@ -38,12 +47,18 @@ export async function POST(request: Request) {
     const clearCourseSettings = targets.includes("courseSettings");
     const clearCourseRecords = clearCourseSettings || targets.includes("courseRecords");
 
+    if (clearReviews) recordDeleted("inspectionRectifications", "待生成及无需整改记录", (await tx.inspectionRectification.deleteMany()).count);
+
     if (clearStores) recordDeleted("storeLaborRecords", "用工记录", (await tx.storeLaborRecord.deleteMany()).count);
 
     if (clearTaskRecords) {
       const taskRecordWhere = clearAllTaskRecords ? {} : { storeId: { not: null } };
       const taskRecordIds = (await tx.taskRecord.findMany({ where: taskRecordWhere, select: { id: true } })).map(row => row.id);
       if (taskRecordIds.length) {
+        const analyses = await tx.taskAiAnalysis.findMany({ where: { taskRecordId: { in: taskRecordIds } }, select: { id: true } });
+        const analysisIds = analyses.map(row => row.id);
+        recordDeleted("taskAiAnalysisItems", "任务 AI 分析明细", analysisIds.length ? (await tx.taskAiAnalysisItem.deleteMany({ where: { analysisId: { in: analysisIds } } })).count : 0);
+        recordDeleted("taskAiAnalyses", "任务 AI 分析记录", (await tx.taskAiAnalysis.deleteMany({ where: { taskRecordId: { in: taskRecordIds } } })).count);
         const submissionIds = (await tx.taskSubmission.findMany({ where: { taskRecordId: { in: taskRecordIds } }, select: { id: true } })).map(row => row.id);
         const submissionItems = submissionIds.length ? await tx.taskSubmissionItem.deleteMany({ where: { submissionId: { in: submissionIds } } }) : { count: 0 };
         recordDeleted("taskSubmissionItems", "任务提交明细", submissionItems.count);
@@ -51,6 +66,8 @@ export async function POST(request: Request) {
         recordDeleted("taskAttachments", "任务附件记录", (await tx.taskAttachment.deleteMany({ where: { taskRecordId: { in: taskRecordIds } } })).count);
         recordDeleted("taskRecords", "任务执行记录", (await tx.taskRecord.deleteMany({ where: { id: { in: taskRecordIds } } })).count);
       } else {
+        recordDeleted("taskAiAnalysisItems", "任务 AI 分析明细", 0);
+        recordDeleted("taskAiAnalyses", "任务 AI 分析记录", 0);
         recordDeleted("taskSubmissionItems", "任务提交明细", 0);
         recordDeleted("taskSubmissions", "任务正式提交记录", 0);
         recordDeleted("taskAttachments", "任务附件记录", 0);
@@ -91,6 +108,13 @@ export async function POST(request: Request) {
       recordDeleted("actualRevenueMonthly", "月度实际营业额", (await tx.actualRevenueMonthly.deleteMany()).count);
       await tx.actualRevenueSequence.deleteMany();
     }
+    if (clearProductCategorySales) {
+      recordDeleted("productCategorySalesDetails", "产品类别销售明细", (await tx.productCategorySalesDetail.deleteMany()).count);
+      recordDeleted("productCategorySalesImportFailures", "产品类别销售导入失败明细", (await tx.productCategorySalesImportFailure.deleteMany()).count);
+      recordDeleted("productCategorySalesMonthly", "产品类别月度汇总", (await tx.productCategorySalesMonthly.deleteMany()).count);
+      recordDeleted("productCategorySalesImportBatches", "产品类别销售导入批次", (await tx.productCategorySalesImportBatch.deleteMany()).count);
+      await tx.productCategorySalesSequence.deleteMany();
+    }
     if (clearMonthlyPurchaseSales) {
       recordDeleted("monthlyPurchaseSalesImportFailures", "采销比导入失败明细", (await tx.monthlyPurchaseSalesImportFailure.deleteMany()).count);
       recordDeleted("monthlyPurchaseSalesRatios", "门店月度采销比", (await tx.monthlyPurchaseSalesRatio.deleteMany()).count);
@@ -106,7 +130,7 @@ export async function POST(request: Request) {
     }
     if (clearAssessmentSettings) {
       recordDeleted("assessmentBrandScopes", "考核适用品牌", (await tx.assessmentBrandScope.deleteMany()).count);
-      await tx.r2StorageReference.deleteMany({ where: { businessType: "ASSESSMENT_PHOTO_STORAGE" } });
+      recordDeleted("assessmentR2StorageReferences", "考核照片存储关联", (await tx.r2StorageReference.deleteMany({ where: { businessType: "ASSESSMENT_PHOTO_STORAGE" } })).count);
       recordDeleted("assessments", "考核表格", (await tx.assessment.deleteMany()).count);
     }
     if (clearResearchRecords) {
@@ -123,6 +147,7 @@ export async function POST(request: Request) {
       await tx.itemRequisitionSequence.deleteMany();
     }
     if (clearDailyAttendance) {
+      recordDeleted("dailyAttendanceRevisions", "考勤修订历史", (await tx.dailyAttendanceRevision.deleteMany()).count);
       recordDeleted("dailyAttendanceItems", "员工考勤明细", (await tx.dailyAttendanceItem.deleteMany()).count);
       recordDeleted("dailyAttendanceRecords", "每日考勤记录", (await tx.dailyAttendanceRecord.deleteMany()).count);
       await tx.dailyAttendanceSequence.deleteMany();
@@ -153,9 +178,15 @@ export async function POST(request: Request) {
       await tx.inventoryItemSequence.deleteMany();
     }
     if (targets.includes("taskSettings")) {
-      await tx.r2StorageReference.deleteMany({ where: { businessType: "TASK" } });
+      recordDeleted("taskR2StorageReferences", "任务存储空间关联", (await tx.r2StorageReference.deleteMany({ where: { businessType: "TASK" } })).count);
       recordDeleted("taskBrands", "任务适用品牌关联", (await tx.taskBrand.deleteMany()).count);
+      recordDeleted("taskExecutorRoles", "任务执行角色关联", (await tx.taskExecutorRole.deleteMany()).count);
       recordDeleted("tasks", "任务设置", (await tx.task.deleteMany()).count);
+    }
+    if (targets.includes("taskCalendarTemplates")) {
+      const templateIds = (await tx.taskCalendarTemplate.findMany({ select: { id: true } })).map(row => row.id);
+      recordDeleted("taskCalendarDates", "日历任务日期", templateIds.length ? (await tx.taskCalendarDate.deleteMany({ where: { templateId: { in: templateIds } } })).count : 0);
+      recordDeleted("taskCalendarTemplates", "日历任务模板", (await tx.taskCalendarTemplate.deleteMany()).count);
     }
     if (clearDailyLearningRecords) {
       recordDeleted("dailyLearningProgress", "每日学习完成记录", (await tx.dailyLearningProgress.deleteMany()).count);
@@ -194,7 +225,10 @@ export async function POST(request: Request) {
       recordDeleted("meetingParticipants", "会议参会及签到记录", (await tx.meetingParticipant.deleteMany()).count);
       recordDeleted("meetings", "会议记录", (await tx.meeting.deleteMany()).count);
     }
-    if (clearStores) recordDeleted("stores", "门店档案", (await tx.store.deleteMany()).count);
+    if (clearStores) {
+      recordDeleted("storeCosts", "门店成本参数", (await tx.storeCost.deleteMany()).count);
+      recordDeleted("stores", "门店档案", (await tx.store.deleteMany()).count);
+    }
     if (targets.includes("contracts")) {
       recordDeleted("contractExpirySchedulerRuns", "合同到期调度记录", (await tx.scheduledJobRun.deleteMany({ where: { jobType: "CONTRACT_EXPIRY" } })).count);
       recordDeleted("contractRebates", "合同返利记录", (await tx.contractRebate.deleteMany()).count);

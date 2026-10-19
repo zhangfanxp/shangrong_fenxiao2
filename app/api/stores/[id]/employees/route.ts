@@ -8,6 +8,7 @@ import { writeOperationLog } from "@/lib/operation-log";
 import { buildPersonnelLaborCostReport, shanghaiYearMonth } from "@/lib/personnel-labor-costs";
 import { isStoreLeader, storeEmployeeSelect } from "@/lib/store-employees";
 import { synchronizeStoreLeadership } from "@/lib/store-leadership";
+import { canStoreListAction } from "@/lib/store-permissions";
 
 const saveSchema = z.object({
   employeeIds: z.array(z.string().min(1)).max(500, "单个门店最多维护500名普通员工").refine(ids => new Set(ids).size === ids.length, "普通员工记录不能重复"),
@@ -64,7 +65,7 @@ async function employeeSnapshot(storeId: string, database: Prisma.TransactionCli
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:list:view")) return NextResponse.json({ message: "暂无门店列表权限" }, { status: 403 });
+  if (!canStoreListAction(session.permissions, "view") && !sessionHasPermission(session, "stores:employees:edit")) return NextResponse.json({ message: "暂无门店员工查看权限" }, { status: 403 });
 
   const { id } = await params;
   await synchronizeStoreLeadership([id]);

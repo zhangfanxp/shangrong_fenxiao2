@@ -25,9 +25,22 @@ export const permissionGroups = [
     page("dashboard-home", "仪表板页面", [{ value: "dashboard:view", label: "访问" }]),
   ]),
   group("stores", "门店", [
-    page("store-contracts", "合同管理页面", [{ value: "stores:contracts:view", label: "访问及管理" }]),
+    page("store-contracts", "合同管理页面", [
+      { value: "stores:contracts:query", label: "查询" },
+      { value: "stores:contracts:create", label: "新增" },
+      { value: "stores:contracts:view", label: "查看（兼容旧版全权限）" },
+      { value: "stores:contracts:edit", label: "编辑" },
+      { value: "stores:contracts:activate", label: "生效" },
+      { value: "stores:contracts:terminate", label: "解约" },
+      { value: "stores:contracts:import", label: "批量导入及模板下载" },
+    ]),
     page("store-list", "门店列表页面", [
-      { value: "stores:list:view", label: "查询及查看" },
+      { value: "stores:list:query", label: "查询" },
+      { value: "stores:list:view", label: "查看（兼容旧版全权限）" },
+      { value: "stores:list:create", label: "新增" },
+      { value: "stores:list:edit", label: "编辑" },
+      { value: "stores:cost:view", label: "查看门店成本" },
+      { value: "stores:cost:edit", label: "编辑门店成本" },
       { value: "stores:aliases:edit", label: "编辑平台别名" },
       { value: "stores:employees:edit", label: "编辑门店员工" },
     ]),
@@ -68,6 +81,16 @@ export const permissionGroups = [
     page("daily-sales-report", "每日销售数据上报页面", [
       { value: "daily-sales-report:query", label: "查询" },
       { value: "daily-sales-report:export", label: "导出" },
+    ]),
+    page("thousand-usage", "千元用量表页面", [
+      { value: "thousand-usage:query", label: "查询" },
+      { value: "thousand-usage:view", label: "查看" },
+      { value: "thousand-usage:export", label: "导出" },
+    ]),
+    page("online-group-buy", "线上团购数据页面", [
+      { value: "online-group-buy:query", label: "查询" },
+      { value: "online-group-buy:view", label: "查看详情" },
+      { value: "online-group-buy:export", label: "导出" },
     ]),
     page("product-category-sales", "产品类别销售占比页面", [
       { value: "product-category-sales:query", label: "查询" },
@@ -137,7 +160,25 @@ export const permissionGroups = [
     page("inspection-legacy", "巡店模块兼容权限", [{ value: "inspection:view", label: "访问及查看" }], "保留历史角色已有访问范围"),
   ]),
   group("tasks", "任务", [
-    page("task-settings", "任务设置页面", [{ value: "tasks:settings:view", label: "访问及管理" }]),
+    page("task-settings", "任务设置页面", [
+      { value: "tasks:settings:query", label: "查询" },
+      { value: "tasks:settings:create", label: "新增" },
+      { value: "tasks:settings:view", label: "查看（兼容旧版全权限）" },
+      { value: "tasks:settings:edit", label: "编辑" },
+      { value: "tasks:settings:preview", label: "预览" },
+      { value: "tasks:settings:enable", label: "启用" },
+      { value: "tasks:settings:disable", label: "禁用" },
+      { value: "tasks:settings:delete", label: "删除" },
+      { value: "tasks:settings:update", label: "更新任务" },
+    ]),
+    page("task-calendar-templates", "日历任务模版页面", [
+      { value: "tasks:calendar-templates:query", label: "查询" },
+      { value: "tasks:calendar-templates:create", label: "新增" },
+      { value: "tasks:calendar-templates:view", label: "查看" },
+      { value: "tasks:calendar-templates:edit", label: "编辑模版" },
+      { value: "tasks:calendar-templates:calendar-edit", label: "维护日历" },
+      { value: "tasks:calendar-templates:delete", label: "删除" },
+    ], "日历任务模版与任务设置分开控制；旧版 tasks:settings:view 仍可兼容访问全部操作"),
     page("task-records", "任务记录页面", [
       { value: "tasks:records:query", label: "查询" },
       { value: "tasks:records:view", label: "查看" },
@@ -192,6 +233,11 @@ export const permissionGroups = [
       { value: "workwear-inventory:export", label: "导出" },
       { value: "workwear-inventory:delete", label: "删除" },
     ]),
+    page("excellent-employees", "优秀员工页面", [
+      { value: "excellent-employees:query", label: "查询" },
+      { value: "excellent-employees:view", label: "查看" },
+      { value: "excellent-employees:export", label: "导出" },
+    ]),
     page("staff-legacy", "员工模块兼容权限", [{ value: "staff:view", label: "访问及查看" }], "保留历史角色已有访问范围"),
   ]),
   group("training", "培训", [
@@ -227,6 +273,13 @@ export const permissionGroups = [
       { value: "course-assignments:enable", label: "启用" },
       { value: "course-assignments:batch-disable", label: "批量停用" },
       { value: "course-assignments:batch-enable", label: "批量启用" },
+    ]),
+    page("question-bank", "题库管理页面", [
+      { value: "question-bank:query", label: "查询" },
+      { value: "question-bank:create", label: "新增" },
+      { value: "question-bank:view", label: "查看" },
+      { value: "question-bank:edit", label: "编辑" },
+      { value: "question-bank:delete", label: "删除" },
     ]),
     page("training-legacy", "培训模块兼容权限", [{ value: "training:view", label: "访问及查看" }], "保留历史角色已有访问范围"),
   ]),
@@ -275,6 +328,11 @@ export const permissionGroups = [
       { value: "statistics:roster:export-sensitive", label: "导出敏感信息" },
       { value: "statistics:roster:headquarters", label: "查看总部人员" },
     ]),
+    page("attendance-monthly", "员工出勤月度汇总表页面", [
+      { value: "statistics:attendance-monthly:query", label: "查询" },
+      { value: "statistics:attendance-monthly:view", label: "查看" },
+      { value: "statistics:attendance-monthly:export", label: "导出" },
+    ], "勾选查询或查看即可显示《统计》菜单；导出权限单独控制"),
     page("labor-contract-expiry", "劳动合同过期预警页面", [{ value: "statistics:labor-contract-expiry:view", label: "查看" }]),
   ]),
   group("settings", "设置", [
@@ -349,6 +407,12 @@ export const leadH5PermissionGroups = [
     page("lead-h5-home", "运营工作台页面", [{ value: "lead-h5:home:view", label: "访问" }]),
   ]),
   group("lead-h5-inspection", "巡店", [
+    page("lead-h5-rectifications", "巡检整改页面", [
+      { value: "lead-h5:rectifications:view", label: "查看本人巡检整改" },
+      { value: "lead-h5:rectifications:start", label: "立即整改" },
+      { value: "lead-h5:rectifications:no-action", label: "无需整改" },
+      { value: "lead-h5:rectifications:accept", label: "整改验收" },
+    ]),
     page("lead-h5-front-hall", "前厅稽核评分页面", [
       { value: "lead-h5:front-hall:view", label: "查看评分表" },
       { value: "lead-h5:front-hall:submit", label: "上传照片及提交" },

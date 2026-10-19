@@ -1,7 +1,9 @@
+import { availableMobileTaskWhere } from "@/lib/mobile-task-availability";
 import { Prisma, TaskRecordStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { RectificationError, submitRectificationTask } from "@/lib/inspection-rectifications";
 import { synchronizeLaborRecordForTaskSubmission } from "@/lib/labor-records";
 import { writeOperationLog } from "@/lib/operation-log";
 import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
@@ -37,7 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     const submittedByIndex = new Map(parsed.data.items.map(item => [item.index, item]));
     if (submittedByIndex.size !== parsed.data.items.length) throw new SubmissionError("任务提交内容存在重复项目");
     const record = await db.taskRecord.findFirst({
-      where: { id: taskInstanceId, assignedUserId: session.userId, dueDate: { gte: new Date() } },
+      where: { id: taskInstanceId, assignedUserId: session.userId, ...availableMobileTaskWhere() },
       include: { task: { select: { id: true, recordNo: true, r2StorageId: true } }, store: { include: { brand: true } } },
     });
     if (!record) throw new SubmissionError("任务不存在或不属于当前用户", 404);
@@ -104,6 +106,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
         const consumed = await tx.taskAttachment.updateMany({ where: { id: { in: attachmentIds }, consumedAt: null, uploaderUserId: session.userId, taskRecordId: record.id }, data: { consumedAt: now } });
         if (consumed.count !== attachmentIds.length) throw new SubmissionError("附件状态已变化，请刷新后重试", 409);
       }
+      await submitRectificationTask(tx, record.id, session.userId, String(submittedByIndex.get(1)?.value || ""), now);
       return created;
     });
     const unusedDrafts = await db.taskAttachment.findMany({ where: { taskRecordId: record.id, uploaderUserId: session.userId, consumedAt: null }, select: { id: true, r2StorageId: true, objectKey: true } });
@@ -128,8 +131,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     return NextResponse.json({ message: "任务提交成功", submissionId: submission.id });
   } catch (error) {
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
-    const message = duplicate ? "当前任务已经完成，请勿重复提交。" : error instanceof SubmissionError ? error.message : "任务提交失败，请检查网络后重试";
-    const status = duplicate ? 409 : error instanceof SubmissionError ? error.status : 500;
+    const message = duplicate ? "当前任务已经完成，请勿重复提交。" : (error instanceof SubmissionError || error instanceof RectificationError) ? error.message : "任务提交失败，请检查网络后重试";
+    const status = duplicate ? 409 : (error instanceof SubmissionError || error instanceof RectificationError) ? error.status : 500;
     await writeOperationLog({ userId: session.userId, username: session.username, client: session.clientName, page: "任务详情", action: "提交", result: "失败", detail: message, request }).catch(() => undefined);
     return NextResponse.json({ message }, { status });
   }

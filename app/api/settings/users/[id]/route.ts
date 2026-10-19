@@ -6,16 +6,24 @@ import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { synchronizeStoreLeadership } from "@/lib/store-leadership";
+import { synchronizeStoreRegionManagers } from "@/lib/store-supervisor";
+import { normalizeManagedRegions, replaceManagedRegions } from "@/lib/user-managed-regions";
 import { normalizeUserTags } from "@/lib/user-tags";
 import { jsonIdArray } from "@/lib/user-store-scope";
 
 const phone = z.string().trim().regex(/^1\d{10}$/, "请输入11位手机号码").optional().or(z.literal(""));
-const updateSchema = z.object({ username: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{1,29}$/, "账号须为2-30位字母、数字或下划线，且以字母开头"), realName: z.string().trim().min(1, "请输入真实姓名").max(30, "真实姓名不能超过30个字符"), phone, tags: z.string().trim().max(200, "用户标签不能超过200个字符").optional().or(z.literal("")), leadH5BrandIds: z.array(z.string().min(1)).nullable(), leadH5StoreIds: z.array(z.string().min(1)).nullable(), roleId: z.string().min(1, "请选择角色"), status: z.nativeEnum(RecordStatus), updatedAt: z.string().min(1) });
+const updateSchema = z.object({ username: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9_]{1,29}$/, "账号须为2-30位字母、数字或下划线，且以字母开头"), realName: z.string().trim().min(1, "请输入真实姓名").max(30, "真实姓名不能超过30个字符"), phone, tags: z.string().trim().max(200, "用户标签不能超过200个字符").optional().or(z.literal("")), leadH5BrandIds: z.array(z.string().min(1)).nullable(), leadH5StoreIds: z.array(z.string().min(1)).nullable(), isRegionManager: z.boolean().default(false), managedRegions: z.array(z.string().min(1)).nullable().optional(), roleId: z.string().min(1, "请选择角色"), status: z.nativeEnum(RecordStatus), updatedAt: z.string().min(1) });
 const statusSchema = z.object({ action: z.literal("status"), status: z.nativeEnum(RecordStatus), updatedAt: z.string().min(1) });
 const passwordSchema = z.object({ action: z.literal("resetPassword"), password: z.string().min(8, "密码至少需要8位"), updatedAt: z.string().min(1) });
-const publicUser = { id: true, username: true, realName: true, phone: true, tags: true, leadH5BrandIds: true, leadH5StoreIds: true, type: true, status: true, roleId: true, createdByUserId: true, createdBy: { select: { username: true, realName: true } }, lastLoginAt: true, createdAt: true, updatedAt: true, role: { select: { id: true, name: true, code: true, status: true } } } as const;
+const publicUser = { id: true, username: true, realName: true, phone: true, tags: true, leadH5BrandIds: true, leadH5StoreIds: true, isRegionManager: true, managedRegions: { select: { region: true }, orderBy: { region: "asc" } }, type: true, status: true, roleId: true, createdByUserId: true, createdBy: { select: { username: true, realName: true } }, lastLoginAt: true, createdAt: true, updatedAt: true, role: { select: { id: true, name: true, code: true, status: true } } } as const;
 const sameTimestamp = (first: Date, second: string) => first.getTime() === new Date(second).getTime();
-const duplicateMessage = (error: unknown, fallback: string) => (error as { code?: string }).code === "P2002" ? "账号已存在，请重新输入" : error instanceof Error && error.message.startsWith("运营H5") ? error.message : fallback;
+const duplicateMessage = (error: unknown, fallback: string) => {
+  if ((error as { code?: string }).code === "P2002") {
+    const target = JSON.stringify((error as { meta?: { target?: unknown } }).meta?.target || "");
+    return target.includes("region") || target.includes("UserManagedRegion") ? "所选区域已分配给其他用户，请重新选择" : "账号已存在，请重新输入";
+  }
+  return error instanceof Error && (error.message.startsWith("运营H5") || error.message.startsWith("区域管理权限")) ? error.message : fallback;
+};
 
 async function findUser(id: string) { return db.user.findUnique({ where: { id }, select: publicUser }); }
 async function enabledRole(roleId: string) { return db.role.findFirst({ where: { id: roleId, status: RecordStatus.ENABLED }, select: { id: true, code: true } }); }
@@ -56,7 +64,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (user.id === session.userId && parsed.data.status === RecordStatus.DISABLED) return NextResponse.json({ message: "不可禁用当前登录账号" }, { status: 400 });
     const result = await db.$transaction(async transaction => {
       const updated = await transaction.user.updateMany({ where: { id: user.id, updatedAt: user.updatedAt }, data: { status: parsed.data.status } });
-      if (updated.count) await synchronizeStoreLeadership(jsonIdArray(user.leadH5StoreIds), transaction);
+      if (updated.count) {
+        await synchronizeStoreLeadership(jsonIdArray(user.leadH5StoreIds), transaction);
+        await synchronizeStoreRegionManagers(user.managedRegions.map(item => item.region), transaction);
+      }
       return updated;
     });
     if (!result.count) return NextResponse.json({ message: "用户已被其他人修改，请刷新后重试。" }, { status: 409 });
@@ -77,10 +88,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const role = await enabledRole(parsed.data.roleId); if (!role) return NextResponse.json({ message: "所选角色不存在或已禁用，请重新选择" }, { status: 400 });
   try {
     const scope = await validateDataScope(parsed.data.leadH5BrandIds, parsed.data.leadH5StoreIds);
+    const managedRegions = parsed.data.isRegionManager ? await normalizeManagedRegions(parsed.data.managedRegions) : [];
     const affectedStoreIds = [...new Set([...jsonIdArray(user.leadH5StoreIds), ...(scope.storeIds || [])])];
+    const affectedRegions = [...new Set([...user.managedRegions.map(item => item.region), ...managedRegions])];
     const result = await db.$transaction(async transaction => {
-      const updated = await transaction.user.updateMany({ where: { id: user.id, updatedAt: user.updatedAt }, data: { username: parsed.data.username, realName: parsed.data.realName, phone: parsed.data.phone || null, tags: normalizeUserTags(parsed.data.tags), leadH5BrandIds: scope.brandIds ?? Prisma.DbNull, leadH5StoreIds: scope.storeIds ?? Prisma.DbNull, roleId: role.id, status: parsed.data.status } });
-      if (updated.count) await synchronizeStoreLeadership(affectedStoreIds, transaction);
+      const updated = await transaction.user.updateMany({ where: { id: user.id, updatedAt: user.updatedAt }, data: { username: parsed.data.username, realName: parsed.data.realName, phone: parsed.data.phone || null, tags: normalizeUserTags(parsed.data.tags), leadH5BrandIds: scope.brandIds ?? Prisma.DbNull, leadH5StoreIds: scope.storeIds ?? Prisma.DbNull, isRegionManager: parsed.data.isRegionManager, roleId: role.id, status: parsed.data.status } });
+      if (updated.count) {
+        await replaceManagedRegions(transaction, user.id, managedRegions);
+        await synchronizeStoreLeadership(affectedStoreIds, transaction);
+        await synchronizeStoreRegionManagers(affectedRegions, transaction);
+      }
       return updated;
     });
     if (!result.count) return NextResponse.json({ message: "用户已被其他人修改，请刷新后重试。" }, { status: 409 });
@@ -104,6 +121,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     await transaction.operationLog.updateMany({ where: { userId: user.id }, data: { userId: null } });
     await transaction.user.delete({ where: { id: user.id } });
     await synchronizeStoreLeadership(jsonIdArray(user.leadH5StoreIds), transaction);
+    await synchronizeStoreRegionManagers(user.managedRegions.map(item => item.region), transaction);
   });
   await writeOperationLog({ userId: session.userId, username: session.username, page: "用户列表", action: "删除", result: "成功", detail: `删除用户：${user.realName}（${user.username}）`, request });
   return NextResponse.json({ message: "用户删除成功" });

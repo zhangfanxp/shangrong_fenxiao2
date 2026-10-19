@@ -102,12 +102,12 @@ export function setupPage(token: string) {
     <section class="card">
       <h2>3. 首个超级管理员</h2>
       <div class="grid">
-        <label>登录账号<input name="adminUsername" value="admin" autocomplete="off" required /></label>
+        <label>登录账号<input name="adminUsername" value="admin" autocomplete="off" readonly required /></label>
         <label>管理员姓名<input name="adminRealName" value="系统管理员" required /></label>
         <label>联系电话<input name="adminPhone" autocomplete="tel" /></label>
         <span></span>
-        <label>登录密码<small>至少10位，包含大小写字母、数字和特殊字符</small><input name="adminPassword" type="password" autocomplete="new-password" required /></label>
-        <label>确认密码<input name="adminPasswordConfirm" type="password" autocomplete="new-password" required /></label>
+        <label>登录密码<small>默认密码：1qaz2wsx；建议部署完成后立即修改</small><input name="adminPassword" type="password" value="1qaz2wsx" autocomplete="new-password" required /></label>
+        <label>确认密码<input name="adminPasswordConfirm" type="password" value="1qaz2wsx" autocomplete="new-password" required /></label>
       </div>
     </section>
 

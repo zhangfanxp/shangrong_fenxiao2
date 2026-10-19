@@ -1,18 +1,19 @@
 import { CooperationType, StoreOperationStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { requireApiSession } from "@/lib/auth";
+import { canStoreListAction } from "@/lib/store-permissions";
 import { storeInputSchema } from "@/lib/store-validation";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
 import { storeContractSelect, validateStoreContract } from "@/lib/store-contract";
 import { synchronizeStoreLeadership } from "@/lib/store-leadership";
-import { resolveStoreSupervisor } from "@/lib/store-supervisor";
+import { resolveStoreRegionManager, synchronizeStoreRegionManagers } from "@/lib/store-supervisor";
 import { writeOperationLog } from "@/lib/operation-log";
 import { getConfiguredWorkdayHours } from "@/lib/brand-day-hour-config";
 
 export async function GET(request: Request) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:list:view")) return NextResponse.json({ message: "暂无门店列表权限" }, { status: 403 });
+  if (!canStoreListAction(session.permissions, "query")) return NextResponse.json({ message: "暂无门店查询权限" }, { status: 403 });
   const url = new URL(request.url);
   const keyword = url.searchParams.get("keyword")?.trim() || "";
   const status = url.searchParams.get("status") || "";
@@ -24,8 +25,9 @@ export async function GET(request: Request) {
   const formalOpenDate = startDate ? new Date(startDate) : undefined;
   const formalOpenDateEnd = endDate ? new Date(`${endDate}T23:59:59.999`) : undefined;
 
-  // 先按用户角色及运营H5店铺权限同步，确保列表展示和店长关键字筛选都是最新数据。
+  // 先同步店长、厨师长及区域负责人，确保列表始终展示用户权限配置中的最新人员。
   await synchronizeStoreLeadership();
+  await synchronizeStoreRegionManagers();
   const rows = await db.store.findMany({
     where: {
       ...(keyword ? { OR: [{ recordNo: { contains: keyword } }, { name: { contains: keyword } }, { managerName: { contains: keyword } }, { ownerName: { contains: keyword } }, { ownerPhone: { contains: keyword } }] } : {}),
@@ -44,7 +46,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:list:view")) return NextResponse.json({ message: "暂无门店列表权限" }, { status: 403 });
+  if (!canStoreListAction(session.permissions, "create")) return NextResponse.json({ message: "暂无新增门店权限" }, { status: 403 });
   const result = storeInputSchema.safeParse(await request.json());
   if (!result.success) return NextResponse.json({ message: result.error.issues[0].message }, { status: 400 });
   const brand = await db.brand.findUnique({ where: { id: result.data.brandId }, select: { id: true, name: true } });
@@ -63,8 +65,7 @@ export async function POST(request: Request) {
   if (!locationTypeValid) return NextResponse.json({ message: "所选位置类型不存在或已停用" }, { status: 400 });
   const workdayHours = result.data.workdayHours ?? await getConfiguredWorkdayHours(brand.name);
   if (workdayHours === undefined) return NextResponse.json({ message: "当前品牌尚未配置工作日小时，请填写后保存" }, { status: 400 });
-  const supervisor = await resolveStoreSupervisor(result.data);
-  if ((result.data.supervisorUserId || result.data.supervisorName) && !supervisor) return NextResponse.json({ message: "所选负责督导账号无效、已禁用或已不具备督导身份，请重新选择" }, { status: 400 });
+  const regionManager = await resolveStoreRegionManager(result.data.region);
   const contractCheck = await validateStoreContract(result.data.contractId, result.data);
   if (contractCheck.message) return NextResponse.json({ message: contractCheck.message }, { status: 400 });
   const number = await db.store.count();
@@ -72,8 +73,8 @@ export async function POST(request: Request) {
     data: {
       ...result.data,
       workdayHours,
-      supervisorUserId: supervisor?.id || null,
-      supervisorName: supervisor?.realName || null,
+      supervisorUserId: regionManager?.id || null,
+      supervisorName: regionManager?.realName || null,
       managerUserId: null,
       managerName: null,
       chefUserId: null,

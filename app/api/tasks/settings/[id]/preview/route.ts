@@ -1,7 +1,8 @@
 import { Prisma, TaskRecordStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { requireApiSession } from "@/lib/auth";
+import { canTaskSettingsAction } from "@/lib/task-settings-permissions";
 import { writeOperationLog } from "@/lib/operation-log";
 import { readTaskConfig, TaskConfigError } from "@/lib/task-config";
 import { taskInputValueError } from "@/lib/task-input-values";
@@ -18,7 +19,7 @@ function isConfig(value: unknown): value is { submitItems: ConfigItem[]; storage
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "tasks:settings:view")) return NextResponse.json({ message: "暂无任务设置权限" }, { status: 403 });
+  if (!canTaskSettingsAction(session.permissions, "preview")) return NextResponse.json({ message: "暂无任务预览提交权限" }, { status: 403 });
   const { id } = await params;
   const task = await db.task.findFirst({ where: { id, deletedAt: null, configFileName: { not: null } } });
   if (!task || !task.configFileName) return NextResponse.json({ message: "任务设置不存在或已删除" }, { status: 404 });

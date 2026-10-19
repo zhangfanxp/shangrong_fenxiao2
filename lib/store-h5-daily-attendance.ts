@@ -8,6 +8,7 @@ export type AttendanceWindowRule = {
   startTime: string;
   deadlineDayOffset: 0 | 1;
   deadlineTime: string;
+  allowPostSubmitEdit: boolean;
   configured: boolean;
 };
 
@@ -67,9 +68,10 @@ export async function attendanceWindowRuleForBrand(brandName: string): Promise<A
         startTime: entry.attendanceStartTime,
         deadlineDayOffset: entry.attendanceDeadlineDayOffset,
         deadlineTime: entry.attendanceDeadlineTime,
+        allowPostSubmitEdit: entry.allowPostSubmitEdit,
         configured: true,
       }
-    : { startDayOffset: 0, startTime: "20:00", deadlineDayOffset: 0, deadlineTime: "23:59", configured: false };
+    : { startDayOffset: 0, startTime: "20:00", deadlineDayOffset: 0, deadlineTime: "23:59", allowPostSubmitEdit: false, configured: false };
 }
 
 export function attendanceWindow(dateKey: string, rule: AttendanceWindowRule) {

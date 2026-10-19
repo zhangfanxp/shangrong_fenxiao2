@@ -16,12 +16,12 @@ type AssessmentRow = {
   applicableBrands?: string[] | null;
   r2StorageId: string;
   r2Storage?: { id: string; name: string; status: "ENABLED" | "DISABLED" } | null;
-  photoAttachmentLimit: number;
+  photoAttachmentLimit: number; nonFullScoreRequiresPhoto: boolean; failRequiresProblemDescription: boolean; partialRequiresProblemDescription: boolean;
   detailText: string; sectionCount: number; subsectionCount: number; itemCount: number; totalScore: number;
   remark?: string | null; status: "ENABLED" | "DISABLED"; configVersion: number; createdAt: string; updatedAt: string;
   createdBy?: { realName: string } | null; _count: { records: number };
 };
-type FormValues = { name: string; scoreMode: "BINARY" | "CUSTOM_SCORE"; configFileBase: string; applicableBrands: string[]; r2StorageId: string; photoAttachmentLimit: number; detailText: string; remark: string };
+type FormValues = { name: string; scoreMode: "BINARY" | "CUSTOM_SCORE"; configFileBase: string; applicableBrands: string[]; r2StorageId: string; photoAttachmentLimit: number; nonFullScoreRequiresPhoto: boolean; failRequiresProblemDescription: boolean; partialRequiresProblemDescription: boolean; detailText: string; remark: string };
 type BrandOption = { label: string; value: string; disabled?: boolean };
 type LiveStats = { sectionCount: number; subsectionCount: number; itemCount: number; totalScore: number; error?: string };
 const scoreModeOptions = [{ value: "BINARY", label: "0或满分" }, { value: "CUSTOM_SCORE", label: "允许自定义得分" }];
@@ -79,13 +79,13 @@ export function AssessmentList({ permissions }: { permissions: string[] }) {
   useEffect(() => { if (can("query")) { void load(1, 10, ""); void loadBrandOptions(); void loadR2StorageOptions(); } else setLoading(false); }, []);
   const applyFilter = () => { const next = keyword.trim(); setAppliedKeyword(next); setPage(1); void load(1, pageSize, next); };
   const resetFilter = () => { setKeyword(""); setAppliedKeyword(""); setPage(1); void load(1, pageSize, ""); };
-  const openCreate = () => { form.resetFields(); form.setFieldsValue({ scoreMode: "BINARY", applicableBrands: [], photoAttachmentLimit: 3, detailText: "", remark: "" }); setCurrent(null); setDirty(false); setMode("create"); };
+  const openCreate = () => { form.resetFields(); form.setFieldsValue({ scoreMode: "BINARY", applicableBrands: [], photoAttachmentLimit: 3, nonFullScoreRequiresPhoto: false, failRequiresProblemDescription: false, partialRequiresProblemDescription: false, detailText: "", remark: "" }); setCurrent(null); setDirty(false); setMode("create"); };
   const loadExisting = async (row: AssessmentRow, nextMode: "edit" | "view") => {
     setSaving(true);
     try {
       const response = await fetch(`/api/settings/assessments/${row.id}?intent=${nextMode}`); const data = await response.json();
       if (!response.ok) return void message.error(data.message || "考核表格加载失败，请稍后重试");
-      const next = data.assessment as AssessmentRow; setCurrent(next); form.setFieldsValue({ name: next.name, scoreMode: next.scoreMode, configFileBase: next.configFileName.replace(/\.json$/i, ""), applicableBrands: Array.isArray(next.applicableBrands) ? next.applicableBrands : [], r2StorageId: next.r2StorageId, photoAttachmentLimit: next.photoAttachmentLimit || 3, detailText: next.detailText, remark: next.remark || "" }); setDirty(false); setMode(nextMode);
+      const next = data.assessment as AssessmentRow; setCurrent(next); form.setFieldsValue({ name: next.name, scoreMode: next.scoreMode, configFileBase: next.configFileName.replace(/\.json$/i, ""), applicableBrands: Array.isArray(next.applicableBrands) ? next.applicableBrands : [], r2StorageId: next.r2StorageId, photoAttachmentLimit: next.photoAttachmentLimit || 3, nonFullScoreRequiresPhoto: next.nonFullScoreRequiresPhoto ?? false, failRequiresProblemDescription: next.failRequiresProblemDescription ?? false, partialRequiresProblemDescription: next.partialRequiresProblemDescription ?? false, detailText: next.detailText, remark: next.remark || "" }); setDirty(false); setMode(nextMode);
     } catch { message.error("考核表格加载失败，请稍后重试"); } finally { setSaving(false); }
   };
   const openPreview = async (row: AssessmentRow) => {
@@ -142,7 +142,7 @@ export function AssessmentList({ permissions }: { permissions: string[] }) {
       {error ? <Alert type="error" showIcon message="考核表格加载失败，请稍后重试" action={<Button size="small" onClick={() => void load()}>重新加载</Button>} /> : <DataTable<AssessmentRow> rowKey="id" columns={columns} dataSource={rows} loading={loading} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<><div>{filteredEmpty ? "没有找到符合当前条件的考核表格" : "暂无考核表格"}</div><small>{filteredEmpty ? "请调整筛选条件后重试" : "当前还没有创建考核模板"}</small></>}>{filteredEmpty ? <Button onClick={resetFilter}>重置筛选</Button> : can("create") ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增</Button> : null}</Empty> }} pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: count => `共 ${count} 条`, onChange: (nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize); void load(nextPage, nextSize); } }} />}
     </Card>
     <Modal title={mode === "create" ? "新增考核表格" : mode === "edit" ? "编辑考核表格" : "查看考核表格"} open={Boolean(mode)} width={1100} onCancel={closeForm} destroyOnHidden maskClosable={false} styles={{ body: { maxHeight: "72vh", overflowY: "auto" } }} footer={mode === "view" ? <Button onClick={closeForm}>关闭</Button> : <Space><Button onClick={closeForm}>取消</Button><Button type="primary" loading={saving} onClick={() => void submit()}>保存</Button></Space>}>
-      <Form form={form} layout="vertical" disabled={mode === "view"} initialValues={{ scoreMode: "BINARY", applicableBrands: [], photoAttachmentLimit: 3, detailText: "", remark: "" }} onValuesChange={() => { if (mode !== "view") setDirty(true); }}>
+      <Form form={form} layout="vertical" disabled={mode === "view"} initialValues={{ scoreMode: "BINARY", applicableBrands: [], photoAttachmentLimit: 3, nonFullScoreRequiresPhoto: false, failRequiresProblemDescription: false, partialRequiresProblemDescription: false, detailText: "", remark: "" }} onValuesChange={() => { if (mode !== "view") setDirty(true); }}>
         <h3 className="assessment-form-heading">基础信息</h3><div className="assessment-form-grid">
           <Form.Item label="记录编号"><Input disabled value={current?.recordNo} placeholder="保存后自动生成" /></Form.Item>
           <Form.Item label="考核表类型" name="name" rules={[{ required: true, message: "请选择考核表类型" }]} extra={dictionaryOptionsError ? "考核表类型加载失败，请检查数据字典中的 Assessment_Type 配置。" : assessmentTypeOptions.length ? "选项来源于数据字典 Assessment_Type。" : "数据字典 Assessment_Type 暂无可选枚举值。"}><Select allowClear showSearch optionFilterProp="label" placeholder="请选择考核表类型" options={visibleAssessmentTypeOptions} /></Form.Item>
@@ -155,6 +155,9 @@ export function AssessmentList({ permissions }: { permissions: string[] }) {
         <h3 className="assessment-form-heading">考核明细</h3>
         <Form.Item label="考核明细项" name="detailText" rules={[{ required: true, message: "请输入考核明细项" }]} extra={isCredit ? "每行格式：类目｜违约项目｜违约金额｜分值｜拍照；拍照请填写“支持拍照”或“不支持拍照”。兼容全角和半角竖线，空行将自动忽略。" : "每行格式：总项｜子项｜检查明细项｜分值｜拍照；拍照请填写“支持拍照”或“不支持拍照”。兼容原四段格式（按不支持拍照处理）、全角和半角竖线，空行将自动忽略。"}><Input.TextArea rows={11} placeholder={isCredit ? creditExample : auditExample} className="assessment-detail-input" /></Form.Item>
         <div className={`assessment-live-stats ${liveStats.error ? "has-error" : ""}`}>{liveStats.error ? <span>存在配置错误，暂无法计算完整统计（{liveStats.error}）</span> : isCredit ? <><Statistic title="类目" value={liveStats.sectionCount} /><Statistic title="违约项目" value={liveStats.itemCount} /><Statistic title="总分" value={liveStats.totalScore} precision={liveStats.totalScore % 1 ? 1 : 0} /></> : <><Statistic title="总项" value={liveStats.sectionCount} /><Statistic title="子项" value={liveStats.subsectionCount} /><Statistic title="检查明细" value={liveStats.itemCount} /><Statistic title="总分" value={liveStats.totalScore} precision={liveStats.totalScore % 1 ? 1 : 0} /></>}</div>
+        <Form.Item name="nonFullScoreRequiresPhoto" valuePropName="checked" extra="勾选后，支持拍照的检查项目未得满分时，至少上传一张照片。" style={{ marginBottom: 16 }}><Checkbox>非满分项必须拍照</Checkbox></Form.Item>
+        <Form.Item name="failRequiresProblemDescription" valuePropName="checked" style={{ marginBottom: 8 }}><Checkbox>“不合格项目”必须填写问题描述</Checkbox></Form.Item>
+        <Form.Item name="partialRequiresProblemDescription" valuePropName="checked" extra="勾选后，对应评分结果的项目须填写问题描述，最多100个字符。" style={{ marginBottom: 16 }}><Checkbox>“部分合格项目”必须填写问题描述</Checkbox></Form.Item>
         <Form.Item label="备注" name="remark" rules={[{ validator: (_, value) => !value || Array.from(value).length <= 50 ? Promise.resolve() : Promise.reject(new Error("备注不能超过50个汉字")) }]}><Input.TextArea rows={3} showCount maxLength={50} placeholder="请输入备注（选填）" /></Form.Item>
         <h3 className="assessment-form-heading">系统信息</h3><div className="assessment-form-grid two-columns"><Form.Item label="创建人"><Input disabled value={current?.createdBy?.realName} placeholder="保存后自动生成" /></Form.Item><Form.Item label="创建时间"><Input disabled value={current?.createdAt ? formatTime(current.createdAt) : undefined} placeholder="保存后自动生成" /></Form.Item></div>
       </Form>

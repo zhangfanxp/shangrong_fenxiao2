@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ensureReviewHasNoStartedRectification, RectificationError } from "@/lib/inspection-rectifications";
 import { writeOperationLog, writeOperationLogWithTransaction } from "@/lib/operation-log";
 import {
   canStoreCreditScore, formatCreditScoreDate, formatCreditScoreDateTime,
@@ -31,6 +32,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       sectionName: item.sectionName,
       subsectionName: item.subsectionName,
       itemDescription: item.itemDescription,
+      problemDescription: item.problemDescription,
       breachAmount: snapshot.breachAmounts.get(item.itemKey) || "-",
       maxScore: Number(item.maxScore),
       result: item.result,
@@ -93,6 +95,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     await db.$transaction(async tx => {
       const current = await tx.leadH5Review.findFirst({ where: { AND: [{ id, reviewType: STORE_CREDIT_REVIEW_TYPE }, scope] } });
       if (!current) throw new CreditScoreMissingError();
+      await ensureReviewHasNoStartedRectification(tx, current.id);
       await tx.leadH5ReviewItem.deleteMany({ where: { reviewId: current.id } });
       await tx.leadH5Review.delete({ where: { id: current.id } });
       await writeOperationLogWithTransaction(tx, {
@@ -108,6 +111,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     await deleteTaskDraftFiles(found.items.flatMap(item => item.photos)).catch(() => undefined);
     return NextResponse.json({ message: "门店信用评分删除成功，该门店对应考核月份现可重新评分" });
   } catch (error) {
+    if (error instanceof RectificationError) return NextResponse.json({ message: error.message }, { status: error.status });
     let missing = error instanceof CreditScoreMissingError || (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025");
     if (!missing) {
       missing = !(await db.leadH5Review.findFirst({ where: { AND: [{ id, reviewType: STORE_CREDIT_REVIEW_TYPE }, scope] }, select: { id: true } }).catch(() => ({ id: "unknown" })));

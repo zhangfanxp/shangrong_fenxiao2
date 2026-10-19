@@ -21,6 +21,7 @@
     "tasks:backfill-schedules": "tsx scripts/backfill-task-schedules.ts",
     "labor-records:backfill": "tsx scripts/backfill-labor-records.ts",
     "permissions:migrate-login-tags": "tsx scripts/migrate-login-tags-to-role-permissions.ts",
+    "verify:inspection-rectifications": "tsx scripts/verify-inspection-rectifications.ts",
     "verify:lead-h5": "tsx scripts/verify-lead-h5.ts",
     "verify:actual-revenue": "tsx scripts/verify-actual-revenue.ts",
     "verify:actual-revenue:e2e": "tsx scripts/verify-actual-revenue-e2e.ts",

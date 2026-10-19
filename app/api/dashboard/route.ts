@@ -22,7 +22,7 @@ export async function GET() {
   const employeeContractExpiryEndDate = new Date(today);
   employeeContractExpiryEndDate.setUTCDate(employeeContractExpiryEndDate.getUTCDate() + EMPLOYEE_CONTRACT_EXPIRING_DAYS);
   const databaseStartedAt = performance.now();
-  const [contracts, stores, expiringContracts, overdueContracts, expiringEmployeeRows, todayLogins, taskCount, completedTaskCount, completed, tasks, birthdayPersonnel] = await Promise.all([
+  const [contracts, stores, expiringContracts, overdueContracts, expiringEmployeeRows, todayLogins, taskCount, taskRecordCount, completedTaskCount, completed, tasks, birthdayPersonnel] = await Promise.all([
     db.contract.count(),
     db.store.count(),
     db.contract.count({ where: { status: { not: "TERMINATED" }, startDate: { lte: today }, endDate: { gte: today, lt: expiringEndDate } } }),
@@ -34,6 +34,7 @@ export async function GET() {
     }),
     db.user.count({ where: { lastLoginAt: { gte: today } } }),
     db.task.count({ where: { status: "ENABLED" } }),
+    db.taskRecord.count(),
     db.taskRecord.count({ where: { status: "COMPLETED" } }),
     db.taskRecord.groupBy({ by: ["taskId"], where: { status: "COMPLETED" }, _count: true }),
     db.task.findMany({ select: { id: true, type: true }, where: { status: "ENABLED" } }),
@@ -65,7 +66,7 @@ export async function GET() {
     birthday: row.birthday,
   }));
   const databaseDuration = performance.now() - databaseStartedAt;
-  const response = NextResponse.json({ contracts, stores, expiringContracts, contractExpiringWarningDays: platform.contractExpiringWarningDays, expiringEmployeeContracts: expiringEmployeeContractRows.length, employeeContractExpiringDays: EMPLOYEE_CONTRACT_EXPIRING_DAYS, expiringEmployeeContractRows, birthdayReminderCount: birthdayReminderRows.length, birthdayReminderDays: platform.birthdayReminderDays, birthdayReminderRows, overdueContracts, todayLogins, taskCount, completedTaskCount, taskByType });
+  const response = NextResponse.json({ contracts, stores, expiringContracts, contractExpiringWarningDays: platform.contractExpiringWarningDays, expiringEmployeeContracts: expiringEmployeeContractRows.length, employeeContractExpiringDays: EMPLOYEE_CONTRACT_EXPIRING_DAYS, expiringEmployeeContractRows, birthdayReminderCount: birthdayReminderRows.length, birthdayReminderDays: platform.birthdayReminderDays, birthdayReminderRows, overdueContracts, todayLogins, taskCount, taskRecordCount, completedTaskCount, taskByType });
   response.headers.set("Server-Timing", `session;dur=${sessionDuration.toFixed(1)}, dashboard_db;dur=${databaseDuration.toFixed(1)}, total;dur=${(performance.now() - totalStartedAt).toFixed(1)}`);
   return response;
 }

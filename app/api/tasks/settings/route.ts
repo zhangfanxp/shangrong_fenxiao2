@@ -2,7 +2,8 @@ import { RecordStatus, TaskTarget, TaskType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { requireApiSession } from "@/lib/auth";
+import { canTaskSettingsAction } from "@/lib/task-settings-permissions";
 import { getBusinessDictionaryOptions } from "@/lib/business-dictionaries";
 import { writeOperationLog } from "@/lib/operation-log";
 import { configFileExists, createTaskConfig, deleteTaskConfig, normalizeConfigFileName, parseSubmitContent, TaskConfigError, type SubmitItem } from "@/lib/task-config";
@@ -13,6 +14,7 @@ const monthlyDayValues = ["ANY_DAY", ...Array.from({ length: 28 }, (_, index) =>
 const taskSchema = z.object({
   title: z.string().trim().min(1, "请输入任务名称").refine(value => Array.from(value).length <= 20, "任务名称不能超过20个汉字"),
   type: z.nativeEnum(TaskType, { message: "请选择任务类型" }),
+  calendarTemplateId: z.string().min(1).nullable().optional(),
   targetType: z.nativeEnum(TaskTarget, { message: "请选择任务对象" }).default(TaskTarget.STORE),
   specifiedTargets: z.string().max(5000, "指定对象内容不能超过5000个字符").default(""),
   executorRoleIds: z.array(z.string().min(1)).min(1, "请至少选择一个执行人角色"),
@@ -33,17 +35,19 @@ const taskSchema = z.object({
   if (value.type === TaskType.MONTHLY && !value.monthlyExecutionDay) context.addIssue({ code: "custom", path: ["monthlyExecutionDay"], message: "请选择月任务执行日期" });
   if (value.type === TaskType.MONTHLY && value.monthlyExecutionDay === "ANY_DAY" && value.deadlineDayOffset !== -1) context.addIssue({ code: "custom", path: ["deadlineDayOffset"], message: "每月执行日选择“不限”时，任务截止日期必须选择“月末”" });
   if (value.type !== TaskType.MONTHLY && value.deadlineDayOffset === -1) context.addIssue({ code: "custom", path: ["deadlineDayOffset"], message: "只有月任务可以选择月末截止" });
+  if (value.type === TaskType.CALENDAR && !value.calendarTemplateId) context.addIssue({ code: "custom", path: ["calendarTemplateId"], message: "请选择日历任务模版" });
 });
 
-const typeLabels: Record<TaskType, string> = { DAILY: "日任务", WEEKLY: "周任务", MONTHLY: "月任务", TEMPORARY: "临时任务" };
+const typeLabels: Record<TaskType, string> = { DAILY: "日任务", WEEKLY: "周任务", MONTHLY: "月任务", TEMPORARY: "临时任务", CALENDAR: "日历任务" };
 const targetLabels: Record<TaskTarget, string> = { STORE: "门店", STORE_EMPLOYEE: "门店员工" };
 
-function buildConfig(input: z.infer<typeof taskSchema>, specifiedTargets: string[], recordNo: string, roles: { id: string; name: string }[], brands: { id: string; name: string }[], r2Storage: { id: string; name: string; bucketName: string }, version: number, items: SubmitItem[]) {
+function buildConfig(input: z.infer<typeof taskSchema>, specifiedTargets: string[], recordNo: string, roles: { id: string; name: string }[], brands: { id: string; name: string }[], r2Storage: { id: string; name: string; bucketName: string }, version: number, items: SubmitItem[], calendarTemplate?: { id: string; recordNo: string; name: string } | null) {
   return {
     recordNo, taskName: input.title, taskType: typeLabels[input.type], taskTarget: targetLabels[input.targetType], executorRoles: roles, executorRole: roles[0] || null,
     specifiedTargets,
     brands, storageSpace: r2Storage, executionDays: input.executionDays, weeklyExecutionDay: input.weeklyExecutionDay, monthlyExecutionDay: input.monthlyExecutionDay,
     deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, includeCompletionRate: input.includeCompletionRate,
+    calendarTemplate: calendarTemplate || null,
     status: input.status === RecordStatus.ENABLED ? "启用" : "禁用", configVersion: version, submitItems: items,
   };
 }
@@ -59,7 +63,7 @@ async function nextRecordNo() {
 export async function GET(request: Request) {
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "tasks:settings:view")) return NextResponse.json({ message: "暂无任务设置权限" }, { status: 403 });
+  if (!canTaskSettingsAction(session.permissions, "query")) return NextResponse.json({ message: "暂无任务设置查询权限" }, { status: 403 });
   const url = new URL(request.url);
   const keyword = (url.searchParams.get("keyword") || "").trim();
   const type = url.searchParams.get("type") || "";
@@ -82,7 +86,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await requireApiSession();
   if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "tasks:settings:view")) return NextResponse.json({ message: "暂无任务设置权限" }, { status: 403 });
+  if (!canTaskSettingsAction(session.permissions, "create")) return NextResponse.json({ message: "暂无新增任务设置权限" }, { status: 403 });
   const parsed = taskSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0].message }, { status: 400 });
   const input = parsed.data;
@@ -91,24 +95,26 @@ export async function POST(request: Request) {
     const specifiedTargets = parseTaskSpecifiedTargets(input.specifiedTargets);
     if (await configFileExists(fileName) || await db.task.findFirst({ where: { configFileName: fileName, deletedAt: null } })) return NextResponse.json({ message: "配置文件名称已存在，请重新输入" }, { status: 400 });
     const uniqueRoleIds = [...new Set(input.executorRoleIds)];
-    const [roles, brands, r2Storage, aiServiceOptions] = await Promise.all([
+    const [roles, brands, r2Storage, aiServiceOptions, calendarTemplate] = await Promise.all([
       db.role.findMany({ where: { id: { in: uniqueRoleIds }, status: RecordStatus.ENABLED }, select: { id: true, name: true } }),
       db.brand.findMany({ where: { id: { in: [...new Set(input.brandIds)] }, status: RecordStatus.ENABLED }, select: { id: true, name: true } }),
       db.r2StorageConfig.findFirst({ where: { id: input.r2StorageId, status: RecordStatus.ENABLED, deletedAt: null }, select: { id: true, name: true, bucketName: true } }),
       getBusinessDictionaryOptions("AI_SERVICE").catch(() => []),
+      input.type === TaskType.CALENDAR && input.calendarTemplateId ? db.taskCalendarTemplate.findFirst({ where: { id: input.calendarTemplateId, status: RecordStatus.ENABLED, task: null }, select: { id: true, recordNo: true, name: true } }) : Promise.resolve(null),
     ]);
     if (roles.length !== uniqueRoleIds.length) return NextResponse.json({ message: "部分执行人角色无效或已禁用，请重新选择。" }, { status: 400 });
     if (brands.length !== new Set(input.brandIds).size) return NextResponse.json({ message: "品牌数据无效，请重新选择" }, { status: 400 });
     if (!r2Storage) return NextResponse.json({ message: "请选择已启用的R2存储空间" }, { status: 400 });
+    if (input.type === TaskType.CALENDAR && !calendarTemplate) return NextResponse.json({ message: "日历任务模版不存在、已禁用或已被其他任务使用" }, { status: 400 });
     const recordNo = await nextRecordNo();
     const { items, normalizedContent } = parseSubmitContent(input.submitContent, aiServiceOptions.map(option => option.value));
     const orderedRoles = uniqueRoleIds.map(roleId => roles.find(role => role.id === roleId)!);
-    const config = buildConfig({ ...input, submitContent: normalizedContent }, specifiedTargets, recordNo, orderedRoles, brands, r2Storage, 1, items);
+    const config = buildConfig({ ...input, submitContent: normalizedContent }, specifiedTargets, recordNo, orderedRoles, brands, r2Storage, 1, items, calendarTemplate);
     await createTaskConfig(fileName, config);
     try {
       const task = await db.$transaction(async tx => {
         const normalizedExecutionDays = input.type === TaskType.DAILY ? input.executionDays : input.type === TaskType.WEEKLY && input.weeklyExecutionDay ? [input.weeklyExecutionDay] : [];
-        const created = await tx.task.create({ data: { recordNo, title: input.title, type: input.type, targetType: input.targetType, specifiedTargets, status: input.status, executorRoleId: orderedRoles[0].id, r2StorageId: r2Storage.id, includeCompletionRate: input.includeCompletionRate, executionDays: normalizedExecutionDays, weeklyExecutionDay: input.type === TaskType.WEEKLY ? input.weeklyExecutionDay : null, monthlyExecutionDay: input.type === TaskType.MONTHLY ? input.monthlyExecutionDay : null, deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, configFileName: fileName, submitItems: items, description: normalizedContent, createdByUserId: session.userId, executorRoles: { create: orderedRoles.map(role => ({ roleId: role.id })) }, brands: { create: brands.map(brand => ({ brandId: brand.id })) } } });
+        const created = await tx.task.create({ data: { recordNo, title: input.title, type: input.type, targetType: input.targetType, specifiedTargets, status: input.status, executorRoleId: orderedRoles[0].id, r2StorageId: r2Storage.id, calendarTemplateId: input.type === TaskType.CALENDAR ? input.calendarTemplateId : null, includeCompletionRate: input.includeCompletionRate, executionDays: normalizedExecutionDays, weeklyExecutionDay: input.type === TaskType.WEEKLY ? input.weeklyExecutionDay : null, monthlyExecutionDay: input.type === TaskType.MONTHLY ? input.monthlyExecutionDay : null, deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, configFileName: fileName, submitItems: items, description: normalizedContent, createdByUserId: session.userId, executorRoles: { create: orderedRoles.map(role => ({ roleId: role.id })) }, brands: { create: brands.map(brand => ({ brandId: brand.id })) } } });
         await tx.r2StorageReference.create({ data: { r2ConfigId: r2Storage.id, businessType: "TASK", businessId: created.id } });
         return created;
       });

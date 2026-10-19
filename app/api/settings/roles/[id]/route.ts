@@ -5,6 +5,7 @@ import { requireApiSession, sessionHasPermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { synchronizeStoreLeadership } from "@/lib/store-leadership";
+import { synchronizeStoreRegionManagers } from "@/lib/store-supervisor";
 import { getFixedSystemRole } from "@/lib/system-roles";
 
 const roleSchema = z.object({
@@ -58,7 +59,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const result = await db.$transaction(async transaction => {
       const updated = await transaction.role.updateMany({ where: { id, updatedAt: role.updatedAt }, data });
-      if (updated.count) await synchronizeStoreLeadership(undefined, transaction);
+      if (updated.count) {
+        await synchronizeStoreLeadership(undefined, transaction);
+        await synchronizeStoreRegionManagers(undefined, transaction);
+      }
       return updated;
     });
     if (!result.count) return NextResponse.json({ message: "角色已被其他用户修改，请刷新后重新操作。" }, { status: 409 });

@@ -30,6 +30,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       },
     });
     if (!record) { await cleanup(); return NextResponse.json({ message: "该任务记录已不存在或无权编辑" }, { status: 404 }); }
+    if (await db.inspectionRectificationRound.findUnique({ where: { taskRecordId: id }, select: { id: true } })) return NextResponse.json({ message: "巡检整改任务须保留原提交照片，不能直接编辑" }, { status: 409 });
     if (record.status !== TaskRecordStatus.COMPLETED || record.aiAnalysis) { await cleanup(); return NextResponse.json({ message: "仅已完成且尚未智能分析的任务记录支持编辑" }, { status: 409 }); }
     const item = record.formalSubmission?.items[0];
     if (!record.formalSubmission || !item || item.sortOrder !== grant.itemIndex || item.componentType !== "attachment" || (item.dataType !== "photo" && item.dataType !== "video")) {

@@ -1,12 +1,13 @@
 import { ContractStatus, CooperationType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireApiSession, sessionHasPermission } from "@/lib/auth";
+import { requireApiSession } from "@/lib/auth";
 import { contractInputSchema } from "@/lib/contract-validation";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
 import { writeOperationLog } from "@/lib/operation-log";
 import { getPlatformConfig } from "@/lib/platform-config";
 import { dateKeyAsDbDate, shanghaiDateKey } from "@/lib/store-h5-tasks";
+import { canContractAction } from "@/lib/contract-permissions";
 
 function calculateContractStatus(contract: { status: ContractStatus; startDate: Date; endDate: Date }, warningDays: number) {
   if (contract.status === ContractStatus.TERMINATED) return { status: ContractStatus.TERMINATED, isExpiring: false };
@@ -21,7 +22,7 @@ function calculateContractStatus(contract: { status: ContractStatus; startDate: 
 
 export async function GET(request: Request) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:contracts:view")) return NextResponse.json({ message: "暂无合同管理权限" }, { status: 403 });
+  if (!canContractAction(session.permissions, "query")) return NextResponse.json({ message: "暂无合同查询权限" }, { status: 403 });
   const url = new URL(request.url);
   const keyword = url.searchParams.get("keyword")?.trim() || "";
   const status = url.searchParams.get("status") || "";
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
-  if (!sessionHasPermission(session, "stores:contracts:view")) return NextResponse.json({ message: "暂无合同管理权限" }, { status: 403 });
+  if (!canContractAction(session.permissions, "create")) return NextResponse.json({ message: "暂无新增合同权限" }, { status: 403 });
   const result = contractInputSchema.safeParse(await request.json());
   if (!result.success) return NextResponse.json({ message: result.error.issues[0].message }, { status: 400 });
   const brand = await db.brand.findUnique({ where: { id: result.data.brandId }, select: { id: true, name: true } });

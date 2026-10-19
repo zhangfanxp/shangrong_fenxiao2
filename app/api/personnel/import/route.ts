@@ -3,17 +3,16 @@ import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
 import { requireApiSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { buildPersonnelImportWorkbook, normalizePersonnelImportHeader, personnelImportRequiredFields } from "@/lib/personnel-import-template";
 import { personnelInputSchema } from "@/lib/personnel-validation";
 import { canPersonnel, nextPersonnelRecordNo, personnelData, personnelLog, validatePersonnelRelations } from "@/lib/personnel-service";
 
-const headers = ["姓名", "手机号", "身份证", "入职时间", "所属岗位星级", "人员归属", "部门/店面", "人员状态", "合同签署日期", "合同年限", "合同到期日", "家庭住址", "现住址", "需补充材料", "基本工资", "社保情况", "生日历法", "员工生日(月-日)", "平台权限", "平台用户账号", "备注信息"];
 const text = (row: Record<string, unknown>, key: string) => String(row[key] ?? "").trim();
 
 export async function GET() {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   if (!canPersonnel(session, "import")) return NextResponse.json({ message: "无人员档案导入权限" }, { status: 403 });
-  const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet("人员档案导入");
-  sheet.addRow(headers); sheet.addRow(["张三", "13800138001", "11010519491231002X", "2026-08-20", "店长·五星", "奋小二", "奋小二·静安店", "在职", "2026-08-20", 5, "2031-08-20", "示例家庭住址", "示例现住址", "", 6500, "是", "农历", "01-15", "无", "", "示例行，请导入前删除"]); sheet.getRow(1).font = { bold: true }; sheet.columns.forEach(column => { column.width = 18; });
+  const workbook = buildPersonnelImportWorkbook();
   const buffer = await workbook.xlsx.writeBuffer();
   return new NextResponse(buffer, { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": "attachment; filename*=UTF-8''%E4%BA%BA%E5%91%98%E6%A1%A3%E6%A1%88%E5%AF%BC%E5%85%A5%E6%A8%A1%E6%9D%BF.xlsx" } });
 }
@@ -26,8 +25,11 @@ export async function POST(request: Request) {
   if (file.size > 10 * 1024 * 1024) return NextResponse.json({ message: "导入文件不能超过10MB" }, { status: 400 });
   try {
     const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(await file.arrayBuffer()); const first = workbook.worksheets[0]; if (!first) return NextResponse.json({ message: "导入文件没有工作表" }, { status: 400 });
-    const fileHeaders = first.getRow(1).values as ExcelJS.CellValue[]; const rows: Record<string, unknown>[] = [];
-    first.eachRow((sheetRow, rowNumber) => { if (rowNumber === 1) return; const item: Record<string, unknown> = {}; fileHeaders.slice(1).forEach((value, index) => { const actualHeader = String(value ?? "").trim(); if (actualHeader) item[actualHeader] = sheetRow.getCell(index + 1).text.trim(); }); if (Object.values(item).some(Boolean)) rows.push(item); });
+    const fileHeaders = Array.from({ length: first.columnCount }, (_, index) => normalizePersonnelImportHeader(first.getRow(1).getCell(index + 1).text));
+    const missingRequiredHeaders = personnelImportRequiredFields.filter(field => !fileHeaders.includes(field));
+    if (missingRequiredHeaders.length) return NextResponse.json({ message: `导入文件缺少必填字段：${missingRequiredHeaders.join("、")}` }, { status: 400 });
+    const rows: Record<string, unknown>[] = [];
+    first.eachRow((sheetRow, rowNumber) => { if (rowNumber === 1) return; const item: Record<string, unknown> = {}; fileHeaders.forEach((actualHeader, index) => { if (actualHeader) item[actualHeader] = sheetRow.getCell(index + 1).text.trim(); }); if (Object.values(item).some(Boolean)) rows.push(item); });
     if (!rows.length) return NextResponse.json({ message: "导入文件没有可读取的数据" }, { status: 400 });
     if (rows.length > 5000) return NextResponse.json({ message: "单次最多导入5000条人员档案" }, { status: 400 });
     const stores = await db.store.findMany({ include: { brand: { select: { name: true } } } }); const users = await db.user.findMany({ select: { id: true, username: true } });
@@ -35,6 +37,8 @@ export async function POST(request: Request) {
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index]; const excelRow = index + 2; const idNumber = text(row, "身份证").toUpperCase();
       try {
+        const missingRequiredValues = personnelImportRequiredFields.filter(field => !text(row, field));
+        if (missingRequiredValues.length) throw new Error(`${missingRequiredValues.join("、")}为必填项`);
         if (seen.has(idNumber)) throw new Error("身份证号码在导入文件中重复"); seen.add(idNumber);
         const organization = text(row, "人员归属"); const workplace = text(row, "部门/店面"); const store = organization === "总部" ? undefined : stores.find(item => item.name === workplace); if (organization !== "总部" && !store) throw new Error("部门/店面不存在");
         if (text(row, "人员状态") !== "在职") throw new Error("人员状态仅支持“在职”，离职请通过正式离职流程办理");

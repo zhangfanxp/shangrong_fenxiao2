@@ -1,13 +1,35 @@
+import { availableMobileTaskWhere } from "@/lib/mobile-task-availability";
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
 import { dateKeyAsDbDate, isStoreTaskSnapshot, shanghaiDateKey } from "@/lib/store-h5-tasks";
-import { deleteTaskDraftFiles, deleteUploadedTaskFiles, TaskAttachmentError, uploadStoreTaskFile } from "@/lib/task-r2-upload";
+import { createTaskAttachmentReadUrl, deleteTaskDraftFiles, deleteUploadedTaskFiles, TaskAttachmentError, uploadStoreTaskFile } from "@/lib/task-r2-upload";
 
 export const runtime = "nodejs";
 
 const deleteSchema = z.object({ attachmentId: z.string().trim().min(1) });
+
+export async function GET(request: Request, { params }: { params: Promise<{ taskInstanceId: string }> }) {
+  const channel = mobileH5TaskChannel(request);
+  const session = await getMobileH5TaskSession(request, "view");
+  if (!session) return NextResponse.json({ message: mobileH5UnauthorizedMessage(channel) }, { status: 401 });
+  const { taskInstanceId } = await params;
+  const attachmentId = new URL(request.url).searchParams.get("attachmentId");
+  if (!attachmentId) return NextResponse.json({ message: "请选择要查看的照片" }, { status: 400 });
+  try {
+    const attachment = await db.taskAttachment.findFirst({
+      where: { id: attachmentId, taskRecordId: taskInstanceId, uploaderUserId: session.userId, taskRecord: { assignedUserId: session.userId } },
+      select: { r2StorageId: true, objectKey: true, mimeType: true },
+    });
+    if (!attachment) return NextResponse.json({ message: "照片不存在或无权查看" }, { status: 404 });
+    if (!attachment.mimeType.startsWith("image/")) return NextResponse.json({ message: "仅支持查看照片" }, { status: 400 });
+    const response = NextResponse.redirect(await createTaskAttachmentReadUrl(attachment));
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+    return response;
+  } catch { return NextResponse.json({ message: "照片预览加载失败，请稍后重试" }, { status: 500 }); }
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ taskInstanceId: string }> }) {
   const channel = mobileH5TaskChannel(request);
@@ -19,7 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     const file = formData.get("file");
     const itemIndex = Number(formData.get("itemIndex"));
     if (!(file instanceof File) || !Number.isInteger(itemIndex) || itemIndex < 0) return NextResponse.json({ message: "附件上传参数不正确" }, { status: 400 });
-    const record = await db.taskRecord.findFirst({ where: { id: taskInstanceId, assignedUserId: session.userId, dueDate: { gte: new Date() }, status: "PENDING" }, include: { task: { select: { r2StorageId: true } } } });
+    const record = await db.taskRecord.findFirst({ where: { id: taskInstanceId, assignedUserId: session.userId, ...availableMobileTaskWhere() }, include: { task: { select: { r2StorageId: true } } } });
     if (!record) return NextResponse.json({ message: "任务不存在、已完成或不属于当前用户" }, { status: 404 });
     if (!isStoreTaskSnapshot(record.configSnapshot)) return NextResponse.json({ message: "任务配置快照异常" }, { status: 500 });
     const item = record.configSnapshot.submitItems[itemIndex];
@@ -35,10 +57,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
       file: { name: file.name, type: file.type || "application/octet-stream", size: file.size, body },
     });
     try {
-      const attachment = await db.taskAttachment.create({ data: {
-        taskRecordId: record.id, itemIndex, uploaderUserId: session.userId, r2StorageId,
-        objectKey: uploaded.objectKey, originalName: uploaded.name, mimeType: uploaded.type, size: uploaded.size,
-      } });
+      const attachment = await db.$transaction(async tx => {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM TaskRecord WHERE id = ${record.id} FOR UPDATE`);
+        const writable = await tx.taskRecord.findFirst({ where: { id: record.id, assignedUserId: session.userId, ...availableMobileTaskWhere() }, select: { id: true } });
+        const count = await tx.taskAttachment.count({ where: { taskRecordId: record.id, itemIndex, uploaderUserId: session.userId, consumedAt: null } });
+        if (!writable || count >= item.weight) throw new TaskAttachmentError("任务已提交、状态发生变化或附件已达到上限，请刷新后重试");
+        return tx.taskAttachment.create({ data: {
+          taskRecordId: record.id, itemIndex, uploaderUserId: session.userId, r2StorageId,
+          objectKey: uploaded.objectKey, originalName: uploaded.name, mimeType: uploaded.type, size: uploaded.size,
+        } });
+      });
       return NextResponse.json({ id: attachment.id, name: attachment.originalName, size: attachment.size, mimeType: attachment.mimeType, status: "success" }, { status: 201 });
     } catch (error) {
       await deleteUploadedTaskFiles(r2StorageId, [uploaded]);
@@ -58,13 +86,18 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ t
   if (!parsed.success) return NextResponse.json({ message: "附件删除参数不正确" }, { status: 400 });
   const { taskInstanceId } = await params;
   try {
-    const attachment = await db.taskAttachment.findFirst({
-      where: { id: parsed.data.attachmentId, taskRecordId: taskInstanceId, uploaderUserId: session.userId, consumedAt: null, taskRecord: { status: "PENDING", dueDate: { gte: new Date() } } },
-      select: { id: true, r2StorageId: true, objectKey: true },
+    const attachment = await db.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM TaskRecord WHERE id = ${taskInstanceId} FOR UPDATE`);
+      const current = await tx.taskAttachment.findFirst({
+        where: { id: parsed.data.attachmentId, taskRecordId: taskInstanceId, uploaderUserId: session.userId, consumedAt: null, taskRecord: availableMobileTaskWhere() },
+        select: { id: true, r2StorageId: true, objectKey: true },
+      });
+      if (!current) return null;
+      await tx.taskAttachment.delete({ where: { id: current.id } });
+      return current;
     });
     if (!attachment) return NextResponse.json({ message: "附件不存在或当前任务已不能修改" }, { status: 404 });
-    await deleteTaskDraftFiles([attachment]);
-    await db.taskAttachment.deleteMany({ where: { id: attachment.id, consumedAt: null } });
+    await deleteTaskDraftFiles([attachment]).catch(() => undefined);
     return NextResponse.json({ message: "附件已删除" });
   } catch (error) {
     const message = error instanceof TaskAttachmentError ? error.message : "附件删除失败，请稍后重试";
