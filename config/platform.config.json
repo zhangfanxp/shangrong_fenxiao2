@@ -7,10 +7,10 @@
   "automaticTaskExecutionTime": "05:30",
   "defaultTaskDeadlineDayOffset": 0,
   "defaultTaskDeadlineTime": "23:59",
-  "dailyLearningR2StorageId": "cmt0xbey80005tncek1xtase8",
-  "trainingVideoR2StorageId": "cmt0xbey80005tncek1xtase8",
-  "trainingAudioR2StorageId": "cmt0xbey80005tncek1xtase8",
-  "trainingDocumentR2StorageId": "cmt0xbey80005tncek1xtase8",
+  "dailyLearningR2StorageId": "cmvf1kmb90005g50kx8r0kzu8",
+  "trainingVideoR2StorageId": "cmvf1kmb90005g50kx8r0kzu8",
+  "trainingAudioR2StorageId": "cmvf1kmb90005g50kx8r0kzu8",
+  "trainingDocumentR2StorageId": "cmvf1kmb90005g50kx8r0kzu8",
   "aiApiServices": {
     "图片分析": {
       "selectedModel": "QWEN3_VL",
@@ -26,5 +26,8 @@
         "QWEN3_VL": ""
       }
     }
-  }
+  },
+  "contractExpiringWarningDays": 30,
+  "birthdayReminderDays": 7,
+  "birthdayReminderCalculationTime": "23:59"
 }

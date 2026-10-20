@@ -9,11 +9,13 @@ import { getPlatformConfig } from "@/lib/platform-config";
 import { dateKeyAsDbDate, shanghaiDateKey } from "@/lib/store-h5-tasks";
 import { canContractAction } from "@/lib/contract-permissions";
 
-function calculateContractStatus(contract: { status: ContractStatus; startDate: Date; endDate: Date }, warningDays: number) {
+function calculateContractStatus(contract: { status: ContractStatus; startDate: Date; endDate: Date; trialOpenDate: Date | null }, warningDays: number) {
   if (contract.status === ContractStatus.TERMINATED) return { status: ContractStatus.TERMINATED, isExpiring: false };
   const today = dateKeyAsDbDate(shanghaiDateKey());
   if (contract.endDate.getTime() < today.getTime()) return { status: ContractStatus.EXPIRED, isExpiring: false };
-  if (contract.startDate.getTime() > today.getTime()) return { status: ContractStatus.PENDING, isExpiring: false };
+  const trialDatePassed = !!contract.trialOpenDate && contract.trialOpenDate.getTime() < today.getTime();
+  if (contract.status === ContractStatus.PENDING && !trialDatePassed) return { status: ContractStatus.PENDING, isExpiring: false };
+  if (!trialDatePassed && contract.startDate.getTime() > today.getTime()) return { status: ContractStatus.PENDING, isExpiring: false };
   const expiryDate = new Date(contract.endDate);
   expiryDate.setUTCHours(0, 0, 0, 0);
   const daysUntilExpiry = Math.floor((expiryDate.getTime() - today.getTime()) / 86_400_000);
@@ -62,6 +64,7 @@ export async function POST(request: Request) {
   if (!canContractAction(session.permissions, "create")) return NextResponse.json({ message: "暂无新增合同权限" }, { status: 403 });
   const result = contractInputSchema.safeParse(await request.json());
   if (!result.success) return NextResponse.json({ message: result.error.issues[0].message }, { status: 400 });
+  if (result.data.status === ContractStatus.EXPIRED) return NextResponse.json({ message: "已过期状态由系统根据合同截止日期自动更新，不能手动设置" }, { status: 400 });
   const brand = await db.brand.findUnique({ where: { id: result.data.brandId }, select: { id: true, name: true } });
   if (!brand) return NextResponse.json({ message: "所选品牌不存在或已删除" }, { status: 400 });
   const [brandValid, cooperationValid, statusValid, ...rebateChecks] = await Promise.all([

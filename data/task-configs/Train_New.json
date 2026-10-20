@@ -5,23 +5,23 @@
   "taskTarget": "门店",
   "executorRoles": [
     {
-      "id": "cmt6jn0cl000ctn6y5ukshkil",
+      "id": "cmvf1gkw90001g5zxhuo9aq52",
       "name": "店长"
     }
   ],
   "executorRole": {
-    "id": "cmt6jn0cl000ctn6y5ukshkil",
+    "id": "cmvf1gkw90001g5zxhuo9aq52",
     "name": "店长"
   },
   "specifiedTargets": [],
   "brands": [
     {
-      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "id": "cmvf1kmdq000ag50kmh4mh992",
       "name": "奋小二"
     }
   ],
   "storageSpace": {
-    "id": "cmt0xbey80005tncek1xtase8",
+    "id": "cmvf1kmb90005g50kx8r0kzu8",
     "name": "R2-test",
     "bucketName": "videolist"
   },
@@ -30,7 +30,7 @@
   "deadlineTime": "23:59",
   "includeCompletionRate": true,
   "calendarTemplate": {
-    "id": "cmv6e1w7y0007tnwaktechgg0",
+    "id": "cmvf1kmf0000zg50k445l0zh7",
     "recordNo": "202610130001",
     "name": "奋小二-前厅每日学习"
   },

@@ -52,19 +52,34 @@ export async function runScheduledContractExpiryCalculation(now = new Date()) {
     const platform = await getPlatformConfig();
     const warningDays = platform.contractExpiringWarningDays;
     const { start, endExclusive } = contractExpiryWindow(date, warningDays);
-    const updated = await db.contract.updateMany({
+    const expired = await db.contract.updateMany({
+      where: {
+        status: { notIn: [ContractStatus.TERMINATED, ContractStatus.EXPIRED] },
+        endDate: { lt: start },
+      },
+      data: { status: ContractStatus.EXPIRED },
+    });
+    const activated = await db.contract.updateMany({
+      where: {
+        status: ContractStatus.PENDING,
+        trialOpenDate: { lt: start },
+        endDate: { gte: start },
+      },
+      data: { status: ContractStatus.ACTIVE },
+    });
+    const expiring = await db.contract.updateMany({
       where: {
         status: ContractStatus.ACTIVE,
         endDate: { gte: start, lt: endExclusive },
       },
       data: { status: ContractStatus.EXPIRING },
     });
-    const result = { updated: updated.count, warningDays, startDate: date, endDateExclusive: endExclusive.toISOString().slice(0, 10) };
+    const result = { expired: expired.count, activated: activated.count, updated: expiring.count, warningDays, startDate: date, endDateExclusive: endExclusive.toISOString().slice(0, 10) };
     await db.scheduledJobRun.update({
       where: { jobType_executionDate: uniqueKey },
       data: { status: "SUCCESS", completedAt: new Date(), result: result as unknown as Prisma.InputJsonValue, error: null },
     });
-    await writeOperationLog({ username: "系统", page: "合同管理", action: "自动标记即将到期", result: "成功", detail: `执行日期：${date}；提前天数：${warningDays}；已标记：${updated.count}` }).catch(() => undefined);
+    await writeOperationLog({ username: "系统", page: "合同管理", action: "自动更新合同状态", result: "成功", detail: `执行日期：${date}；筹备期转正常：${activated.count}；已过期：${expired.count}；即将到期：${expiring.count}；提前天数：${warningDays}` }).catch(() => undefined);
     return { status: "completed" as const, date, scheduledTime: CONTRACT_EXPIRY_SCHEDULED_TIME, ...result };
   } catch (error) {
     const message = error instanceof Error ? error.message : "合同即将到期状态计算失败";

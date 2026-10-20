@@ -126,6 +126,7 @@ export async function POST(request: Request) {
       const status = optionValue(dictionaries.CONTRACT_STATUS || [], data.status);
       if (!status) messages.push(`合同状态“${data.status || "（空）"}”不在已启用的数据字典中`);
       else if (status === ContractStatus.TERMINATED) messages.push("新增合同不能直接设为已解约");
+      else if (status === ContractStatus.EXPIRED) messages.push("新增合同不能直接设为已过期，系统会根据合同截止日期自动更新");
 
       const monetaryFields = [
         ["cooperationFee", "合作费"], ["brandFee", "品牌使用费"], ["financeServiceFee", "财务服务费"], ["designFee", "设计费"], ["deposit", "保证金"],

@@ -4,11 +4,12 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireApiSession } from "@/lib/auth";
 import { contractInputSchema } from "@/lib/contract-validation";
+import { shanghaiDateKey } from "@/lib/store-h5-tasks";
 import { businessDictionaryContains } from "@/lib/business-dictionaries";
 import { writeOperationLog } from "@/lib/operation-log";
 import { canContractAction } from "@/lib/contract-permissions";
 
-const statusSchema = z.object({ status: z.enum([ContractStatus.PENDING, ContractStatus.ACTIVE, ContractStatus.EXPIRING, ContractStatus.EXPIRED]) });
+const statusSchema = z.object({ status: z.enum([ContractStatus.PENDING, ContractStatus.ACTIVE, ContractStatus.EXPIRING]) });
 const terminationSchema = z.object({ status: z.literal(ContractStatus.TERMINATED), refundedDeposit: z.coerce.number().min(0, "退回保证金不能小于 0") });
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +25,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireApiSession(); if (!session) return NextResponse.json({ message: "登录状态已失效，请重新登录" }, { status: 401 });
   const body = await request.json();
+  if (body && typeof body === "object" && !Array.isArray(body) && Object.keys(body).length === 1 && body.status === ContractStatus.EXPIRED) {
+    return NextResponse.json({ message: "已过期状态由系统根据合同截止日期自动更新，不能手动设置" }, { status: 400 });
+  }
   const statusOnly = body && typeof body === "object" && Object.keys(body).length === 1 && body.status === ContractStatus.ACTIVE;
   const terminationOnly = body && typeof body === "object" && Object.keys(body).length === 2 && body.status === ContractStatus.TERMINATED && Object.prototype.hasOwnProperty.call(body, "refundedDeposit");
   const action = terminationOnly ? "terminate" : statusOnly ? "activate" : "edit";
@@ -48,6 +52,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const result = contractInputSchema.safeParse(body);
   if (!result.success) return NextResponse.json({ message: result.error.issues[0].message }, { status: 400 });
   if (result.data.status === ContractStatus.TERMINATED) return NextResponse.json({ message: "请通过“解约”操作录入退回保证金后完成解约" }, { status: 400 });
+  if (result.data.status === ContractStatus.EXPIRED && result.data.endDate >= shanghaiDateKey()) return NextResponse.json({ message: "合同截止日期未过，不能设置为已过期；系统会在截止日期后自动更新" }, { status: 400 });
   const brand = await db.brand.findUnique({ where: { id: result.data.brandId }, select: { id: true, name: true } });
   if (!brand) return NextResponse.json({ message: "所选品牌不存在或已删除" }, { status: 400 });
   const [brandValid, cooperationValid, statusValid, ...rebateChecks] = await Promise.all([

@@ -93,6 +93,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
   const [contractRows, setContractRows] = useState<Contract[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
   const [contractsError, setContractsError] = useState(false);
+  const [contractKeyword, setContractKeyword] = useState("");
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [regionManagerLoading, setRegionManagerLoading] = useState(false);
   const regionManagerRequestRef = useRef(0);
@@ -127,6 +128,10 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
   const [aliasForm] = Form.useForm<AliasForm>();
   const [costForm] = Form.useForm<CostForm>();
   const cityOptions = useMemo(() => Array.from(new Set(districtOptions.flatMap((province) => (province.children || []).map((city) => city.name)))).map((city) => ({ value: city, label: city })), []);
+  const filteredContractRows = useMemo(() => {
+    const keyword = contractKeyword.trim().toLocaleLowerCase();
+    return keyword ? contractRows.filter(contract => contract.storeName.toLocaleLowerCase().includes(keyword)) : contractRows;
+  }, [contractKeyword, contractRows]);
   const configuredWorkdayHoursForBrand = (brandId?: string) => {
     const brandName = brands.find(brand => brand.id === brandId)?.name || rows.find(store => store.brandId === brandId)?.brand.name;
     return brandName && Object.prototype.hasOwnProperty.call(brandDayHours, brandName) ? brandDayHours[brandName] : undefined;
@@ -161,7 +166,7 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
       setContractRows(await response.json());
     } catch { setContractsError(true); } finally { setContractsLoading(false); }
   };
-  const openContractModal = () => { setContractModalOpen(true); void loadAvailableContracts(); };
+  const openContractModal = () => { setContractKeyword(""); setContractModalOpen(true); void loadAvailableContracts(); };
   const applyRegionManager = async (region?: string) => {
     const requestId = ++regionManagerRequestRef.current;
     form.setFieldsValue({ supervisorUserId: undefined, supervisorName: undefined });
@@ -707,7 +712,8 @@ export function StoreList({ permissions, brandDayHours }: { permissions: string[
       />}
     </Modal>
     <Modal title="选择合同" open={contractModalOpen} onCancel={() => setContractModalOpen(false)} footer={<Button onClick={() => setContractModalOpen(false)}>取消</Button>} width={680} destroyOnHidden>
-      {contractsError ? <Alert type="error" showIcon message="合同记录加载失败，请稍后重试" action={<Button size="small" onClick={() => void loadAvailableContracts()}>重新加载</Button>} /> : <DataTable rowKey="id" scroll={{ x: 620 }} loading={contractsLoading} dataSource={contractRows} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 条未关联合同` }} columns={[
+      <Input allowClear value={contractKeyword} onChange={event => setContractKeyword(event.target.value)} placeholder="请输入门店名称搜索合同" style={{ marginBottom: 16 }} />
+      {contractsError ? <Alert type="error" showIcon message="合同记录加载失败，请稍后重试" action={<Button size="small" onClick={() => void loadAvailableContracts()}>重新加载</Button>} /> : <DataTable rowKey="id" scroll={{ x: 620 }} loading={contractsLoading} dataSource={filteredContractRows} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `共 ${total} 条未关联合同` }} columns={[
         { title: "合同编号", dataIndex: "recordNo", width: 150 },
         { title: "门店名称", dataIndex: "storeName", width: 190, ellipsis: true },
         { title: "签约业主", dataIndex: "ownerName", width: 120, ellipsis: true },

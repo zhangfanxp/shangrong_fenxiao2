@@ -2,13 +2,11 @@
   "recordNo": "202608250001",
   "templateType": "督导巡店调研",
   "brands": [
-    "奋小二",
-    "蚝家伙",
-    "禾穆婆"
+    "奋小二"
   ],
   "status": "已启用",
   "statusCode": "ENABLED",
-  "configVersion": 1,
+  "configVersion": 2,
   "items": [
     {
       "id": "item_1",

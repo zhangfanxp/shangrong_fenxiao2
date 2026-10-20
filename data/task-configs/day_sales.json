@@ -6,22 +6,22 @@
   "specifiedTargets": [],
   "executorRoles": [
     {
-      "id": "cmt6jn0cl000ctn6y5ukshkil",
+      "id": "cmvf1gkw90001g5zxhuo9aq52",
       "name": "店长"
     }
   ],
   "executorRole": {
-    "id": "cmt6jn0cl000ctn6y5ukshkil",
+    "id": "cmvf1gkw90001g5zxhuo9aq52",
     "name": "店长"
   },
   "brands": [
     {
-      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "id": "cmvf1kmdq000ag50kmh4mh992",
       "name": "奋小二"
     }
   ],
   "storageSpace": {
-    "id": "cmt0xbey80005tncek1xtase8",
+    "id": "cmvf1kmb90005g50kx8r0kzu8",
     "name": "R2-test",
     "bucketName": "videolist"
   },

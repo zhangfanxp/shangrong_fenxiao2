@@ -43,6 +43,8 @@ export function ContractList({ permissions }: { permissions: string[] }) {
   const cooperationOptions = [{ value: "", label: "全部合作类型" }, ...(dictionaries.COOPERATION_TYPE || [])];
   const rebateOptions = dictionaries.REBATE_TYPE || [];
   const [rows, setRows] = useState<Contract[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -78,6 +80,7 @@ export function ContractList({ permissions }: { permissions: string[] }) {
       const response = await fetch(`/api/contracts?${params.toString()}`);
       if (!response.ok) throw new Error();
       setRows(await response.json());
+      setPage(1);
     } catch { setError(true); } finally { setLoading(false); }
   };
 
@@ -240,7 +243,7 @@ export function ContractList({ permissions }: { permissions: string[] }) {
     </Card>}
     {!canQuery && <Alert style={{ marginBottom: 16 }} type="info" showIcon message="当前角色未配置合同查询权限" description="仍可使用已分配的新增、导入或其他合同操作权限。" />}
     <Card extra={<Space>{can("import") && <Button htmlType="button" icon={<UploadOutlined />} onClick={() => { setImportFile(undefined); setImportError(""); setImportFeedback(undefined); setImportOpen(true); }}>批量导入</Button>}{can("create") && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增合同</Button>}</Space>}>
-      <DataTable rowKey="id" columns={columns} dataSource={rows} loading={loading} pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }} error={error} onRetry={() => void load()} />
+      <DataTable rowKey="id" columns={columns} dataSource={rows} loading={loading} pagination={{ current: page, pageSize, total: rows.length, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: (total) => `共 ${total} 条`, onChange: (nextPage, nextPageSize) => { const targetPage = nextPageSize !== pageSize ? 1 : nextPage; setPage(targetPage); setPageSize(nextPageSize); } }} error={error} onRetry={() => void load()} />
     </Card>
     <Modal
       title="批量导入"
@@ -274,7 +277,7 @@ export function ContractList({ permissions }: { permissions: string[] }) {
       <Form form={form} layout="vertical">
         <FormHeading title="合同与门店信息" />
         <Row gutter={16}><FormItem span={8} label="品牌" name="brandId" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择品牌" options={brands.map((brand) => ({ value: brand.id, label: brand.name }))} /></FormItem><FormItem span={8} label="门店名称" name="storeName" required><Input maxLength={60} /></FormItem><FormItem span={8} label="合作类型" name="cooperationType" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} options={cooperationOptions.filter((item) => item.value)} /></FormItem></Row>
-        <Row gutter={16}><FormItem span={8} label="合同状态" name="status" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择" options={statusOptions.filter((item) => item.value).map((item) => ({ ...item, disabled: item.value === "TERMINATED" }))} /></FormItem><FormItem span={8} label="档案盒号" name="archiveBox" required><Input maxLength={60} /></FormItem><FormItem span={8} label="试营业日期" name="trialOpenDate"><DatePicker style={{ width: "100%" }} /></FormItem></Row>
+        <Row gutter={16}><FormItem span={8} label="合同状态" name="status" required><Select loading={dictionariesLoading} disabled={!!dictionariesError} placeholder="请选择" options={statusOptions.filter((item) => item.value).map((item) => ({ ...item, disabled: ["TERMINATED", "EXPIRED"].includes(item.value) }))} /></FormItem><FormItem span={8} label="档案盒号" name="archiveBox" required><Input maxLength={60} /></FormItem><FormItem span={8} label="试营业日期" name="trialOpenDate"><DatePicker style={{ width: "100%" }} /></FormItem></Row>
         <Row gutter={16}>
           <FormItem span={12} label="合同开始日期" name="startDate" required><DatePicker style={{ width: "100%" }} onChange={(date) => form.setFieldValue("endDate", date ? date.add(5, "year").subtract(1, "day") : undefined)} /></FormItem>
           <Col span={12}><Form.Item noStyle shouldUpdate={(previous, current) => previous.startDate !== current.startDate}>{() => {

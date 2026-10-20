@@ -5,23 +5,23 @@
   "taskTarget": "门店",
   "executorRoles": [
     {
-      "id": "cmtqk83q6000atn8v86gs3awo",
+      "id": "cmvf1gkwb0002g5zxc9y7ww5k",
       "name": "厨师长"
     }
   ],
   "executorRole": {
-    "id": "cmtqk83q6000atn8v86gs3awo",
+    "id": "cmvf1gkwb0002g5zxc9y7ww5k",
     "name": "厨师长"
   },
   "specifiedTargets": [],
   "brands": [
     {
-      "id": "cmszu2msr0003tnrr81c4rkbp",
+      "id": "cmvf1kmdq000ag50kmh4mh992",
       "name": "奋小二"
     }
   ],
   "storageSpace": {
-    "id": "cmt0xbey80005tncek1xtase8",
+    "id": "cmvf1kmb90005g50kx8r0kzu8",
     "name": "R2-test",
     "bucketName": "videolist"
   },
@@ -30,7 +30,7 @@
   "deadlineTime": "23:59",
   "includeCompletionRate": true,
   "calendarTemplate": {
-    "id": "cmv6fo4x7000ftnwl45f076ct",
+    "id": "cmvf1kmfa0023g50k9spd7u67",
     "recordNo": "202610130002",
     "name": "奋小二-后厨每日学习"
   },

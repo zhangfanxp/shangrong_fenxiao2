@@ -5,17 +5,18 @@
   "scoreMode": "CUSTOM_SCORE",
   "scoreModeLabel": "允许自定义得分",
   "applicableBrands": [
-    "奋小二",
-    "蚝家伙",
-    "禾穆婆"
+    "奋小二"
   ],
   "photoStorage": {
-    "id": "cmt0xbey80005tncek1xtase8",
+    "id": "cmvf1kmb90005g50kx8r0kzu8",
     "name": "R2-test"
   },
   "photoAttachmentLimit": 3,
+  "nonFullScoreRequiresPhoto": false,
+  "failRequiresProblemDescription": false,
+  "partialRequiresProblemDescription": false,
   "detailFormat": "CREDIT",
-  "configVersion": 1,
+  "configVersion": 2,
   "totalScore": 22,
   "statistics": {
     "sectionCount": 4,
