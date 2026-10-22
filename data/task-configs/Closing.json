@@ -2,6 +2,18 @@
   "recordNo": "202609090004",
   "taskName": "收市",
   "taskType": "日任务",
+  "taskTarget": "门店",
+  "specifiedTargets": [],
+  "executorRoles": [
+    {
+      "id": "cmvf1gkw90001g5zxhuo9aq52",
+      "name": "店长"
+    },
+    {
+      "id": "cmvhwfyc5000qg5ghqihyf87e",
+      "name": "主管"
+    }
+  ],
   "executorRole": {
     "id": "cmvf1gkw90001g5zxhuo9aq52",
     "name": "店长"
@@ -17,6 +29,7 @@
     "name": "R2-test",
     "bucketName": "videolist"
   },
+  "calendarTemplate": null,
   "executionDays": [
     "周一",
     "周二",
@@ -29,8 +42,9 @@
   "deadlineDayOffset": 1,
   "deadlineTime": "05:00",
   "includeCompletionRate": true,
+  "singleRecordForMultipleExecutors": true,
   "status": "启用",
-  "configVersion": 1,
+  "configVersion": 3,
   "submitItems": [
     {
       "name": "【餐厅】大厅",
@@ -248,12 +262,5 @@
       "captureOnly": true,
       "options": []
     }
-  ],
-  "executorRoles": [
-    {
-      "id": "cmvf1gkw90001g5zxhuo9aq52",
-      "name": "店长"
-    }
-  ],
-  "calendarTemplate": null
+  ]
 }

@@ -5,6 +5,7 @@ import { availableMobileTaskWhere } from "@/lib/mobile-task-availability";
 import { writeOperationLog } from "@/lib/operation-log";
 import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
 import { expireOverdueTaskInstances, shanghaiDateKey, taskTypeLabel } from "@/lib/store-h5-tasks";
+import { taskRecordParticipantWhere } from "@/lib/task-record-access";
 
 export async function GET(request: Request) {
   const channel = mobileH5TaskChannel(request);
@@ -22,12 +23,11 @@ export async function GET(request: Request) {
     await expireOverdueTaskInstances(now);
     const rows = await db.taskRecord.findMany({
       where: {
-        assignedUserId: session.userId,
         storeId: store.id,
         status,
-        ...(status === TaskRecordStatus.PENDING ? availableMobileTaskWhere(now) : {}),
+        AND: [taskRecordParticipantWhere(session.userId), ...(status === TaskRecordStatus.PENDING ? [availableMobileTaskWhere(now)] : [])],
       },
-      select: { id: true, recordNo: true, taskNameSnapshot: true, taskType: true, targetType: true, targetPersonnelNameSnapshot: true, targetPersonnelPositionSnapshot: true, triggeredAt: true, dueDate: true, completedAt: true, executionDate: true, storeNameSnapshot: true, draftSavedAt: true },
+      select: { id: true, recordNo: true, taskNameSnapshot: true, taskType: true, targetType: true, targetPersonnelNameSnapshot: true, targetPersonnelPositionSnapshot: true, triggeredAt: true, dueDate: true, completedAt: true, executionDate: true, storeNameSnapshot: true, draftSavedAt: true, sharedExecution: true, editOwnerUserId: true, editOwnerNameSnapshot: true },
       orderBy: status === TaskRecordStatus.PENDING ? [{ dueDate: "asc" }, { id: "asc" }] : status === TaskRecordStatus.COMPLETED ? [{ completedAt: "desc" }, { id: "desc" }] : [{ dueDate: "desc" }, { id: "desc" }],
       take: 200,
     });
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       date: shanghaiDateKey(), status: statusKey,
       stores: session.stores, selectedStoreId: store.id,
-      rows: rows.map(row => ({ ...row, taskName: row.taskNameSnapshot || "未命名任务", taskTypeLabel: taskTypeLabel(row.taskType), targetPersonnelName: row.targetPersonnelNameSnapshot, targetPersonnelPosition: row.targetPersonnelPositionSnapshot })),
+      rows: rows.map(row => ({ ...row, canEdit: status === TaskRecordStatus.PENDING && (!row.sharedExecution || row.editOwnerUserId === session.userId), taskName: row.taskNameSnapshot || "未命名任务", taskTypeLabel: taskTypeLabel(row.taskType), targetPersonnelName: row.targetPersonnelNameSnapshot, targetPersonnelPosition: row.targetPersonnelPositionSnapshot })),
     });
   } catch {
     return NextResponse.json({ message: "任务数据加载失败，请稍后重试" }, { status: 500 });

@@ -25,7 +25,7 @@ function jsonStringArray(value: unknown) {
 
 export async function taskRecordDataScope(session: Session): Promise<Prisma.TaskRecordWhereInput> {
   const businessInstances: Prisma.TaskRecordWhereInput = {
-    assignedUserId: { not: null },
+    OR: [{ assignedUserId: { not: null } }, { sharedExecution: true }],
     storeId: { not: null },
     taskNameSnapshot: { not: null },
     taskType: { not: null },
@@ -76,7 +76,10 @@ export function taskRecordFilterWhere(filters: TaskRecordFilters): Prisma.TaskRe
   if (filters.status === "OVERDUE") AND.push({ status: TaskRecordStatus.OVERDUE });
   if (filters.taskId) AND.push({ taskId: filters.taskId });
   if (filters.taskType) AND.push({ taskType: filters.taskType });
-  if (filters.executorKeyword) AND.push({ assignedUserNameSnapshot: { contains: filters.executorKeyword.trim() } });
+  if (filters.executorKeyword) AND.push({ OR: [
+    { assignedUserNameSnapshot: { contains: filters.executorKeyword.trim() } },
+    { editOwnerNameSnapshot: { contains: filters.executorKeyword.trim() } },
+  ] });
   if (filters.submitStartDate || filters.submitEndDate) {
     AND.push({ completedAt: {
       ...(filters.submitStartDate ? { gte: new Date(`${filters.submitStartDate}T00:00:00+08:00`) } : {}),
@@ -92,6 +95,8 @@ export const taskRecordListSelect = {
   taskType: true,
   assignedUserNameSnapshot: true,
   assignedRoleNameSnapshot: true,
+  sharedExecution: true,
+  editOwnerNameSnapshot: true,
   targetPersonnelNameSnapshot: true,
   targetPersonnelPositionSnapshot: true,
   includeCompletionRate: true,
@@ -139,7 +144,9 @@ export function serializeTaskRecord(row: SelectedTaskRecord) {
     taskName: row.taskNameSnapshot || "未命名任务",
     taskType: row.taskType || null,
     taskTypeLabel: row.taskType ? taskTypeLabels[row.taskType] : "-",
-    executor: `${row.assignedRoleNameSnapshot || "未知角色"}｜${row.assignedUserNameSnapshot || "-"}`,
+    executor: row.sharedExecution
+      ? `共同执行｜${row.editOwnerNameSnapshot || "多人可执行"}`
+      : `${row.assignedRoleNameSnapshot || "未知角色"}｜${row.assignedUserNameSnapshot || "-"}`,
     targetEmployee: row.targetPersonnelNameSnapshot ? `${row.targetPersonnelNameSnapshot}${row.targetPersonnelPositionSnapshot ? `｜${row.targetPersonnelPositionSnapshot}` : ""}` : "-",
     includeCompletionRate: row.includeCompletionRate !== false,
     createdAt: formatTaskRecordDateTime(row.triggeredAt),

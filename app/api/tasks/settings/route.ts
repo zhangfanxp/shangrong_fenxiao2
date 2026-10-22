@@ -26,6 +26,7 @@ const taskSchema = z.object({
   deadlineDayOffset: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
   deadlineTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "请选择正确的任务截止时间"),
   includeCompletionRate: z.boolean().default(true),
+  singleRecordForMultipleExecutors: z.boolean().default(false),
   configFileBase: z.string().min(1, "请输入配置文件名称"),
   submitContent: z.string().min(1, "请输入提交内容"),
   status: z.nativeEnum(RecordStatus).default(RecordStatus.ENABLED),
@@ -47,6 +48,7 @@ function buildConfig(input: z.infer<typeof taskSchema>, specifiedTargets: string
     specifiedTargets,
     brands, storageSpace: r2Storage, executionDays: input.executionDays, weeklyExecutionDay: input.weeklyExecutionDay, monthlyExecutionDay: input.monthlyExecutionDay,
     deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, includeCompletionRate: input.includeCompletionRate,
+    singleRecordForMultipleExecutors: input.singleRecordForMultipleExecutors,
     calendarTemplate: calendarTemplate || null,
     status: input.status === RecordStatus.ENABLED ? "启用" : "禁用", configVersion: version, submitItems: items,
   };
@@ -114,7 +116,7 @@ export async function POST(request: Request) {
     try {
       const task = await db.$transaction(async tx => {
         const normalizedExecutionDays = input.type === TaskType.DAILY ? input.executionDays : input.type === TaskType.WEEKLY && input.weeklyExecutionDay ? [input.weeklyExecutionDay] : [];
-        const created = await tx.task.create({ data: { recordNo, title: input.title, type: input.type, targetType: input.targetType, specifiedTargets, status: input.status, executorRoleId: orderedRoles[0].id, r2StorageId: r2Storage.id, calendarTemplateId: input.type === TaskType.CALENDAR ? input.calendarTemplateId : null, includeCompletionRate: input.includeCompletionRate, executionDays: normalizedExecutionDays, weeklyExecutionDay: input.type === TaskType.WEEKLY ? input.weeklyExecutionDay : null, monthlyExecutionDay: input.type === TaskType.MONTHLY ? input.monthlyExecutionDay : null, deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, configFileName: fileName, submitItems: items, description: normalizedContent, createdByUserId: session.userId, executorRoles: { create: orderedRoles.map(role => ({ roleId: role.id })) }, brands: { create: brands.map(brand => ({ brandId: brand.id })) } } });
+        const created = await tx.task.create({ data: { recordNo, title: input.title, type: input.type, targetType: input.targetType, specifiedTargets, status: input.status, executorRoleId: orderedRoles[0].id, r2StorageId: r2Storage.id, calendarTemplateId: input.type === TaskType.CALENDAR ? input.calendarTemplateId : null, includeCompletionRate: input.includeCompletionRate, singleRecordForMultipleExecutors: input.singleRecordForMultipleExecutors, executionDays: normalizedExecutionDays, weeklyExecutionDay: input.type === TaskType.WEEKLY ? input.weeklyExecutionDay : null, monthlyExecutionDay: input.type === TaskType.MONTHLY ? input.monthlyExecutionDay : null, deadlineDayOffset: input.deadlineDayOffset, deadlineTime: input.deadlineTime, configFileName: fileName, submitItems: items, description: normalizedContent, createdByUserId: session.userId, executorRoles: { create: orderedRoles.map(role => ({ roleId: role.id })) }, brands: { create: brands.map(brand => ({ brandId: brand.id })) } } });
         await tx.r2StorageReference.create({ data: { r2ConfigId: r2Storage.id, businessType: "TASK", businessId: created.id } });
         return created;
       });

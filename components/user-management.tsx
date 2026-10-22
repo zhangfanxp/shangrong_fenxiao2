@@ -1,9 +1,9 @@
 "use client";
 
-import { DeleteOutlined, EyeOutlined, KeyOutlined, LockOutlined, PlusOutlined, SafetyCertificateOutlined, UserOutlined } from "@ant-design/icons";
-import { Avatar, Button, Card, Checkbox, Descriptions, Form, Input, message, Modal, Select, Space, Tag, Tooltip } from "antd";
+import { DeleteOutlined, DownloadOutlined, EyeOutlined, FileExcelOutlined, KeyOutlined, LockOutlined, PlusOutlined, SafetyCertificateOutlined, UploadOutlined, UserOutlined } from "@ant-design/icons";
+import { Alert, Avatar, Button, Card, Checkbox, Descriptions, Form, Input, message, Modal, Select, Space, Tag, Tooltip, Upload } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DataTable } from "@/components/data-table";
 import { StatusTag } from "@/components/status-tag";
 import { displayDate } from "@/lib/format";
@@ -17,6 +17,8 @@ type BrandOption = { id: string; name: string };
 type StoreOption = { id: string; name: string; brandId: string; brand: { name: string } };
 type RegionOption = { label: string; value: string; assignedUserId: string | null; assignedUserName: string | null };
 type PasswordFormValues = { password: string; confirmPassword: string };
+type UserImportIssue = { row: number; excelRow: number; messages: string[] };
+type UserImportFeedback = { title: string; content: ReactNode };
 
 const statusOptions = [{ value: "", label: "全部状态" }, { value: "ENABLED", label: "已启用" }, { value: "DISABLED", label: "已禁用" }];
 const typeText = (type: UserType) => type === "SYSTEM" ? "系统内置" : "自定义";
@@ -29,6 +31,7 @@ export function UserManagement() {
   const [filters, setFilters] = useState({ keyword: "", roleId: "", status: "" }); const [loading, setLoading] = useState(true); const [error, setError] = useState(false);
   const [mode, setMode] = useState<"create" | "edit" | "view" | null>(null); const [current, setCurrent] = useState<User | null>(null); const [saving, setSaving] = useState(false); const [passwordTarget, setPasswordTarget] = useState<User | null>(null);
   const [optionsLoading, setOptionsLoading] = useState(false); const [optionsError, setOptionsError] = useState(false); const optionsRequestId = useRef(0);
+  const [importOpen, setImportOpen] = useState(false); const [importFile, setImportFile] = useState<File>(); const [importing, setImporting] = useState(false); const [importError, setImportError] = useState(""); const [importFeedback, setImportFeedback] = useState<UserImportFeedback>();
   const [form] = Form.useForm<UserFormValues>(); const [passwordForm] = Form.useForm<PasswordFormValues>();
   const loadOptions = async () => {
     const requestId = ++optionsRequestId.current;
@@ -94,6 +97,41 @@ export function UserManagement() {
     if (!response.ok) { message.error(data.message || "删除失败，请稍后重试"); return Promise.reject(new Error()); }
     message.success("用户删除成功"); const nextPage = rows.length === 1 && page > 1 ? page - 1 : page; if (nextPage !== page) setPage(nextPage); await load(nextPage);
   } });
+  const downloadImportTemplate = async () => {
+    try {
+      const response = await fetch("/api/settings/users/import-template");
+      if (!response.ok) { const data = await response.json(); throw new Error(data.message || "模板下载失败"); }
+      const url = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a"); anchor.href = url; anchor.download = "用户批量导入模板.xlsx"; anchor.click(); URL.revokeObjectURL(url);
+    } catch (error) { message.error(error instanceof Error ? error.message : "模板下载失败，请稍后重试"); }
+  };
+  const showImportIssues = (issues: UserImportIssue[]) => {
+    setImportOpen(false);
+    setImportFeedback({
+      title: "导入数据校验未通过",
+      content: <div><p>以下数据不符合系统要求，本次未导入任何用户。</p><div style={{ maxHeight: 360, overflowY: "auto" }}>{issues.map(issue => <div key={issue.excelRow} style={{ marginBottom: 12 }}><b>第 {issue.row} 条记录（Excel 第 {issue.excelRow} 行）</b><ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>{issue.messages.map((item, index) => <li key={`${issue.excelRow}-${index}`}>{item}</li>)}</ul></div>)}</div></div>,
+    });
+  };
+  const importUsers = async () => {
+    if (!importFile) { const tip = "请先选择需要导入的 .xlsx 文件，再点击“立即导入”。"; setImportError(tip); message.warning(tip); return; }
+    setImportError(""); setImporting(true);
+    try {
+      const formData = new FormData(); formData.append("file", importFile);
+      const response = await fetch("/api/settings/users/import", { method: "POST", body: formData });
+      const responseText = await response.text();
+      let data: { message?: string; total?: number; success?: number; issues?: UserImportIssue[] } = {};
+      try { data = JSON.parse(responseText); } catch { data = { message: response.ok ? "服务器返回了无法识别的导入结果" : `导入接口请求失败（${response.status}）` }; }
+      if (!response.ok) {
+        if (Array.isArray(data.issues)) { showImportIssues(data.issues); return; }
+        throw new Error(data.message || "导入失败");
+      }
+      message.success(`导入用户共 ${data.total} 名，成功 ${data.success} 名`);
+      setImportOpen(false); setImportFile(undefined); setPage(1); await load(1);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "导入失败，请稍后重试";
+      setImportError(detail); setImportOpen(false); setImportFeedback({ title: "导入失败", content: detail });
+    } finally { setImporting(false); }
+  };
   const isProtected = (user: User) => user.type === "SYSTEM";
   const modalTitle = mode === "create" ? "新增用户" : mode === "edit" ? "编辑用户" : "查看用户";
   const modalSubtitle = mode === "create" ? "创建登录账号并配置用户角色" : mode === "edit" ? "维护用户资料、角色和使用状态" : "查看用户的账号资料和使用信息";
@@ -109,7 +147,19 @@ export function UserManagement() {
   ];
   return <>
     <Card style={{ marginBottom: 16 }}><Space wrap><Input placeholder="账号、姓名或手机号" style={{ width: 240 }} value={filters.keyword} onChange={event => setFilters({ ...filters, keyword: event.target.value })} onPressEnter={() => { setPage(1); void load(1); }} /><Select style={{ width: 180 }} options={[{ value: "", label: "全部角色" }, ...roles.map(role => ({ value: role.id, label: role.name }))]} value={filters.roleId} onChange={roleId => setFilters({ ...filters, roleId })} /><Select style={{ width: 140 }} options={statusOptions} value={filters.status} onChange={status => setFilters({ ...filters, status })} /><Button onClick={() => { const next = { keyword: "", roleId: "", status: "" }; setFilters(next); setPage(1); void load(1, pageSize, next); }}>重置</Button><Button type="primary" onClick={() => { setPage(1); void load(1); }}>筛选</Button></Space></Card>
-    <Card extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增用户</Button>}><DataTable<User> rowKey="id" columns={columns} dataSource={rows} loading={loading} error={error} onRetry={() => void load()} pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: count => `共 ${count} 条`, onChange: (nextPage, nextPageSize) => { setPage(nextPage); setPageSize(nextPageSize); void load(nextPage, nextPageSize); } }} /></Card>
+    <Card extra={<Space><Button icon={<UploadOutlined />} onClick={() => { setImportFile(undefined); setImportError(""); setImportFeedback(undefined); setImportOpen(true); }}>批量导入</Button><Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增用户</Button></Space>}><DataTable<User> rowKey="id" columns={columns} dataSource={rows} loading={loading} error={error} onRetry={() => void load()} pagination={{ current: page, pageSize, total, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100], showTotal: count => `共 ${count} 条`, onChange: (nextPage, nextPageSize) => { setPage(nextPage); setPageSize(nextPageSize); void load(nextPage, nextPageSize); } }} /></Card>
+    <Modal title="批量导入用户" width={680} open={importOpen} destroyOnHidden closable={!importing} maskClosable={!importing} onCancel={() => !importing && setImportOpen(false)} footer={<Space><Button disabled={importing} onClick={() => setImportOpen(false)}>取消</Button><Button type="primary" disabled={!importFile} loading={importing} onClick={() => void importUsers()}>{importing ? "正在校验并导入..." : "立即导入"}</Button></Space>}>
+      <Alert type="info" showIcon message="导入说明" description="账号、真实姓名、初始密码和角色为必填项。导入前会完整校验所有记录；任何一条不符合要求时，本次均不会写入。运营 H5 和区域管理权限可在导入后配置。" style={{ marginBottom: 16 }} />
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        <div><span style={{ marginRight: 12 }}>导入模板：</span><Button type="link" icon={<DownloadOutlined />} onClick={() => void downloadImportTemplate()}>下载导入模板</Button></div>
+        <div><span style={{ marginRight: 12 }}>选择文件：</span><Upload accept=".xlsx" maxCount={1} fileList={importFile ? [{ uid: `${importFile.name}-${importFile.lastModified}`, name: importFile.name, size: importFile.size, status: "done" }] : []} beforeUpload={file => { if (!file.name.toLowerCase().endsWith(".xlsx")) { const tip = "仅支持 .xlsx 格式文件。"; setImportFile(undefined); setImportError(tip); message.warning(tip); return Upload.LIST_IGNORE; } if (file.size > 10 * 1024 * 1024) { const tip = "导入文件不能超过 10MB。"; setImportFile(undefined); setImportError(tip); message.warning(tip); return Upload.LIST_IGNORE; } setImportError(""); setImportFeedback(undefined); setImportFile(file); message.success(`已选择文件：${file.name}`); return false; }} onRemove={() => { setImportFile(undefined); setImportError(""); return true; }} disabled={importing}><Button icon={<FileExcelOutlined />}>选择 Excel 文件</Button></Upload></div>
+        <span style={{ color: "#8c8c8c" }}>仅支持 .xlsx 文件，单次最多导入 500 名用户、文件不超过 10MB。模板第一行红色 * 为必填字段。</span>
+        {importFile && !importing && <Alert type="success" showIcon message="文件已就绪" description={`${importFile.name}，请点击“立即导入”。`} />}
+        {importing && <Alert type="info" showIcon message="正在校验并导入数据" description="请勿关闭弹窗或重复点击；全部数据校验通过后才会写入。" />}
+        {importError && <Alert type="error" showIcon message="导入失败" description={importError} />}
+      </Space>
+    </Modal>
+    <Modal title={importFeedback?.title || "温馨提示"} width={760} open={!!importFeedback} onOk={() => setImportFeedback(undefined)} onCancel={() => setImportFeedback(undefined)} okText="我知道了" cancelButtonProps={{ style: { display: "none" } }} zIndex={1200} destroyOnHidden>{importFeedback?.content}</Modal>
     <Modal rootClassName="user-management-modal" title={<div className="user-modal-title"><span className="user-modal-title-icon"><UserOutlined /></span><span><strong>{modalTitle}</strong><small>{modalSubtitle}</small></span></div>} open={!!mode} onCancel={close} width={720} destroyOnHidden maskClosable={false} footer={mode === "view" ? <Button size="large" onClick={close}>关闭</Button> : <Space><Button size="large" onClick={close}>取消</Button><Button size="large" type="primary" loading={saving} onClick={() => void submit()}>保存</Button></Space>}>
       {mode === "view" && current ? <div className="user-view-panel">
         <div className="user-view-summary"><Avatar size={52} icon={<UserOutlined />} /><div className="user-view-identity"><strong>{current.realName}</strong><span>@{current.username}</span></div><StatusTag value={current.status} /></div>

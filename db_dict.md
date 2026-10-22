@@ -1801,6 +1801,7 @@
 | executionDays | 执行天数 | json NULL | 以 JSON 结构保存的执行天数。 | 否 | — |
 | executorRoleId | 执行人角色ID | varchar(191) NULL | 关联记录的执行人角色ID。 | 否 | 普通：Task_executorRoleId_idx |
 | includeCompletionRate | 是否计入完成率 | tinyint(1) NOT NULL | 标识是否计入完成率。 | 否 | — |
+| singleRecordForMultipleExecutors | 多人可执行时是否共用一条记录 | tinyint(1) NOT NULL | 标识同一门店多人可执行时是否只生成一条任务记录。 | 否 | — |
 | recordNo | 记录编号 | varchar(191) NULL | 任务设置记录中的记录编号。 | 否 | 唯一：Task_recordNo_key |
 | submitItems | 提交项目集合 | json NULL | 以 JSON 结构保存的提交项目集合。 | 否 | — |
 | updatedAt | 更新时间 | datetime(3) NOT NULL | 更新时间对应的时间点。 | 否 | — |
@@ -1960,6 +1961,10 @@
 | draftSavedAt | 草稿保存时间 | datetime(3) NULL | 草稿保存时间对应的时间点。 | 否 | — |
 | assignedUserId | 指派用户ID | varchar(191) NULL | 关联记录的指派用户ID。 | 否 | 普通：TaskRecord_assignedUserId_executionDate_status_idx；唯一：TaskRecord_task_assignee_store_target_date_key（第2列） |
 | assignedUserNameSnapshot | 指派用户名称快照 | varchar(50) NULL | 业务发生时固化的指派用户名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
+| sharedExecution | 是否为多人共用任务 | tinyint(1) NOT NULL | 标识该任务记录是否由多个执行人共用。 | 否 | — |
+| sharedRecordKey | 共用任务唯一键 | varchar(64) NULL | 为同门店同目标的共用任务生成唯一标识，避免重复生成。 | 否 | 唯一：TaskRecord_sharedRecordKey_key |
+| editOwnerUserId | 编辑负责人用户ID | varchar(191) NULL | 首位点击开始执行的执行人用户ID。 | 否 | — |
+| editOwnerNameSnapshot | 编辑负责人名称快照 | varchar(50) NULL | 首位开始执行的用户姓名快照。 | 否 | — |
 | brandIdSnapshot | 品牌ID快照 | varchar(191) NULL | 业务发生时固化的品牌ID快照，避免源数据后续变化影响历史记录。 | 否 | — |
 | brandNameSnapshot | 品牌名称快照 | varchar(100) NULL | 业务发生时固化的品牌名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
 | createdAt | 创建时间 | datetime(3) NOT NULL | 创建时间对应的时间点。 | 否 | — |
@@ -1979,6 +1984,15 @@
 | targetPersonnelKey | 目标人员键 | varchar(191) NOT NULL | 任务实例记录中的目标人员键。 | 否 | 唯一：TaskRecord_task_assignee_store_target_date_key（第4列） |
 | targetPersonnelNameSnapshot | 目标人员名称快照 | varchar(50) NULL | 业务发生时固化的目标人员名称快照，避免源数据后续变化影响历史记录。 | 否 | — |
 | targetPersonnelPositionSnapshot | 目标人员岗位快照 | varchar(50) NULL | 业务发生时固化的目标人员岗位快照，避免源数据后续变化影响历史记录。 | 否 | — |
+
+## TaskRecordSharedExecutor | 共用任务执行人
+
+> 作用：保存每条共用任务允许查看和竞争编辑权的执行人快照。
+
+| 字段英文名 | 中文名 | 字段类型 | 数据内容（意义） | 是否主键 | 索引 |
+| --- | --- | --- | --- | --- | --- |
+| taskRecordId | 任务实例ID | varchar(191) NOT NULL | 关联记录的任务实例ID。 | 是 | 主键：PRIMARY；外键：TaskRecordSharedExecutor_taskRecordId_fkey |
+| userId | 用户ID | varchar(191) NOT NULL | 被授权查看该共用任务的用户ID。 | 是 | 主键：PRIMARY；普通：TaskRecordSharedExecutor_userId_idx |
 
 ## TaskSchedulerRun | 任务调度运行记录
 

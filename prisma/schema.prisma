@@ -1331,6 +1331,7 @@ model Task {
   executorRoleId        String?
   executorRole          Role?                 @relation("TaskExecutorRole", fields: [executorRoleId], references: [id])
   includeCompletionRate Boolean               @default(true)
+  singleRecordForMultipleExecutors Boolean     @default(false)
   executionDays         Json?
   weeklyExecutionDay    String?               @db.VarChar(3)
   monthlyExecutionDay   String?               @db.VarChar(10)
@@ -1427,6 +1428,10 @@ model TaskRecord {
   assignedUserNameSnapshot        String?          @db.VarChar(50)
   assignedRoleIdSnapshot          String?          @db.VarChar(191)
   assignedRoleNameSnapshot        String?          @db.VarChar(50)
+  sharedExecution                 Boolean          @default(false)
+  sharedRecordKey                 String?          @unique @db.VarChar(64)
+  editOwnerUserId                 String?          @db.VarChar(191)
+  editOwnerNameSnapshot           String?          @db.VarChar(50)
   targetPersonnelId               String?
   targetPersonnel                 Personnel?       @relation("TaskRecordTargetPersonnel", fields: [targetPersonnelId], references: [id], onDelete: SetNull)
   targetPersonnelKey              String           @default("STORE") @db.VarChar(191)
@@ -1450,6 +1455,7 @@ model TaskRecord {
   rectificationRound              InspectionRectificationRound?
   aiAnalysis                      TaskAiAnalysis?
   attachments                     TaskAttachment[]
+  sharedExecutors                 TaskRecordSharedExecutor[]
   createdAt                       DateTime         @default(now())
 
   @@unique([taskId, assignedUserId, storeId, targetPersonnelKey, executionDate], map: "TaskRecord_task_assignee_store_target_date_key")
@@ -1458,6 +1464,15 @@ model TaskRecord {
   @@index([storeId, executionDate])
   @@index([status, dueDate])
   @@index([status, taskId])
+}
+
+model TaskRecordSharedExecutor {
+  taskRecordId String
+  userId       String   @db.VarChar(191)
+  taskRecord   TaskRecord @relation(fields: [taskRecordId], references: [id], onDelete: Cascade)
+
+  @@id([taskRecordId, userId])
+  @@index([userId])
 }
 
 model TaskSchedulerRun {

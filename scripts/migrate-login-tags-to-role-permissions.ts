@@ -45,7 +45,7 @@ async function main() {
     migrated.push({ code: role.code, name: role.name, platforms, permissionCount: permissions.length });
   }
 
-  process.stdout.write(`${JSON.stringify({ migrated, legacyTags: { leadH5: [...legacyLeadH5Tags], storeH5: [...legacyStoreH5Tags] } }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ migrated, legacyTags: { leadH5: [...legacyLeadH5Tags], storeH5: [...legacyStoreH5Tags] } })}\n`);
 }
 
 main()

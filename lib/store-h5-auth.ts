@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { hasRolePermission, hasRolePlatformAccess, type RolePermissionRequirement } from "@/lib/role-permissions";
 import { jsonIdArray, resolveUserStores } from "@/lib/user-store-scope";
 import { sessionCookieSecure } from "@/lib/session-cookie";
+import { taskRecordParticipantWhere } from "@/lib/task-record-access";
 
 const cookieName = "canyin_store_h5_session";
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "development-secret-change-me");
@@ -68,6 +69,7 @@ export async function getStoreH5Session(requirement?: RolePermissionRequirement)
           { managerUserId: user.id },
           { chefUserId: user.id },
           { supervisorUserId: user.id },
+          { taskRecords: { some: taskRecordParticipantWhere(user.id) } },
         ],
       },
       include: { brand: true },

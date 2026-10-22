@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
-import { dateKeyAsDbDate, isStoreTaskSnapshot, shanghaiDateKey } from "@/lib/store-h5-tasks";
+import { isStoreTaskSnapshot } from "@/lib/store-h5-tasks";
 import { createStoreH5UploadToken } from "@/lib/store-h5-upload-token";
 import { createStoreTaskDirectUpload, TaskAttachmentError } from "@/lib/task-r2-upload";
 import { TASK_VIDEO_MAX_BYTES } from "@/lib/task-attachment-rules";
+import { claimSharedTaskRecord, taskRecordEditorWhere, taskRecordParticipantWhere } from "@/lib/task-record-access";
 
 const inputSchema = z.object({
   itemIndex: z.number().int().min(0),
@@ -23,11 +24,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
   if (!parsed.success) return NextResponse.json({ message: parsed.error.issues[0].message || "附件参数不正确" }, { status: 400 });
   const { taskInstanceId } = await params;
   try {
-    const record = await db.taskRecord.findFirst({
-      where: { id: taskInstanceId, assignedUserId: session.userId, ...availableMobileTaskWhere() },
-      include: { task: { select: { r2StorageId: true } } },
+    const record = await db.$transaction(async tx => {
+      if (!await claimSharedTaskRecord(tx, taskInstanceId, session.userId, session.realName)) return null;
+      return tx.taskRecord.findFirst({
+        where: { id: taskInstanceId, AND: [taskRecordParticipantWhere(session.userId), taskRecordEditorWhere(session.userId), availableMobileTaskWhere()] },
+        include: { task: { select: { r2StorageId: true } } },
+      });
     });
-    if (!record) return NextResponse.json({ message: "任务不存在、已完成或不属于当前用户" }, { status: 404 });
+    if (!record) return NextResponse.json({ message: "任务已由其他执行人开始处理，或已完成/逾期，当前不能上传" }, { status: 409 });
     if (!isStoreTaskSnapshot(record.configSnapshot)) return NextResponse.json({ message: "任务配置快照异常" }, { status: 500 });
     const item = record.configSnapshot.submitItems[parsed.data.itemIndex];
     if (!item || item.component !== "attachment" || !["photo", "video", "document"].includes(item.dataType || "")) return NextResponse.json({ message: "当前任务项不支持附件上传" }, { status: 400 });

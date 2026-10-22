@@ -21,6 +21,10 @@
     {
       "id": "cmvf1gkwd0003g5zxiktqlbpa",
       "name": "督导"
+    },
+    {
+      "id": "cmvhwfyc5000qg5ghqihyf87e",
+      "name": "主管"
     }
   ],
   "executorRole": {
@@ -38,13 +42,15 @@
     "name": "R2-test",
     "bucketName": "videolist"
   },
+  "calendarTemplate": null,
   "executionDays": [],
   "monthlyExecutionDay": "ANY_DAY",
   "deadlineDayOffset": -1,
   "deadlineTime": "23:59",
   "includeCompletionRate": true,
+  "singleRecordForMultipleExecutors": true,
   "status": "启用",
-  "configVersion": 2,
+  "configVersion": 4,
   "submitItems": [
     {
       "name": "服务礼仪与仪容仪表【工服规范】",
@@ -310,6 +316,5 @@
       "maxValue": 3,
       "options": []
     }
-  ],
-  "calendarTemplate": null
+  ]
 }

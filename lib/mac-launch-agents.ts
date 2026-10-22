@@ -61,6 +61,16 @@ export async function launchAgentStatus(label: string) {
   return { loaded: result.code === 0, state: state || null, pid: pid ? Number(pid) : null };
 }
 
+async function waitForAgentUnloaded(label: string, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const status = await launchAgentStatus(label);
+    if (!status.loaded) return;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  throw new Error(`LaunchAgent ${label}卸载后仍然处于加载状态`);
+}
+
 export function renderCanyinLaunchAgentPlists(projectDirectory: string, appPort: number) {
   // Keep the services on the exact Node binary that passed Setup's version check.
   // A different Homebrew binary may be older than the Node used by npm (for example with nvm).
@@ -125,6 +135,7 @@ export async function installCanyinLaunchAgents(projectDirectory: string, appPor
   }
   for (const [label, file] of [[WEB_AGENT_LABEL, webFile], [SCHEDULER_AGENT_LABEL, schedulerFile]] as const) {
     await command("/bin/launchctl", ["bootout", `gui/${uid}/${label}`], true);
+    await waitForAgentUnloaded(label);
     await command("/bin/launchctl", ["bootstrap", `gui/${uid}`, file]);
     await command("/bin/launchctl", ["enable", `gui/${uid}/${label}`]);
     await command("/bin/launchctl", ["kickstart", "-k", `gui/${uid}/${label}`], label === SCHEDULER_AGENT_LABEL);

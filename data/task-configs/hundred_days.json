@@ -8,6 +8,10 @@
     {
       "id": "cmvf1gkw90001g5zxhuo9aq52",
       "name": "店长"
+    },
+    {
+      "id": "cmvhwfyc5000qg5ghqihyf87e",
+      "name": "主管"
     }
   ],
   "executorRole": {
@@ -25,6 +29,7 @@
     "name": "R2-test",
     "bucketName": "videolist"
   },
+  "calendarTemplate": null,
   "executionDays": [
     "周日"
   ],
@@ -32,8 +37,9 @@
   "deadlineDayOffset": 1,
   "deadlineTime": "23:59",
   "includeCompletionRate": true,
+  "singleRecordForMultipleExecutors": true,
   "status": "启用",
-  "configVersion": 4,
+  "configVersion": 6,
   "submitItems": [
     {
       "name": "快手团购_店铺分",
@@ -451,6 +457,5 @@
       "dataType": "text",
       "options": []
     }
-  ],
-  "calendarTemplate": null
+  ]
 }

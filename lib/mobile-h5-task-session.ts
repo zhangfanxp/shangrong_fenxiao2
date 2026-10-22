@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getLeadH5Session } from "@/lib/lead-h5-auth";
 import { leadH5StoreDataScope } from "@/lib/lead-h5-store-scope";
 import { getStoreH5Session } from "@/lib/store-h5-auth";
+import { taskRecordParticipantWhere } from "@/lib/task-record-access";
 
 export type MobileH5TaskChannel = "store-h5" | "lead-h5";
 export type MobileH5TaskAction = "query" | "view" | "attachment" | "submit";
@@ -29,7 +30,7 @@ export async function getMobileH5TaskSession(request: Request, action: MobileH5T
   const stores = action === "query" ? await db.store.findMany({
     where: {
       ...leadH5StoreDataScope(session),
-      taskRecords: { some: { assignedUserId: session.userId } },
+      taskRecords: { some: taskRecordParticipantWhere(session.userId) },
     },
     select: { id: true, name: true, brandId: true, brand: { select: { name: true } } },
     orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],

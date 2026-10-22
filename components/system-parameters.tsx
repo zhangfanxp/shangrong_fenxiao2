@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { AI_MODEL_OPTIONS, aiEndpointExample, aiModelLabel, aiModelSupportsService, normalizeAiServiceApiConfig, type AiModelId, type AiServiceApiConfig } from "@/lib/ai-model-adapters";
 import type { LaborCostPolicy } from "@/lib/personnel-labor-costs";
 import type { PlatformAssetUrls, PlatformSettings } from "@/lib/platform-config";
+import { TimeStringPicker } from "@/components/time-string-picker";
 
 type BrandOption = { label: string; value: string };
 type R2StorageOption = { label: string; value: string };
@@ -409,13 +410,13 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
             <div className="platform-login-addresses-heading"><strong>定时任务自动执行</strong><span>系统按北京时间每天自动生成一次应执行的日、周、月任务</span></div>
             <div className="platform-scheduler-grid">
               <Form.Item label="自动执行时间" name="automaticTaskExecutionTime" rules={[{ required: true, message: "请选择自动执行时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的自动执行时间" }]} extra="管理员可修改；Mac恢复运行后只补执行当天，不补历史日期">
-                <Input type="time" step={60} />
+                <TimeStringPicker />
               </Form.Item>
               <Form.Item label="默认任务截止日期" name="defaultTaskDeadlineDayOffset" rules={[{ required: true, message: "请选择默认任务截止日期" }]} extra="新增任务时自动带出，任务仍可单独修改">
                 <Select options={[{ value: 0, label: "当日" }, { value: 1, label: "次日" }]} />
               </Form.Item>
               <Form.Item label="默认任务截止时间" name="defaultTaskDeadlineTime" rules={[{ required: true, message: "请选择默认任务截止时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的默认截止时间" }]} extra="例如闭店任务可在任务设置中改为次日05:00">
-                <Input type="time" step={60} />
+                <TimeStringPicker />
               </Form.Item>
             </div>
             {schedulerStatusView && <Alert showIcon type={schedulerStatusView.type} message={schedulerStatusView.message} description={schedulerStatusView.description} />}
@@ -527,7 +528,7 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
           </Form.Item>
           <span>内的员工数量，系统自动计算生日提醒任务的时间为每日</span>
           <Form.Item name="birthdayReminderCalculationTime" className="platform-other-parameter-time-input" rules={[{ required: true, message: "请选择生日提醒计算时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的生日提醒计算时间" }]}>
-            <Input type="time" step={60} aria-label="生日提醒每日计算时间" />
+            <TimeStringPicker aria-label="生日提醒每日计算时间" />
           </Form.Item>
           <span>。</span>
         </div>
@@ -605,7 +606,7 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
               <Select style={{ width: 110 }} options={[{ value: 0, label: "当日" }, { value: 1, label: "次日" }]} />
             </Form.Item>
             <Form.Item name="attendanceStartTime" noStyle rules={[{ required: true, message: "请选择考勤开始时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的考勤开始时间" }]}>
-              <Input type="time" step={60} style={{ width: "calc(100% - 110px)" }} />
+              <TimeStringPicker style={{ width: "calc(100% - 110px)" }} />
             </Form.Item>
           </Space.Compact>
         </Form.Item>
@@ -615,7 +616,7 @@ export function SystemParameters({ initialPlatform, initialAssetUrls, r2StorageO
               <Select style={{ width: 110 }} options={[{ value: 0, label: "当日" }, { value: 1, label: "次日" }]} />
             </Form.Item>
             <Form.Item name="attendanceDeadlineTime" noStyle rules={[{ required: true, message: "请选择考勤截止时间" }, { pattern: /^([01]\d|2[0-3]):[0-5]\d$/, message: "请选择正确的考勤截止时间" }]}>
-              <Input type="time" step={60} style={{ width: "calc(100% - 110px)" }} />
+              <TimeStringPicker style={{ width: "calc(100% - 110px)" }} />
             </Form.Item>
           </Space.Compact>
         </Form.Item>

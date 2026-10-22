@@ -8,6 +8,10 @@
     {
       "id": "cmvf1gkw90001g5zxhuo9aq52",
       "name": "店长"
+    },
+    {
+      "id": "cmvhwfyc5000qg5ghqihyf87e",
+      "name": "主管"
     }
   ],
   "executorRole": {
@@ -25,6 +29,7 @@
     "name": "R2-test",
     "bucketName": "videolist"
   },
+  "calendarTemplate": null,
   "executionDays": [
     "周一",
     "周二",
@@ -37,8 +42,9 @@
   "deadlineDayOffset": 0,
   "deadlineTime": "18:00",
   "includeCompletionRate": true,
+  "singleRecordForMultipleExecutors": true,
   "status": "启用",
-  "configVersion": 12,
+  "configVersion": 14,
   "submitItems": [
     {
       "name": "开市【例会】",
@@ -352,6 +358,5 @@
       "captureOnly": true,
       "options": []
     }
-  ],
-  "calendarTemplate": null
+  ]
 }

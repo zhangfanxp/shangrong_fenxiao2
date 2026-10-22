@@ -4,9 +4,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
-import { dateKeyAsDbDate, isStoreTaskSnapshot, shanghaiDateKey } from "@/lib/store-h5-tasks";
+import { isStoreTaskSnapshot } from "@/lib/store-h5-tasks";
 import { verifyStoreH5UploadToken } from "@/lib/store-h5-upload-token";
 import { deleteTaskDraftFiles, TaskAttachmentError, verifyStoreTaskDirectUpload } from "@/lib/task-r2-upload";
+import { claimSharedTaskRecord, taskRecordEditorWhere, taskRecordParticipantWhere } from "@/lib/task-record-access";
 
 const inputSchema = z.object({ uploadToken: z.string().min(1), etag: z.string().max(200).nullable().optional() });
 
@@ -21,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     const grant = await verifyStoreH5UploadToken(parsed.data.uploadToken).catch(() => null);
     if (!grant || grant.userId !== session.userId || grant.taskRecordId !== taskInstanceId) return NextResponse.json({ message: "上传凭证无效或已过期，请重新上传" }, { status: 400 });
     const record = await db.taskRecord.findFirst({
-      where: { id: taskInstanceId, assignedUserId: session.userId, ...availableMobileTaskWhere() },
+      where: { id: taskInstanceId, AND: [taskRecordParticipantWhere(session.userId), taskRecordEditorWhere(session.userId), availableMobileTaskWhere()] },
       include: { task: { select: { r2StorageId: true } } },
     });
     if (!record) return NextResponse.json({ message: "任务不存在、已完成或不属于当前用户" }, { status: 404 });
@@ -37,9 +38,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     });
     const attachment = await db.$transaction(async tx => {
       await tx.$queryRaw(Prisma.sql`SELECT \`id\` FROM \`TaskRecord\` WHERE \`id\` = ${record.id} FOR UPDATE`);
+      if (!await claimSharedTaskRecord(tx, record.id, session.userId, session.realName)) return null;
       const existing = await tx.taskAttachment.findUnique({ where: { objectKey: grant.objectKey } });
       if (existing) return existing;
-      const writable = await tx.taskRecord.findFirst({ where: { id: record.id, assignedUserId: session.userId, ...availableMobileTaskWhere() }, select: { id: true } });
+      const writable = await tx.taskRecord.findFirst({ where: { id: record.id, AND: [taskRecordEditorWhere(session.userId), availableMobileTaskWhere()] }, select: { id: true } });
       if (!writable) return null;
       const uploadedCount = await tx.taskAttachment.count({ where: { taskRecordId: record.id, itemIndex: grant.itemIndex, uploaderUserId: session.userId, consumedAt: null } });
       if (uploadedCount >= item.weight) return null;

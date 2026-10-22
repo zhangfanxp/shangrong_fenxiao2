@@ -1,8 +1,8 @@
 {
   "deploymentVersion": 2,
-  "databaseSchemaVersion": 48,
-  "databaseSchemaChecksum": "4513f2c831eb2faf39600c4f90fb73c46e7409bd01d5e0a6d948a179fe443d9b",
-  "latestMigration": "202610191000_require_initial_admin_password_change.sql",
+  "databaseSchemaVersion": 49,
+  "databaseSchemaChecksum": "08d29435490534c1fb57745f73806594b85de110c0bd548078ad675fb5bffa21",
+  "latestMigration": "202610211000_add_shared_task_execution.sql",
   "configSchemaVersion": 7,
   "requiredEnvironment": [
     "DATABASE_URL",

@@ -4,8 +4,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
-import { dateKeyAsDbDate, isStoreTaskSnapshot, shanghaiDateKey } from "@/lib/store-h5-tasks";
+import { isStoreTaskSnapshot } from "@/lib/store-h5-tasks";
 import { createTaskAttachmentReadUrl, deleteTaskDraftFiles, deleteUploadedTaskFiles, TaskAttachmentError, uploadStoreTaskFile } from "@/lib/task-r2-upload";
+import { claimSharedTaskRecord, taskRecordEditorWhere, taskRecordParticipantWhere } from "@/lib/task-record-access";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ task
   if (!attachmentId) return NextResponse.json({ message: "请选择要查看的照片" }, { status: 400 });
   try {
     const attachment = await db.taskAttachment.findFirst({
-      where: { id: attachmentId, taskRecordId: taskInstanceId, uploaderUserId: session.userId, taskRecord: { assignedUserId: session.userId } },
+      where: {
+        id: attachmentId,
+        taskRecordId: taskInstanceId,
+        OR: [
+          { uploaderUserId: session.userId, taskRecord: { is: { sharedExecution: false, assignedUserId: session.userId } } },
+          { taskRecord: { is: { sharedExecution: true, sharedExecutors: { some: { userId: session.userId } } } } },
+        ],
+      },
       select: { r2StorageId: true, objectKey: true, mimeType: true },
     });
     if (!attachment) return NextResponse.json({ message: "照片不存在或无权查看" }, { status: 404 });
@@ -41,8 +49,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     const file = formData.get("file");
     const itemIndex = Number(formData.get("itemIndex"));
     if (!(file instanceof File) || !Number.isInteger(itemIndex) || itemIndex < 0) return NextResponse.json({ message: "附件上传参数不正确" }, { status: 400 });
-    const record = await db.taskRecord.findFirst({ where: { id: taskInstanceId, assignedUserId: session.userId, ...availableMobileTaskWhere() }, include: { task: { select: { r2StorageId: true } } } });
-    if (!record) return NextResponse.json({ message: "任务不存在、已完成或不属于当前用户" }, { status: 404 });
+    const record = await db.$transaction(async tx => {
+      if (!await claimSharedTaskRecord(tx, taskInstanceId, session.userId, session.realName)) return null;
+      return tx.taskRecord.findFirst({ where: { id: taskInstanceId, AND: [taskRecordParticipantWhere(session.userId), taskRecordEditorWhere(session.userId), availableMobileTaskWhere()] }, include: { task: { select: { r2StorageId: true } } } });
+    });
+    if (!record) return NextResponse.json({ message: "任务已由其他执行人开始处理，或已完成/逾期，当前不能上传" }, { status: 409 });
     if (!isStoreTaskSnapshot(record.configSnapshot)) return NextResponse.json({ message: "任务配置快照异常" }, { status: 500 });
     const item = record.configSnapshot.submitItems[itemIndex];
     if (!item || item.component !== "attachment" || !["photo", "video", "document"].includes(item.dataType || "")) return NextResponse.json({ message: "当前任务项不支持附件上传" }, { status: 400 });
@@ -59,7 +70,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     try {
       const attachment = await db.$transaction(async tx => {
         await tx.$queryRaw(Prisma.sql`SELECT id FROM TaskRecord WHERE id = ${record.id} FOR UPDATE`);
-        const writable = await tx.taskRecord.findFirst({ where: { id: record.id, assignedUserId: session.userId, ...availableMobileTaskWhere() }, select: { id: true } });
+        const writable = await tx.taskRecord.findFirst({ where: { id: record.id, AND: [taskRecordEditorWhere(session.userId), availableMobileTaskWhere()] }, select: { id: true } });
         const count = await tx.taskAttachment.count({ where: { taskRecordId: record.id, itemIndex, uploaderUserId: session.userId, consumedAt: null } });
         if (!writable || count >= item.weight) throw new TaskAttachmentError("任务已提交、状态发生变化或附件已达到上限，请刷新后重试");
         return tx.taskAttachment.create({ data: {
@@ -88,8 +99,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ t
   try {
     const attachment = await db.$transaction(async tx => {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM TaskRecord WHERE id = ${taskInstanceId} FOR UPDATE`);
+      if (!await claimSharedTaskRecord(tx, taskInstanceId, session.userId, session.realName)) return null;
       const current = await tx.taskAttachment.findFirst({
-        where: { id: parsed.data.attachmentId, taskRecordId: taskInstanceId, uploaderUserId: session.userId, consumedAt: null, taskRecord: availableMobileTaskWhere() },
+        where: { id: parsed.data.attachmentId, taskRecordId: taskInstanceId, uploaderUserId: session.userId, consumedAt: null, taskRecord: { is: { AND: [taskRecordEditorWhere(session.userId), availableMobileTaskWhere()] } } },
         select: { id: true, r2StorageId: true, objectKey: true },
       });
       if (!current) return null;

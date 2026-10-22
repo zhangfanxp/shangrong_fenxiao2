@@ -3,17 +3,21 @@
   "taskName": "前厅日常训练New",
   "taskType": "日历任务",
   "taskTarget": "门店",
+  "specifiedTargets": [],
   "executorRoles": [
     {
       "id": "cmvf1gkw90001g5zxhuo9aq52",
       "name": "店长"
+    },
+    {
+      "id": "cmvhwfyc5000qg5ghqihyf87e",
+      "name": "主管"
     }
   ],
   "executorRole": {
     "id": "cmvf1gkw90001g5zxhuo9aq52",
     "name": "店长"
   },
-  "specifiedTargets": [],
   "brands": [
     {
       "id": "cmvf1kmdq000ag50kmh4mh992",
@@ -25,17 +29,18 @@
     "name": "R2-test",
     "bucketName": "videolist"
   },
-  "executionDays": [],
-  "deadlineDayOffset": 0,
-  "deadlineTime": "23:59",
-  "includeCompletionRate": true,
   "calendarTemplate": {
     "id": "cmvf1kmf0000zg50k445l0zh7",
     "recordNo": "202610130001",
     "name": "奋小二-前厅每日学习"
   },
+  "executionDays": [],
+  "deadlineDayOffset": 0,
+  "deadlineTime": "23:59",
+  "includeCompletionRate": true,
+  "singleRecordForMultipleExecutors": true,
   "status": "启用",
-  "configVersion": 1,
+  "configVersion": 3,
   "submitItems": [
     {
       "name": "训练视频",

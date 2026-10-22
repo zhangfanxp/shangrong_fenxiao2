@@ -16,7 +16,7 @@ import type { RectificationInspection, RectificationRoundDetail } from "@/lib/in
 type Item = { name: string; component: "attachment" | "input" | "select"; dataType: "photo" | "video" | "document" | "amount" | "quantity" | "score" | "text" | null; maxValue?: number | null; captureOnly?: boolean; options: string[]; description: string; required: boolean; weight: number };
 type DraftValue = { index: number; value: string | number };
 type ServerDraft = { values?: unknown; fallbackItemIndexes?: unknown; savedAt: string };
-type TaskDetail = { rectification?: { inspection: RectificationInspection; round: RectificationRoundDetail } | null; id: string; recordNo?: string; taskName: string; taskTypeLabel: string; targetPersonnelName?: string | null; targetPersonnelPosition?: string | null; calendarDescription?: string | null; calendarRemark?: string | null; storeName?: string; brandName?: string; executionDate: string; dueDate: string; items: Item[]; draftAttachments?: Array<{ id: string; itemIndex: number; name: string }>; draft?: ServerDraft | null };
+type TaskDetail = { rectification?: { inspection: RectificationInspection; round: RectificationRoundDetail } | null; id: string; recordNo?: string; taskName: string; taskTypeLabel: string; targetPersonnelName?: string | null; targetPersonnelPosition?: string | null; calendarDescription?: string | null; calendarRemark?: string | null; storeName?: string; brandName?: string; executionDate: string; dueDate: string; status?: "PENDING" | "COMPLETED" | "OVERDUE"; sharedExecution?: boolean; canEdit?: boolean; canStart?: boolean; editOwnerUserId?: string | null; editOwnerName?: string | null; submittedBy?: string | null; submittedAt?: string | null; submittedValues?: Array<{ index: number; value: string | null }>; items: Item[]; draftAttachments?: Array<{ id: string; itemIndex: number; name: string }>; draft?: ServerDraft | null };
 type Attachment = { clientId: string; id?: string; name: string; status: "uploading" | "success" | "error" | "local"; phase?: "preparing" | "uploading"; message?: string; progress?: number; localFile?: File };
 type DraftFeedback = { type: "success" | "warning" | "error" | "info"; message: string };
 
@@ -74,10 +74,13 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [dirty, setDirty] = useState(false);
   const [leaveTarget, setLeaveTarget] = useState(`${webBase}/tasks`);
+  const canEditTask = canSubmitTask && Boolean(task?.canEdit);
+  const canEditAttachments = canAttach && canEditTask;
   const itemRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const historyGuard = useRef(false);
 
@@ -92,13 +95,18 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
     });
     const data = await response.json().catch(() => ({}));
     if (response.status === 401) { router.replace(`${webBase}/login`); throw new Error("登录状态已失效，本次内容仅保存在本机"); }
-    if (!response.ok) throw new Error(data.message || "草稿同步失败");
+    if (!response.ok) {
+      const error = new Error(data.message || "草稿同步失败") as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+    setTask(current => current?.sharedExecution ? { ...current, canEdit: true, editOwnerUserId: draftOwnerId } : current);
     const savedAt = String(data.savedAt || new Date().toISOString());
     if (persistSyncState) await markLocalTaskDraftSynced(localDraftKey, savedAt);
     setDraftSavedAt(savedAt);
     if (showFeedback) setDraftFeedback({ type: "success", message: "本机草稿已同步到服务器" });
     return savedAt;
-  }, [apiBase, localDraftKey, router, taskInstanceId, webBase]);
+  }, [apiBase, draftOwnerId, localDraftKey, router, taskInstanceId, webBase]);
 
   const load = useCallback(async () => {
     setLoading(true); setLoadError("");
@@ -110,8 +118,9 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
       if (!response.ok) throw new Error(data.message || "任务内容加载失败，请稍后重试");
       const detail = data as TaskDetail;
       const serverDraft = detail.draft;
-      const preferLocal = Boolean(localDraft && (!serverDraft?.savedAt || new Date(localDraft.savedAt).getTime() >= new Date(serverDraft.savedAt).getTime()));
-      const nextValues = preferLocal && localDraft ? Object.entries(localDraft.values).reduce<Record<number, string | number>>((result, [index, value]) => ({ ...result, [Number(index)]: value }), {}) : serverDraftValues(serverDraft?.values);
+      const preferLocal = Boolean(detail.canEdit && localDraft && (!serverDraft?.savedAt || new Date(localDraft.savedAt).getTime() >= new Date(serverDraft.savedAt).getTime()));
+      const submittedValues = (detail.submittedValues || []).reduce<Record<number, string | number>>((result, item) => { if (item.value !== null) result[item.index] = item.value; return result; }, {});
+      const nextValues = detail.status === "COMPLETED" ? submittedValues : preferLocal && localDraft ? Object.entries(localDraft.values).reduce<Record<number, string | number>>((result, [index, value]) => ({ ...result, [Number(index)]: value }), {}) : serverDraftValues(serverDraft?.values);
       const restoredServer = (detail.draftAttachments || []).reduce<Record<number, Attachment[]>>((grouped, attachment) => {
         grouped[attachment.itemIndex] = [...(grouped[attachment.itemIndex] || []), { clientId: attachment.id, id: attachment.id, name: attachment.name, status: "success", progress: 100, message: "已恢复此前上传的附件" }];
         return grouped;
@@ -121,14 +130,14 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
       const localFallbacks = preferLocal && localDraft ? localDraft.fallbackItemIndexes : [];
       setTask(detail);
       setValues(nextValues);
-      setAttachments(mergeAttachments(restoredServer, localAttachments));
+      setAttachments(mergeAttachments(restoredServer, detail.canEdit ? localAttachments : {}));
       setFallbackItemIndexes(new Set([...serverFallbacks, ...localFallbacks]));
       setDraftSavedAt(preferLocal && localDraft ? localDraft.savedAt : serverDraft?.savedAt || "");
       setDirty(false);
-      if (localDraft && !localDraft.serverSynced && typeof navigator !== "undefined" && navigator.onLine) {
+      if (detail.canEdit && localDraft && !localDraft.serverSynced && typeof navigator !== "undefined" && navigator.onLine) {
         void syncLocalDraft(localDraft, true).catch(() => setDraftFeedback({ type: "warning", message: "已恢复本机草稿，暂未同步到服务器" }));
-      } else if (localDraft && !localDraft.serverSynced) setDraftFeedback({ type: "warning", message: "已恢复本机草稿，联网后将自动同步" });
-      else if (serverDraft?.savedAt || localDraft?.savedAt) setDraftFeedback({ type: "info", message: "已恢复上次暂存的任务内容" });
+      } else if (detail.canEdit && localDraft && !localDraft.serverSynced) setDraftFeedback({ type: "warning", message: "已恢复本机草稿，联网后将自动同步" });
+      else if (detail.canEdit && (serverDraft?.savedAt || localDraft?.savedAt)) setDraftFeedback({ type: "info", message: "已恢复上次暂存的任务内容" });
     } catch (reason) {
       if (localDraft?.task && (localDraft.task.rectification || new Date(localDraft.task.dueDate).getTime() >= Date.now())) {
         setTask(localDraft.task);
@@ -143,14 +152,54 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
   }, [apiBase, localDraftKey, router, syncLocalDraft, taskInstanceId, webBase]);
 
   useEffect(() => { void load(); }, [load]);
+  const claimExecution = async () => {
+    if (!task?.canStart || claiming) return;
+    setClaiming(true); setSubmitError("");
+    try {
+      const response = await fetch(`${apiBase}/tasks/${taskInstanceId}/claim`, { method: "POST" });
+      const data = await response.json();
+      if (response.status === 401) { router.replace(`${webBase}/login`); return; }
+      if (!response.ok) throw new Error(data.message || "开始执行失败，请刷新后重试");
+      await load();
+    } catch (reason) {
+      setSubmitError(reason instanceof Error ? reason.message : "开始执行失败，请刷新后重试");
+      void load();
+    } finally { setClaiming(false); }
+  };
+  useEffect(() => {
+    if (!task?.sharedExecution || task.status !== "PENDING" || task.editOwnerUserId === draftOwnerId) return;
+    const refreshOwnership = async () => {
+      const response = await fetch(`${apiBase}/tasks/${taskInstanceId}`, { cache: "no-store" }).catch(() => null);
+      if (!response?.ok) return;
+      const latest = await response.json() as TaskDetail;
+      if (latest.status === "COMPLETED") { void load(); return; }
+      if (latest.editOwnerUserId && latest.editOwnerUserId !== draftOwnerId) {
+        setTask(current => current && (current.canEdit || current.editOwnerUserId !== latest.editOwnerUserId)
+          ? { ...current, canEdit: false, editOwnerUserId: latest.editOwnerUserId, editOwnerName: latest.editOwnerName }
+          : current);
+        setValues(serverDraftValues(latest.draft?.values));
+        setFallbackItemIndexes(new Set(serverFallbackIndexes(latest.draft?.fallbackItemIndexes)));
+        setDraftSavedAt(latest.draft?.savedAt || "");
+        const restored = (latest.draftAttachments || []).reduce<Record<number, Attachment[]>>((grouped, attachment) => {
+          grouped[attachment.itemIndex] = [...(grouped[attachment.itemIndex] || []), { clientId: attachment.id, id: attachment.id, name: attachment.name, status: "success", progress: 100, message: "已恢复此前上传的附件" }];
+          return grouped;
+        }, {});
+        setAttachments(restored);
+        setDirty(false);
+      }
+    };
+    const timer = window.setInterval(() => { void refreshOwnership(); }, 5_000);
+    return () => window.clearInterval(timer);
+  }, [apiBase, draftOwnerId, load, task, taskInstanceId]);
   useEffect(() => {
     const synchronize = async () => {
+      if (!task) return;
       const localDraft = await getLocalTaskDraft<TaskDetail>(localDraftKey).catch(() => null);
-      if (localDraft && !localDraft.serverSynced) await syncLocalDraft(localDraft, true).catch(() => undefined);
+      if (localDraft && !localDraft.serverSynced && (!task.sharedExecution || task.canEdit)) await syncLocalDraft(localDraft, true).catch(() => undefined);
     };
     window.addEventListener("online", synchronize);
     return () => window.removeEventListener("online", synchronize);
-  }, [localDraftKey, syncLocalDraft]);
+  }, [localDraftKey, syncLocalDraft, task]);
   useEffect(() => {
     if (dirty && !successOpen && !historyGuard.current) {
       window.history.pushState({ storeTaskGuard: true }, "", window.location.href);
@@ -173,7 +222,7 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
     setAttachments(current => ({ ...current, [index]: (current[index] || []).map(attachment => attachment.clientId === clientId ? { ...attachment, ...update } : attachment) }));
   };
   const removeAttachment = async (index: number, clientId: string) => {
-    if (!canAttach) return;
+    if (!canEditAttachments) return;
     const attachment = (attachments[index] || []).find(item => item.clientId === clientId);
     if (!attachment || attachment.status === "uploading") return;
     if (attachment.id) {
@@ -192,7 +241,7 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
   };
 
   const performUpload = async (index: number, item: Item, file: File, existingClientId?: string) => {
-    if (!canAttach) return;
+    if (!canEditAttachments) return;
     const activeCount = (attachments[index] || []).filter(attachment => attachment.status === "success" || attachment.status === "uploading").length;
     if (!existingClientId && activeCount >= item.weight) { setErrors(current => ({ ...current, [index]: `最多上传${item.weight}个附件` })); return; }
     const clientId = existingClientId || crypto.randomUUID();
@@ -232,6 +281,7 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
       const sign = await signResponse.json();
       if (signResponse.status === 401) { router.replace(`${webBase}/login`); return; }
       if (!signResponse.ok) throw new Error(sign.message || "生成R2直传地址失败，请稍后重试");
+      setTask(current => current?.sharedExecution ? { ...current, canEdit: true, editOwnerUserId: draftOwnerId } : current);
       const uploaded = await putFileWithProgress({
         url: sign.uploadUrl, file: directFile, headers: sign.headers,
         onProgress: progress => updateAttachment(index, clientId, { name: directFile.name, status: "uploading", progress: dataType === "video" && prepared.optimized ? 35 + Math.round(progress * .65) : progress, message: preparationMessage }),
@@ -256,7 +306,7 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
   };
 
   const saveDraft = async () => {
-    if (!task || saving || !canSubmitTask) return;
+    if (!task || saving || !canEditTask) return;
     setSaving(true); setSubmitError(""); setDraftFeedback(undefined);
     const failedCaptureItems = task.items.flatMap((item, index) => item.component === "attachment" && item.captureOnly && (attachments[index] || []).some(attachment => (attachment.status === "error" || attachment.status === "local") && Boolean(attachment.localFile)) ? [index] : []);
     const nextFallbacks = [...new Set([...fallbackItemIndexes, ...failedCaptureItems])];
@@ -278,7 +328,10 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
       setDraftFeedback(localSaved ? { type: "success", message: "暂存成功，任务内容已保存到本机并同步到服务器" } : { type: "warning", message: "表单内容已同步服务器，但文件未能保存在本机，请勿关闭当前页面" });
       if (localSaved || !draft.files.length) setDirty(false);
     } catch (reason) {
-      if (localSaved) {
+      if ((reason as { status?: number } | null)?.status === 409) {
+        setSubmitError(reason instanceof Error ? reason.message : "任务已由其他执行人开始处理");
+        void load();
+      } else if (localSaved) {
         setDraftSavedAt(savedAt);
         setFallbackItemIndexes(new Set(nextFallbacks));
         setDraftFeedback({ type: "warning", message: "当前网络不可用，任务已暂存在本机；联网后将自动同步" });
@@ -319,8 +372,8 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
     return value !== undefined && value !== null && String(value).trim() !== "";
   }) : false;
   const attachmentUploading = Object.values(attachments).flat().some(attachment => attachment.status === "uploading");
-  const canSubmit = canSubmitTask && requiredItemsComplete && !attachmentUploading && !submitting;
-  const beginSubmit = () => { if (canSubmitTask && validate()) setConfirmOpen(true); };
+  const canSubmit = canEditTask && requiredItemsComplete && !attachmentUploading && !submitting && task?.status !== "COMPLETED";
+  const beginSubmit = () => { if (canEditTask && validate()) setConfirmOpen(true); };
   const submit = async () => {
     if (!task || submitting) return;
     setSubmitting(true); setSubmitError("");
@@ -346,7 +399,11 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
       <RectificationInspectionSection inspection={task.rectification.inspection} />
       <RectificationRequirementSection round={task.rectification.round} />
     </>}
-    {!canSubmitTask && <Alert type="info" showIcon message="当前角色仅可查看任务详情，不能填写、暂存或提交" />}
+    {task.sharedExecution && task.canStart && canSubmitTask && task.status === "PENDING" && <Alert type="info" showIcon message="当前任务尚未有人开始执行。点击后你将取得本任务编辑权，其他执行人仍可查看，但不能编辑或代为提交。" action={<Button type="primary" loading={claiming} onClick={() => void claimExecution()}>开始执行</Button>} />}
+    {task.sharedExecution && task.editOwnerUserId && task.editOwnerUserId !== draftOwnerId && task.status === "PENDING" && <Alert type="info" showIcon message={`${task.editOwnerName || "其他执行人"}已开始执行，当前只能查看，不能填写、暂存或提交。`} />}
+    {task.status === "COMPLETED" && <Alert type="success" showIcon message={`任务已由${task.submittedBy || task.editOwnerName || "执行人"}提交完成${task.submittedAt ? `（${new Date(task.submittedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}）` : ""}。当前为只读查看。`} />}
+    {task.status === "OVERDUE" && <Alert type="warning" showIcon message="任务已逾期，当前只能查看，不能继续填写或提交。" />}
+    {task.status !== "COMPLETED" && !canSubmitTask && <Alert type="info" showIcon message="当前角色仅可查看任务详情，不能填写、暂存或提交" />}
     {draftFeedback && <Alert className="store-h5-draft-alert" type={draftFeedback.type} showIcon message={draftFeedback.message} description={draftSavedAt ? `暂存时间：${new Date(draftSavedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}` : undefined} closable onClose={() => setDraftFeedback(undefined)} />}
     <section className="store-h5-form-list">
       {task.items.map((item, index) => {
@@ -359,7 +416,7 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
           : item.dataType === "document" ? successCount ? "继续上传文档" : "上传文档"
             : item.captureOnly && !fallbackUnlocked ? successCount ? "继续拍照" : "拍照" : successCount ? "继续拍照 / 选择相册照片" : "拍照 / 选择相册照片";
         return <div ref={node => { itemRefs.current[index] = node; }} className={`store-h5-form-item ${errors[index] ? "error" : ""}`} key={`${item.name}-${index}`}><div className="store-h5-form-title"><span>{index + 1}</span><div><h2>{item.name}{item.required && <b>*</b>}</h2><small>{item.required ? "必填" : "选填"}{item.component === "attachment" ? ` · 已上传 ${successCount}/${item.weight} 个` : ""}</small></div></div><p>{item.description}</p>
-          {item.component === "attachment" ? <div><Upload disabled={!canAttach} showUploadList={false} maxCount={item.weight} accept={item.dataType === "video" ? "video/*" : item.dataType === "document" ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" : "image/*"} capture={item.captureOnly && !fallbackUnlocked && (item.dataType === "photo" || item.dataType === "video") ? "environment" : undefined} beforeUpload={upload(index, item)}><Button block disabled={!canAttach || itemBusy || successCount >= item.weight} icon={item.dataType === "video" ? <VideoCameraOutlined /> : item.dataType === "photo" ? <CameraOutlined /> : <UploadOutlined />}>{!canAttach ? "无附件维护权限" : itemBusy ? "上传中..." : successCount >= item.weight ? `已达到 ${item.weight} 个上限` : uploadLabel}</Button></Upload>
+          {item.component === "attachment" ? <div><Upload disabled={!canEditAttachments} showUploadList={false} maxCount={item.weight} accept={item.dataType === "video" ? "video/*" : item.dataType === "document" ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" : "image/*"} capture={item.captureOnly && !fallbackUnlocked && (item.dataType === "photo" || item.dataType === "video") ? "environment" : undefined} beforeUpload={upload(index, item)}><Button block disabled={!canEditAttachments || itemBusy || successCount >= item.weight} icon={item.dataType === "video" ? <VideoCameraOutlined /> : item.dataType === "photo" ? <CameraOutlined /> : <UploadOutlined />}>{!canEditAttachments ? "仅可查看附件" : itemBusy ? "上传中..." : successCount >= item.weight ? `已达到 ${item.weight} 个上限` : uploadLabel}</Button></Upload>
             {fallbackUnlocked && <small className="store-h5-fallback-hint">该任务项曾上传失败，已开放从相册补传。</small>}
             {item.dataType === "video" && <small className="store-h5-video-hint">建议拍摄 {TASK_VIDEO_SUGGESTED_MIN_SECONDS}–{TASK_VIDEO_SUGGESTED_MAX_SECONDS} 秒，系统将自动压缩至最高约 720p，单个视频最大 {taskAttachmentMaxMb("video")}MB；本项最多上传 {item.weight} 个。</small>}
             {item.dataType === "photo" && successCount > 0 && <Image.PreviewGroup><div className="store-h5-photo-gallery">
@@ -369,13 +426,13 @@ export function StoreH5TaskForm({ taskInstanceId, draftOwnerId, canAttach, canSu
                 style={{ objectFit: "cover" }} preview={{ mask: "查看大图" }}
               />)}
             </div></Image.PreviewGroup>}
-            {itemAttachments.map(attachment => <div key={attachment.clientId} className={`store-h5-upload-status ${attachment.status}`}><span>{attachment.status === "uploading" ? <LoadingOutlined /> : attachment.status === "success" ? <CheckCircleFilled /> : <CloseCircleFilled />}{attachment.status === "uploading" ? `${attachment.phase === "preparing" ? "处理中" : "上传中"} ${attachment.progress || 0}%` : attachment.status === "success" ? "上传成功" : attachment.status === "local" ? "本机待上传" : "上传失败"}：{attachment.name}</span><div className="store-h5-upload-actions">{canAttach && attachment.localFile && attachment.status !== "uploading" && <Button type="text" aria-label={`重试上传${attachment.name}`} icon={<RedoOutlined />} onClick={() => void performUpload(index, item, attachment.localFile!, attachment.clientId)}>重试</Button>}{canAttach && attachment.status !== "uploading" && <Button type="text" aria-label={`删除附件${attachment.name}`} icon={<DeleteOutlined />} onClick={() => void removeAttachment(index, attachment.clientId)} />}</div>{attachment.status === "uploading" && <i className="store-h5-upload-progress"><b style={{ width: `${attachment.progress || 0}%` }} /></i>}{attachment.message && <small>{attachment.message}</small>}</div>)}
-          </div> : item.component === "select" ? <Select disabled={!canSubmitTask} value={values[index]} placeholder="请选择" options={item.options.map(option => ({ value: option, label: option }))} onChange={value => { setDirty(true); setValues(current => ({ ...current, [index]: value })); setErrors(current => ({ ...current, [index]: "" })); }} /> : item.dataType === "text" ? <Input.TextArea disabled={!canSubmitTask} value={String(values[index] ?? "")} autoSize={{ minRows: 3, maxRows: 8 }} placeholder={item.description || "请输入文字"} onChange={event => { setDirty(true); setValues(current => ({ ...current, [index]: event.target.value })); setErrors(current => ({ ...current, [index]: "" })); }} /> : <InputNumber disabled={!canSubmitTask} value={values[index]} min={0} max={item.dataType === "score" ? 5 : item.dataType === "quantity" && item.maxValue !== undefined && item.maxValue !== null ? item.maxValue : undefined} step={item.dataType === "score" ? 0.1 : item.dataType === "amount" ? 0.01 : 1} precision={item.dataType === "score" ? 1 : item.dataType === "amount" ? 2 : 0} stringMode={item.dataType === "amount"} inputMode={item.dataType === "quantity" ? "numeric" : "decimal"} placeholder={item.dataType === "score" ? "请输入0至5分，可保留一位小数" : item.dataType === "amount" ? "请输入金额" : item.maxValue !== undefined && item.maxValue !== null ? `请输入0至${item.maxValue}的整数` : "请输入非负整数"} addonBefore={item.dataType === "amount" ? "¥" : undefined} addonAfter={item.dataType === "score" ? "分" : undefined} onChange={value => { setDirty(true); setValues(current => ({ ...current, [index]: value === null ? "" : value })); setErrors(current => ({ ...current, [index]: "" })); }} />}
+            {itemAttachments.map(attachment => <div key={attachment.clientId} className={`store-h5-upload-status ${attachment.status}`}><span>{attachment.status === "uploading" ? <LoadingOutlined /> : attachment.status === "success" ? <CheckCircleFilled /> : <CloseCircleFilled />}{attachment.status === "uploading" ? `${attachment.phase === "preparing" ? "处理中" : "上传中"} ${attachment.progress || 0}%` : attachment.status === "success" ? "上传成功" : attachment.status === "local" ? "本机待上传" : "上传失败"}：{attachment.name}</span><div className="store-h5-upload-actions">{canEditAttachments && attachment.localFile && attachment.status !== "uploading" && <Button type="text" aria-label={`重试上传${attachment.name}`} icon={<RedoOutlined />} onClick={() => void performUpload(index, item, attachment.localFile!, attachment.clientId)}>重试</Button>}{canEditAttachments && attachment.status !== "uploading" && <Button type="text" aria-label={`删除附件${attachment.name}`} icon={<DeleteOutlined />} onClick={() => void removeAttachment(index, attachment.clientId)} />}</div>{attachment.status === "uploading" && <i className="store-h5-upload-progress"><b style={{ width: `${attachment.progress || 0}%` }} /></i>}{attachment.message && <small>{attachment.message}</small>}</div>)}
+          </div> : item.component === "select" ? <Select disabled={!canEditTask} value={values[index]} placeholder="请选择" options={item.options.map(option => ({ value: option, label: option }))} onChange={value => { setDirty(true); setValues(current => ({ ...current, [index]: value })); setErrors(current => ({ ...current, [index]: "" })); }} /> : item.dataType === "text" ? <Input.TextArea disabled={!canEditTask} value={String(values[index] ?? "")} autoSize={{ minRows: 3, maxRows: 8 }} placeholder={item.description || "请输入文字"} onChange={event => { setDirty(true); setValues(current => ({ ...current, [index]: event.target.value })); setErrors(current => ({ ...current, [index]: "" })); }} /> : <InputNumber disabled={!canEditTask} value={values[index]} min={0} max={item.dataType === "score" ? 5 : item.dataType === "quantity" && item.maxValue !== undefined && item.maxValue !== null ? item.maxValue : undefined} step={item.dataType === "score" ? 0.1 : item.dataType === "amount" ? 0.01 : 1} precision={item.dataType === "score" ? 1 : item.dataType === "amount" ? 2 : 0} stringMode={item.dataType === "amount"} inputMode={item.dataType === "quantity" ? "numeric" : "decimal"} placeholder={item.dataType === "score" ? "请输入0至5分，可保留一位小数" : item.dataType === "amount" ? "请输入金额" : item.maxValue !== undefined && item.maxValue !== null ? `请输入0至${item.maxValue}的整数` : "请输入非负整数"} addonBefore={item.dataType === "amount" ? "¥" : undefined} addonAfter={item.dataType === "score" ? "分" : undefined} onChange={value => { setDirty(true); setValues(current => ({ ...current, [index]: value === null ? "" : value })); setErrors(current => ({ ...current, [index]: "" })); }} />}
           {errors[index] && <div className="store-h5-field-error">{errors[index]}</div>}
         </div>;
       })}
     </section>
-    <div className="store-h5-submit-space" /><footer className="store-h5-submit-bar">{submitError && <Alert type="error" showIcon message={submitError} closable onClose={() => setSubmitError("")} />}<div className="store-h5-submit-actions"><Button size="large" icon={<SaveOutlined />} loading={saving} disabled={!canSubmitTask || saving || submitting} onClick={() => void saveDraft()}>{saving ? "暂存中..." : "暂存"}</Button><Button type="primary" size="large" loading={submitting} disabled={!canSubmit} onClick={beginSubmit}>{canSubmitTask ? submitting ? "提交中..." : "提交" : "仅可查看"}</Button></div></footer>
+    {task.status !== "COMPLETED" && <div className="store-h5-submit-space" />} {task.status !== "COMPLETED" && <footer className="store-h5-submit-bar">{submitError && <Alert type="error" showIcon message={submitError} closable onClose={() => setSubmitError("")} />}<div className="store-h5-submit-actions"><Button size="large" icon={<SaveOutlined />} loading={saving} disabled={!canEditTask || saving || submitting} onClick={() => void saveDraft()}>{saving ? "暂存中..." : "暂存"}</Button><Button type="primary" size="large" loading={submitting} disabled={!canSubmit} onClick={beginSubmit}>{canEditTask ? submitting ? "提交中..." : "提交" : "仅可查看"}</Button></div></footer>}
     <Modal title="确认提交当前任务？" open={confirmOpen} centered maskClosable={false} closable={!submitting} okText="确认提交" cancelText="取消" confirmLoading={submitting} onCancel={() => !submitting && setConfirmOpen(false)} onOk={() => void submit()}><p>提交后当前任务将变为已完成，请确认填写内容无误。</p></Modal>
     <Modal title="当前任务尚未暂存或提交" open={leaveOpen} centered okText="确认离开" cancelText="继续填写" okButtonProps={{ danger: true }} onCancel={() => setLeaveOpen(false)} onOk={() => { setDirty(false); setLeaveOpen(false); router.push(leaveTarget); }}><p>离开后尚未暂存的填写内容或文件可能丢失，是否继续？</p></Modal>
     <Modal title="温馨提示" open={successOpen} centered closable={false} maskClosable={false} footer={<Button block type="primary" onClick={() => { setSuccessOpen(false); router.replace(`${webBase}/tasks`); router.refresh(); }}>我知道了</Button>}><div className="store-h5-success"><CheckCircleFilled /><strong>当前任务已提交并完成。</strong></div></Modal>

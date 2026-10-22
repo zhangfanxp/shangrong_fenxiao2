@@ -6,6 +6,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
 import { DatabaseDictionaryButton } from "@/components/database-dictionary-button";
+import { TimeStringPicker } from "@/components/time-string-picker";
 
 type Permission = "query" | "configure" | "manual" | "download" | "delete";
 type Frequency = "DAILY" | "WEEKLY";
@@ -255,9 +256,9 @@ export function DatabaseBackup({ permissions }: { permissions: string[] }) {
           </Form.Item>}
           <Form.Item className="database-backup-times" label="执行时间" required validateStatus={scheduleError && !scheduleError.includes("星期") ? "error" : undefined} help={scheduleError && !scheduleError.includes("星期") ? scheduleError : frequency === "DAILY" ? "三个时间选择框至少填写一个，系统会在每天对应时刻分别执行完整备份。" : "系统会在所选执行日的该时刻执行完整备份。"}>
             <div className="database-backup-time-inputs">
-              {visibleTimes.map((value, index) => <Input key={index} type="time" step={60} value={value || ""} aria-label={`执行时间${index + 1}`} onChange={event => {
+              {visibleTimes.map((value, index) => <TimeStringPicker key={index} value={value || ""} aria-label={`执行时间${index + 1}`} onChange={time => {
                 const next = [...visibleTimes];
-                next[index] = event.target.value;
+                next[index] = time;
                 setExecutionTimes(next);
                 form.setFieldValue("executionTimes", next);
                 setScheduleError("");

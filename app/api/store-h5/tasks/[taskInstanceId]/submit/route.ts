@@ -7,10 +7,11 @@ import { RectificationError, submitRectificationTask } from "@/lib/inspection-re
 import { synchronizeLaborRecordForTaskSubmission } from "@/lib/labor-records";
 import { writeOperationLog } from "@/lib/operation-log";
 import { getMobileH5TaskSession, mobileH5TaskChannel, mobileH5UnauthorizedMessage } from "@/lib/mobile-h5-task-session";
-import { dateKeyAsDbDate, isStoreTaskSnapshot, shanghaiDateKey } from "@/lib/store-h5-tasks";
+import { isStoreTaskSnapshot } from "@/lib/store-h5-tasks";
 import { deleteTaskDraftFiles } from "@/lib/task-r2-upload";
 import { taskInputValueError } from "@/lib/task-input-values";
 import { nextTaskSubmissionRecordNo } from "@/lib/task-records";
+import { claimSharedTaskRecord, taskRecordEditorWhere, taskRecordParticipantWhere } from "@/lib/task-record-access";
 
 const bodySchema = z.object({
   items: z.array(z.object({
@@ -39,10 +40,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     const submittedByIndex = new Map(parsed.data.items.map(item => [item.index, item]));
     if (submittedByIndex.size !== parsed.data.items.length) throw new SubmissionError("任务提交内容存在重复项目");
     const record = await db.taskRecord.findFirst({
-      where: { id: taskInstanceId, assignedUserId: session.userId, ...availableMobileTaskWhere() },
+      where: { id: taskInstanceId, AND: [taskRecordParticipantWhere(session.userId), taskRecordEditorWhere(session.userId), availableMobileTaskWhere()] },
       include: { task: { select: { id: true, recordNo: true, r2StorageId: true } }, store: { include: { brand: true } } },
     });
-    if (!record) throw new SubmissionError("任务不存在或不属于当前用户", 404);
+    if (!record) throw new SubmissionError("任务已由其他执行人开始处理，或已完成/逾期，当前不能提交", 409);
     if (record.status !== TaskRecordStatus.PENDING) throw new SubmissionError("当前任务已经完成，请勿重复提交。", 409);
     if (!record.store || !record.executionDate || !record.taskType || !record.configVersion || !isStoreTaskSnapshot(record.configSnapshot)) throw new SubmissionError("任务配置快照异常，请联系系统管理员", 500);
     const snapshot = record.configSnapshot;
@@ -89,7 +90,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
     }
     const now = new Date();
     const submission = await db.$transaction(async tx => {
-      const updated = await tx.taskRecord.updateMany({ where: { id: record.id, assignedUserId: session.userId, status: TaskRecordStatus.PENDING }, data: { status: TaskRecordStatus.COMPLETED, completedAt: now, draftValues: Prisma.DbNull, draftCaptureFallbacks: Prisma.DbNull, draftSavedAt: null } });
+      if (!await claimSharedTaskRecord(tx, record.id, session.userId, session.realName, now)) throw new SubmissionError("其他执行人已开始处理该任务，或任务状态已变化，请刷新后查看", 409);
+      const updated = await tx.taskRecord.updateMany({ where: { id: record.id, AND: [taskRecordEditorWhere(session.userId), { status: TaskRecordStatus.PENDING }] }, data: { status: TaskRecordStatus.COMPLETED, completedAt: now, draftValues: Prisma.DbNull, draftCaptureFallbacks: Prisma.DbNull, draftSavedAt: null } });
       if (updated.count !== 1) throw new SubmissionError("当前任务已经完成，请勿重复提交。", 409);
       const formalRecordNo = await nextTaskSubmissionRecordNo(tx, now);
       const created = await tx.taskSubmission.create({ data: {
