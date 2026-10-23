@@ -1,0 +1,4 @@
+ALTER TABLE `Personnel`
+  MODIFY COLUMN `contractSignDate` DATETIME(3) NULL,
+  MODIFY COLUMN `contractExpiryDate` DATETIME(3) NULL,
+  MODIFY COLUMN `homeAddress` VARCHAR(50) NULL;

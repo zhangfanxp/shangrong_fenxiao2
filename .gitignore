@@ -35,6 +35,7 @@ temp/
 *.tmp
 *.swp
 *.swo
+.local-ai/
 
 # macOS and editor metadata
 .DS_Store

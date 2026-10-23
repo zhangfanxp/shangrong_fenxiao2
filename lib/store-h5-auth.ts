@@ -61,21 +61,21 @@ export async function getStoreH5Session(requirement?: RolePermissionRequirement)
     if (!hasRolePlatformAccess(permissions, "store-h5")) return null;
     if (requirement && !hasRolePermission(permissions, requirement)) return null;
     const configuredStoreIds = jsonIdArray(user.leadH5StoreIds);
+    const personnelStoreScope = Boolean(user.personnelProfile && configuredStoreIds.length);
     const linkedStores = await db.store.findMany({
       where: {
         operationStatus: { not: "CLOSED" },
-        OR: [
+        OR: personnelStoreScope ? [{ id: { in: configuredStoreIds } }] : [
           ...(configuredStoreIds.length ? [{ id: { in: configuredStoreIds } }] : []),
-          { managerUserId: user.id },
-          { chefUserId: user.id },
-          { supervisorUserId: user.id },
+          { managerUserId: user.id }, { chefUserId: user.id }, { supervisorUserId: user.id },
           { taskRecords: { some: taskRecordParticipantWhere(user.id) } },
         ],
       },
       include: { brand: true },
     });
     const effectiveStoreIds = [...new Set([...configuredStoreIds, ...linkedStores.map(store => store.id)])];
-    const resolvedStores = resolveUserStores({ ...user, leadH5StoreIds: effectiveStoreIds }, new Map(linkedStores.map(store => [store.id, store])));
+    const resolvedStores = resolveUserStores({ ...user, leadH5StoreIds: effectiveStoreIds }, new Map(linkedStores.map(store => [store.id, store])))
+      .filter(store => !personnelStoreScope || configuredStoreIds.includes(store.id));
     const primaryStore = resolvedStores[0] || null;
     return {
       userId: user.id,

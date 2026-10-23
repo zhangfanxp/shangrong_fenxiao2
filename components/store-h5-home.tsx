@@ -1,6 +1,6 @@
 "use client";
 
-import { BellOutlined, BookOutlined, CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined, LogoutOutlined, ReadOutlined, ShopOutlined } from "@ant-design/icons";
+import { BellOutlined, BookOutlined, CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined, GiftOutlined, LogoutOutlined, ReadOutlined, ShopOutlined } from "@ant-design/icons";
 import { Alert, Button, message, Modal } from "antd";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -17,7 +17,15 @@ const entries = [
   { name: "我的门店", icon: <ShopOutlined />, href: "/store_h5/my-store", permission: "store-h5:my-store:view", myStore: true },
 ];
 
-export function StoreH5Home({ realName, storeName, permissions, initialPendingCount, initialDailyLearningPending, canAccessDailyAttendance }: { realName: string; storeName: string | null; permissions: string[]; initialPendingCount: number; initialDailyLearningPending: boolean; canAccessDailyAttendance: boolean }) {
+type BirthdayRow = { id: string; name: string; birthday: string; birthdayCalendar: "LUNAR" | "SOLAR"; date: string };
+
+function formatWeekdayDate(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  return `${month}月${day}日 ${weekday}`;
+}
+
+export function StoreH5Home({ realName, storeName, permissions, initialPendingCount, initialDailyLearningPending, birthdayRows, canAccessDailyAttendance }: { realName: string; storeName: string | null; permissions: string[]; initialPendingCount: number; initialDailyLearningPending: boolean; birthdayRows: BirthdayRow[]; canAccessDailyAttendance: boolean }) {
   const router = useRouter();
   const [pendingCount, setPendingCount] = useState(initialPendingCount);
   const [dailyLearningPending, setDailyLearningPending] = useState(initialDailyLearningPending);
@@ -84,6 +92,10 @@ export function StoreH5Home({ realName, storeName, permissions, initialPendingCo
   };
   return <main className="store-h5-page">
     <header className="store-h5-header"><div><small>{storeName || "门店工作台"}</small><strong>你好：{realName}</strong></div><Button type="text" icon={<LogoutOutlined />} onClick={() => setLogoutOpen(true)}>退出</Button></header>
+    <section className="store-h5-birthday-card" aria-labelledby="store-h5-birthday-title">
+      <div className="store-h5-birthday-heading"><span><GiftOutlined /></span><div><h1 id="store-h5-birthday-title">本周生日提醒</h1><p>{birthdayRows.length ? `本周有 ${birthdayRows.length} 位伙伴生日，记得送上祝福` : "本周暂无员工生日，一起期待下一次庆祝"}</p></div></div>
+      {birthdayRows.length > 0 && <ul>{birthdayRows.map(person => <li key={person.id}><strong>{person.name}</strong><span>{formatWeekdayDate(person.date)}</span><small>{person.birthdayCalendar === "SOLAR" ? "公历" : `农历 ${Number(person.birthday.slice(0, 2))}月${Number(person.birthday.slice(3))}日`}</small></li>)}</ul>}
+    </section>
     <section className="store-h5-hero"><span><ClockCircleOutlined /></span><div><h1>今日工作任务</h1><p>按要求完成任务并及时提交</p></div></section>
     <section className="store-h5-section"><h2>常用功能</h2><div className="store-h5-entry-grid">
       {visibleEntries.map(entry => <button key={entry.name} className="store-h5-entry active" onClick={() => router.push(entry.href)}><span>{entry.icon}{entry.key === "daily-learning" && dailyLearningPending && <i className="mobile-h5-entry-dot" role="status" aria-label="有未完成的每日学习" />}</span><strong>{entry.name}</strong>{entry.key === "pending" && pendingCount > 0 && <b className="store-h5-entry-badge" aria-label={`${pendingCount}项待完成任务`}>{pendingCount > 10 ? "10+" : pendingCount}</b>}</button>)}

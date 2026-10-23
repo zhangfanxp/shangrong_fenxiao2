@@ -52,7 +52,7 @@ export function normalizeAiServiceApiConfig(value: AiServiceApiConfig | undefine
 
 export function aiEndpointExample(model: AiModelId, service: string) {
   const kind = aiServiceKind(service);
-  if (model === "QWEN3_VL") return kind === "image" ? "http://127.0.0.1:8000/v1/analyze" : "";
+  if (model === "QWEN3_VL") return kind === "image" ? "http://127.0.0.1:8012/v1/analyze" : "";
   const path = kind === "image" ? "image" : kind === "video" ? "video" : kind === "text" ? "text" : "service";
-  return `http://127.0.0.1:8000/api/v1/analyze/${path}`;
+  return `http://127.0.0.1:8013/api/v1/analyze/${path}`;
 }

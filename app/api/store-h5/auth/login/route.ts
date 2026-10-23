@@ -5,6 +5,7 @@ import { createStoreH5Session, storeH5SessionCookie } from "@/lib/store-h5-auth"
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { hasRolePlatformAccess } from "@/lib/role-permissions";
+import { firstLoginChangeResponse } from "@/lib/first-login-change";
 
 const input = z.object({ username: z.string().trim().min(1, "请输入账号"), password: z.string().min(1, "请输入密码") });
 
@@ -20,11 +21,15 @@ export async function POST(request: Request) {
     await writeOperationLog({ userId: user.id, username: user.username, client: "门店员工移动端", page: "登录页面", action: "登录", result: "失败", detail: "账号或角色已禁用", request }).catch(() => undefined);
     return NextResponse.json({ message: "当前账号已被禁用，请联系平台管理员" }, { status: 403 });
   }
-  if (user.mustChangePassword) return NextResponse.json({ message: "请先在运营管理系统完成首次密码修改，再登录门店移动端" }, { status: 403 });
   const permissions = Array.isArray(user.role.permissions) ? user.role.permissions.filter((item): item is string => typeof item === "string") : [];
   if (!hasRolePlatformAccess(permissions, "store-h5")) {
     await writeOperationLog({ userId: user.id, username: user.username, client: "门店员工移动端", page: "登录页面", action: "登录", result: "失败", detail: "所属角色未配置门店H5移动端权限", request }).catch(() => undefined);
     return NextResponse.json({ message: "当前账号暂无门店H5移动端使用权限" }, { status: 403 });
+  }
+  if (user.mustChangePassword) {
+    await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await writeOperationLog({ userId: user.id, username: user.username, client: "门店员工移动端", page: "登录页面", action: "登录", result: "成功", detail: "登录后需完成首次密码修改", request }).catch(() => undefined);
+    return firstLoginChangeResponse({ userId: user.id, channel: "store_h5" }, user.realName);
   }
   const token = await createStoreH5Session(user.id);
   await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });

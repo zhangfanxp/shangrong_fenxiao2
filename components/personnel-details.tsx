@@ -27,10 +27,10 @@ export type PersonnelDetail = {
   store?: PersonnelStore | null;
   resignationDate?: string | null;
   resignationReason?: string | null;
-  contractSignDate: string;
+  contractSignDate: string | null;
   contractYears?: number | null;
-  contractExpiryDate: string;
-  homeAddress: string;
+  contractExpiryDate: string | null;
+  homeAddress: string | null;
   currentAddress: string;
   supplementaryMaterial?: string | null;
   baseSalary: string;

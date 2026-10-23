@@ -23,7 +23,9 @@ export async function personnelLog(userId: string, action: string, result: Opera
   await writeOperationLog({ userId, page: "人员档案", action, result, detail }).catch(() => undefined);
 }
 
-export function toDate(value: string) { return new Date(`${value}T00:00:00.000`); }
+export function toDate(value: string): Date;
+export function toDate(value?: string | null): Date | null;
+export function toDate(value?: string | null) { return value ? new Date(`${value}T00:00:00.000`) : null; }
 
 export async function validatePersonnelRelations(data: PersonnelInput, editingId?: string) {
   const current = shanghaiYearMonth();
@@ -65,7 +67,7 @@ export function personnelData(data: PersonnelInput, normalizedPosition: string, 
     name: data.name, phone: data.phone, idNumber: data.idNumber, birthday: data.birthday || null, birthdayCalendar: data.birthdayCalendar,
     hireDate: toDate(data.hireDate), positionLevel: normalizedPosition, organization: data.organization, department: data.organization === "总部" ? data.department : null, storeId: data.organization === "总部" ? null : data.storeId,
     contractSignDate: toDate(data.contractSignDate), contractYears: data.contractYears ?? null, contractExpiryDate: toDate(data.contractExpiryDate),
-    homeAddress: data.homeAddress, currentAddress: data.currentAddress, supplementaryMaterial: data.supplementaryMaterial || null,
+    homeAddress: data.homeAddress?.trim() || null, currentAddress: data.currentAddress, supplementaryMaterial: data.supplementaryMaterial || null,
     baseSalary: new Prisma.Decimal(data.baseSalary), laborCost: new Prisma.Decimal(laborCost), workdayHours: workdayHours === null ? null : new Prisma.Decimal(workdayHours), socialSecurity: data.socialSecurity, platformAccess: data.platformAccess || null,
     platformUserId: data.platformAccess === "YES" ? data.platformUserId : null, remark: data.remark || null,
   };

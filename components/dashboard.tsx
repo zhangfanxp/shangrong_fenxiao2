@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { displayDate } from "@/lib/format";
 
 type ReminderEmployee = { id: string; name: string; phone: string; positionLevel: string; workplace: string };
-type ExpiringEmployeeContract = ReminderEmployee & { contractSignDate: string; contractExpiryDate: string };
+type ExpiringEmployeeContract = ReminderEmployee & { contractSignDate: string | null; contractExpiryDate: string | null };
 type BirthdayReminderEmployee = ReminderEmployee & { birthdayCalendar: "LUNAR" | "SOLAR"; birthday: string | null };
 type Stats = {
   contracts: number;

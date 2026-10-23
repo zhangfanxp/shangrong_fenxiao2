@@ -1176,6 +1176,16 @@ a { color: inherit; text-decoration: none; }
 .store-h5-header small { color: #89958e; font-size: 12px; }
 .store-h5-header strong { font-size: 18px; }
 .store-h5-header .ant-btn { min-height: 44px; color: #65736c; }
+.store-h5-birthday-card { margin: 14px 16px 18px; padding: 16px; border: 1px solid #f4dfb5; border-radius: 16px; background: linear-gradient(145deg, #fffdf7, #fff8e9); box-shadow: 0 5px 16px rgba(132, 95, 22, .06); }
+.store-h5-birthday-heading { display: flex; align-items: center; gap: 11px; }
+.store-h5-birthday-heading > span { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 13px; color: #d78a18; background: #fff0cc; font-size: 20px; }
+.store-h5-birthday-heading h1 { margin: 0 0 3px; color: #49391e; font-size: 16px; }
+.store-h5-birthday-heading p { margin: 0; color: #927344; font-size: 12px; }
+.store-h5-birthday-card ul { display: grid; margin: 13px 0 0; padding: 0; gap: 8px; list-style: none; }
+.store-h5-birthday-card li { display: grid; padding: 10px 11px; align-items: center; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; border: 1px solid rgba(235, 213, 169, .7); border-radius: 11px; background: rgba(255,255,255,.8); }
+.store-h5-birthday-card li strong { overflow: hidden; color: #49391e; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.store-h5-birthday-card li span { color: #6e5a37; font-size: 12px; }
+.store-h5-birthday-card li small { grid-column: 1 / -1; color: #a18860; font-size: 11px; }
 .store-h5-hero { display: flex; margin: 18px 16px 22px; padding: 20px; align-items: center; gap: 15px; border-radius: 18px; color: #fff; background: linear-gradient(135deg, #25a36c 0%, #147a4c 68%, #11673f 100%); box-shadow: 0 12px 26px rgba(25, 128, 81, .2); }
 .store-h5-hero > span { display: grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 15px; background: rgba(255,255,255,.16); font-size: 22px; }
 .store-h5-hero h1 { margin: 0 0 4px; font-size: 19px; }

@@ -1167,10 +1167,10 @@ model Personnel {
   store                 Store?                @relation(fields: [storeId], references: [id])
   resignationDate       DateTime?
   resignationReason     String?               @db.VarChar(200)
-  contractSignDate      DateTime
+  contractSignDate      DateTime?
   contractYears         Int?
-  contractExpiryDate    DateTime
-  homeAddress           String                @db.VarChar(50)
+  contractExpiryDate    DateTime?
+  homeAddress           String?               @db.VarChar(50)
   currentAddress        String                @db.VarChar(50)
   supplementaryMaterial String?               @db.VarChar(50)
   baseSalary            Decimal               @db.Decimal(12, 2)

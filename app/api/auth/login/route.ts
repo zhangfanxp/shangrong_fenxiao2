@@ -6,6 +6,7 @@ import { firstAccessiblePath } from "@/lib/access-control";
 import { db } from "@/lib/db";
 import { writeOperationLog } from "@/lib/operation-log";
 import { hasRolePlatformAccess } from "@/lib/role-permissions";
+import { firstLoginChangeResponse } from "@/lib/first-login-change";
 
 const input = z.object({ username: z.string().trim().min(1, "请输入账号"), password: z.string().min(1, "请输入密码") });
 
@@ -36,16 +37,21 @@ export async function POST(request: Request) {
     await writeOperationLog({ userId: user.id, username: user.username, page: "登录页面", action: "登录", result: "失败", detail: "所属角色未配置运营PC端权限", request }).catch(() => undefined);
     return NextResponse.json({ message: "当前账号不具备运营PC端登录权限，请联系平台管理员" }, { status: 403 });
   }
-  const sessionStartedAt = performance.now();
-  const token = await createSession({ userId: user.id });
-  const sessionDuration = duration(sessionStartedAt);
   const writesStartedAt = performance.now();
   await Promise.all([
     db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }),
     writeOperationLog({ userId: user.id, username: user.username, page: "登录页面", action: "登录", result: "成功", detail: "登录运营管理PC端", request }).catch(() => undefined),
   ]);
   const writesDuration = duration(writesStartedAt);
-  const response = NextResponse.json({ realName: user.realName, redirectTo: user.mustChangePassword ? "/lead_pc/change-password" : firstAccessiblePath(permissions) });
+  if (user.mustChangePassword) {
+    const response = await firstLoginChangeResponse({ userId: user.id, channel: "lead_pc" }, user.realName);
+    response.headers.set("Server-Timing", serverTiming({ user_lookup: userLookupDuration, password_verify: passwordDuration, login_writes: writesDuration, total: duration(totalStartedAt) }));
+    return response;
+  }
+  const sessionStartedAt = performance.now();
+  const token = await createSession({ userId: user.id });
+  const sessionDuration = duration(sessionStartedAt);
+  const response = NextResponse.json({ realName: user.realName, redirectTo: firstAccessiblePath(permissions) });
   response.cookies.set(sessionCookie.name, token, sessionCookie.options);
   response.headers.set("Server-Timing", serverTiming({ user_lookup: userLookupDuration, password_verify: passwordDuration, session_sign: sessionDuration, login_writes: writesDuration, total: duration(totalStartedAt) }));
   return response;

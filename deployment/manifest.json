@@ -1,8 +1,8 @@
 {
   "deploymentVersion": 2,
-  "databaseSchemaVersion": 49,
-  "databaseSchemaChecksum": "08d29435490534c1fb57745f73806594b85de110c0bd548078ad675fb5bffa21",
-  "latestMigration": "202610211000_add_shared_task_execution.sql",
+  "databaseSchemaVersion": 50,
+  "databaseSchemaChecksum": "9d9cdb304db158221d790097a1adbcf5165b5174e8abd5706bced62920cb4128",
+  "latestMigration": "202610221000_allow_optional_personnel_contract_dates_and_home_address.sql",
   "configSchemaVersion": 7,
   "requiredEnvironment": [
     "DATABASE_URL",

@@ -1240,10 +1240,10 @@
 | storeId | 门店ID | varchar(191) NULL | 关联记录的门店ID。 | 否 | 普通：Personnel_storeId_idx |
 | resignationDate | 离职日期 | datetime(3) NULL | 离职日期对应的业务日期。 | 否 | — |
 | resignationReason | 离职原因 | varchar(200) NULL | 人员档案记录中的离职原因。 | 否 | — |
-| contractSignDate | 合同签约日期 | datetime(3) NOT NULL | 合同签约日期对应的业务日期。 | 否 | — |
+| contractSignDate | 合同签约日期 | datetime(3) NULL | 合同签约日期对应的业务日期。 | 否 | — |
 | contractYears | 合同年数 | int NULL | 人员档案记录中的合同年数。 | 否 | — |
-| contractExpiryDate | 合同到期日期 | datetime(3) NOT NULL | 合同到期日期对应的业务日期。 | 否 | — |
-| homeAddress | 家庭地址 | varchar(50) NOT NULL | 人员档案记录中的家庭地址。 | 否 | — |
+| contractExpiryDate | 合同到期日期 | datetime(3) NULL | 合同到期日期对应的业务日期。 | 否 | — |
+| homeAddress | 家庭地址 | varchar(50) NULL | 人员档案记录中的家庭地址。 | 否 | — |
 | currentAddress | 当前地址 | varchar(50) NOT NULL | 人员档案记录中的当前地址。 | 否 | — |
 | supplementaryMaterial | 补充材料 | varchar(50) NULL | 人员档案记录中的补充材料。 | 否 | — |
 | baseSalary | 基础薪资 | decimal(12,2) NOT NULL | 人员档案记录中的基础薪资。 | 否 | — |

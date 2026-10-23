@@ -22,10 +22,10 @@ type EmployeeForm = {
   birthday?: Dayjs;
   hireDate: Dayjs;
   positionLevel: string;
-  contractSignDate: Dayjs;
+  contractSignDate?: Dayjs;
   contractYears?: number | null;
-  contractExpiryDate: Dayjs;
-  homeAddress: string;
+  contractExpiryDate?: Dayjs;
+  homeAddress?: string;
   currentAddress: string;
   baseSalary: number;
   socialSecurity: string;
@@ -149,13 +149,13 @@ export function StoreH5EmployeeCreate() {
         </FormSection>
 
         <FormSection title="合同信息">
-          <Form.Item label="合同签署日期" name="contractSignDate" rules={[{ required: true, message: "请选择合同签署日期" }]}><DatePicker format="YYYY-MM-DD" placeholder="请选择合同签署日期" /></Form.Item>
+          <Form.Item label="合同签署日期" name="contractSignDate"><DatePicker format="YYYY-MM-DD" placeholder="选填" /></Form.Item>
           <Form.Item label="合同年限" name="contractYears"><InputNumber min={1} max={50} precision={0} suffix="年" placeholder="选填" /></Form.Item>
-          <Form.Item label="合同到期日" name="contractExpiryDate" rules={[{ required: true, message: "请选择合同到期日" }, ({ getFieldValue }) => ({ validator(_, value?: Dayjs) { const start = getFieldValue("contractSignDate") as Dayjs | undefined; return !value || !start || !value.isBefore(start, "day") ? Promise.resolve() : Promise.reject(new Error("合同到期日不能早于合同签署日期")); } })]}><DatePicker format="YYYY-MM-DD" placeholder="请选择合同到期日" onChange={() => form.setFieldValue("contractYears", null)} /></Form.Item>
+          <Form.Item label="合同到期日" name="contractExpiryDate" rules={[({ getFieldValue }) => ({ validator(_, value?: Dayjs) { const start = getFieldValue("contractSignDate") as Dayjs | undefined; return !value || !start || !value.isBefore(start, "day") ? Promise.resolve() : Promise.reject(new Error("合同到期日不能早于合同签署日期")); } })]}><DatePicker format="YYYY-MM-DD" placeholder="选填" onChange={() => form.setFieldValue("contractYears", null)} /></Form.Item>
         </FormSection>
 
         <FormSection title="联系信息">
-          <Form.Item label="家庭住址" name="homeAddress" rules={[{ required: true, message: "请输入家庭住址" }, { max: 50, message: "家庭住址不能超过50个字符" }]}><Input.TextArea maxLength={50} showCount autoSize={{ minRows: 2, maxRows: 4 }} placeholder="请输入家庭住址" /></Form.Item>
+          <Form.Item label="家庭住址" name="homeAddress" rules={[{ max: 50, message: "家庭住址不能超过50个字符" }]}><Input.TextArea maxLength={50} showCount autoSize={{ minRows: 2, maxRows: 4 }} placeholder="选填" /></Form.Item>
           <Form.Item label="现住址" name="currentAddress" rules={[{ required: true, message: "请输入现住址" }, { max: 50, message: "现住址不能超过50个字符" }]}><Input.TextArea maxLength={50} showCount autoSize={{ minRows: 2, maxRows: 4 }} placeholder="请输入现住址" /></Form.Item>
         </FormSection>
 
